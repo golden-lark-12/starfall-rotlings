@@ -53,7 +53,7 @@ into your base and steal your Rotlings — unless you lock the base.
   (rebirths and base colours), `IndexService` (found sets and rewards),
   `LeaderstatsService` (Coins / Rebirths), `DataService` (profiles and
   DataStore saves), `State` (shared server state), `Tour` (screenshot
-  scene setters), `init.server.luau` (bootstrap).
+  scene setters), `Main.server.luau` (bootstrap).
 - `src/client/` — `HUDController` (coins, income, storm timer, lock,
   banner, rebirth), `ShopController`, `IndexController`,
   `RarityPopupController` (the big MYTHIC! banner), `StormWarningController`

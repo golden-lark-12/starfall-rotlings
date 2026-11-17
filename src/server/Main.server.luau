@@ -1,10 +1,29 @@
 --!strict
+print('[Server] boot ok')
+
 -- Starfall Rotlings: server bootstrap.
 -- Builds the world, starts every service, wires the remotes, and handles
 -- players joining, dying and leaving. One system per module; the server
 -- owns every number and the client only ever asks.
+--
+-- NOTE: this file is Main.server.luau, NOT init.server.luau, on purpose.
+-- A folder with an init.server.luau collapses into the Script itself in
+-- Rojo, so script.Parent inside it is ServerScriptService and every
+-- require(script.Parent.X) fails — the whole server died on line 9 and
+-- nothing (no map, no bases, no storm) ever ran. As a plain Script in the
+-- Server folder, script.Parent is the folder and the requires resolve.
 
 local Players = game:GetService("Players")
+
+-- Run one startup step, warning (not dying) when it fails, so Studio's
+-- Output shows exactly where the boot stops. Returns false on failure.
+local function step(name: string, fn: () -> ()): boolean
+	local ok, err = pcall(fn)
+	if not ok then
+		warn("[Server] step failed: " .. name .. " — " .. tostring(err))
+	end
+	return ok
+end
 
 local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
@@ -20,15 +39,20 @@ local State = require(script.Parent.State)
 local WorldBuilder = require(script.Parent.WorldBuilder)
 
 -- Build first, then start the services that depend on the world.
-WorldBuilder.build()
-BaseService.init()
-CarryService.init()
-ShopService.init()
-RebirthService.init()
-IncomeService.start()
-StarfallService.start()
-SpawnService.start()
-RaiderService.start()
+-- The map is critical: without it nothing else can run, so a failed map
+-- aborts the boot. Every other step warns and continues.
+if not step("map (WorldBuilder.build)", WorldBuilder.build) then
+	warn("[Server] boot aborted: map failed to build.")
+	return
+end
+step("bases (BaseService.init)", BaseService.init)
+step("carry (CarryService.init)", CarryService.init)
+step("shop (ShopService.init)", ShopService.init)
+step("rebirth (RebirthService.init)", RebirthService.init)
+step("income (IncomeService.start)", IncomeService.start)
+step("storm (StarfallService.start)", StarfallService.start)
+step("spawner (SpawnService.start)", SpawnService.start)
+step("raiders (RaiderService.start)", RaiderService.start)
 
 -- Pad prompts: pressing E on any pad asks the server to place the
 -- Rotling you carry (it checks the pad is yours and free).
