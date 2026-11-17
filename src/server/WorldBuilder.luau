@@ -257,12 +257,16 @@ local function buildBase(baseId: number)
 	flag.CanCollide = false
 	baseFlags[baseId] = flag
 	-- Owner sign: a dark rounded backing so the name stays legible.
+	-- Name on line 1, $ counter on its own line 2 underneath — the two
+	-- never overlap. The sign only shows within 60 studs, so it never
+	-- sits at the screen edge over the HUD buttons.
 	local sign = Instance.new("BillboardGui")
 	sign.Name = "BaseSign"
-	sign.Size = UDim2.fromOffset(200, 60)
+	sign.Size = UDim2.fromOffset(200, 100)
 	sign.StudsOffsetWorldSpace = Vector3.new(0, 4, 0)
 	sign.AlwaysOnTop = true
 	sign.LightInfluence = 0
+	sign.MaxDistance = 60
 	sign.Parent = flag
 	local signBg = Instance.new("Frame")
 	signBg.Name = "SignBg"
@@ -276,7 +280,7 @@ local function buildBase(baseId: number)
 	signBg.Parent = sign
 	local signLabel = Instance.new("TextLabel")
 	signLabel.Name = "BaseLabel"
-	signLabel.Size = UDim2.new(1, 0, 1, 0)
+	signLabel.Size = UDim2.new(1, 0, 0.55, 0)
 	signLabel.BackgroundTransparency = 1
 	signLabel.Text = "Base " .. tostring(baseId)
 	signLabel.Font = Enum.Font.FredokaOne
@@ -285,28 +289,19 @@ local function buildBase(baseId: number)
 	signLabel.TextStrokeTransparency = 0.3
 	signLabel.Parent = sign
 	signLabels[baseId] = signLabel
-	-- Floating cash counter above the base, fed by the income broadcast.
-	local cashAnchor = part("CashAnchor", Enum.PartType.Block, Vector3.new(1, 1, 1), Color3.fromRGB(255, 255, 255), cf * CFrame.new(0, 15, 0))
-	cashAnchor.Transparency = 1
-	cashAnchor.CanCollide = false
-	cashAnchor.CanQuery = false
-	cashAnchor.CastShadow = false
-	local cashGui = Instance.new("BillboardGui")
-	cashGui.Name = "BaseCash"
-	cashGui.Size = UDim2.fromOffset(200, 48)
-	cashGui.AlwaysOnTop = true
-	cashGui.LightInfluence = 0
-	cashGui.Parent = cashAnchor
+	-- Floating cash counter: line 2 of the same sign, fed by the income
+	-- broadcast. One billboard, so it can never drift onto the name.
 	local cashLabel = Instance.new("TextLabel")
 	cashLabel.Name = "CashLabel"
-	cashLabel.Size = UDim2.new(1, 0, 1, 0)
+	cashLabel.Position = UDim2.new(0, 0, 0.55, 0)
+	cashLabel.Size = UDim2.new(1, 0, 0.45, 0)
 	cashLabel.BackgroundTransparency = 1
 	cashLabel.Text = "$0"
 	cashLabel.Font = Enum.Font.FredokaOne
 	cashLabel.TextScaled = true
 	cashLabel.TextColor3 = Color3.fromRGB(255, 225, 90)
 	cashLabel.TextStrokeTransparency = 0.3
-	cashLabel.Parent = cashGui
+	cashLabel.Parent = sign
 	cashLabels[baseId] = cashLabel
 
 	-- Pads: glowing plates the Rotlings stand on, each on a plinth.
@@ -456,30 +451,47 @@ local CRYSTAL_COLORS = {
 	Color3.fromRGB(120, 200, 255),
 }
 
--- One crystal: a tall neon wedge, tilted outward.
-local function crystal(x: number, y: number, z: number, height: number, color: Color3, tiltAngle: number?)
-	local c = part("Crystal", Enum.PartType.Wedge, Vector3.new(1.6, height, 1.6), color, CFrame.new(x, y + height * 0.4, z) * CFrame.Angles(0, math.random() * math.pi * 2, 0), Enum.Material.Neon)
+-- One crystal: a chunky 3D neon wedge. Width sets the footprint and
+-- tilt splays it outward, so a cluster reads as 3D from the path
+-- instead of a flat slab.
+local function crystal(x: number, y: number, z: number, height: number, width: number, color: Color3, tiltX: number, tiltZ: number)
+	local c = part("Crystal", Enum.PartType.Wedge, Vector3.new(width, height, width), color, CFrame.new(x, y + height * 0.4, z) * CFrame.Angles(tiltX, math.random() * math.pi * 2, tiltZ), Enum.Material.Neon)
 	c.CanCollide = false
 	c.CastShadow = false
-	if tiltAngle then
-		c.CFrame = CFrame.new(x, y + height * 0.4, z) * CFrame.Angles(0, math.random() * math.pi * 2, 0) * CFrame.Angles(tiltAngle, 0, 0)
-	end
 	return c
 end
 
--- Crystal clusters scattered across the map.
+-- Crystal clusters scattered across the map: each one a splayed bunch
+-- of wedges in a few sizes (small, medium, large) and mixed colours
+-- (pink, cyan, violet, light blue), tilted outward in all directions.
 local function buildCrystalClusters()
 	for _ = 1, 9 do
 		local angle = math.random() * math.pi * 2
 		local radius = 42 + math.random() * 95
 		local cx = math.cos(angle) * radius
 		local cz = math.sin(angle) * radius
-		local color = CRYSTAL_COLORS[math.random(1, #CRYSTAL_COLORS)]
-		local count = 3 + math.random(0, 2)
-		for i = 1, count do
-			local ox = cx + (math.random() - 0.5) * 4
-			local oz = cz + (math.random() - 0.5) * 4
-			crystal(ox, 0, oz, 2.5 + math.random() * 3.5, color, (math.random() - 0.5) * 0.4)
+		local count = 4 + math.random(0, 2)
+		for _ = 1, count do
+			local ox = cx + (math.random() - 0.5) * 5
+			local oz = cz + (math.random() - 0.5) * 5
+			local roll = math.random()
+			local height: number
+			local width: number
+			if roll < 0.4 then
+				-- Small.
+				height = 2 + math.random() * 1.5
+				width = 1.4 + math.random() * 0.6
+			elseif roll < 0.8 then
+				-- Medium.
+				height = 3.5 + math.random() * 2
+				width = 2 + math.random() * 1
+			else
+				-- Large.
+				height = 6 + math.random() * 2.5
+				width = 3 + math.random() * 1
+			end
+			local color = CRYSTAL_COLORS[math.random(1, #CRYSTAL_COLORS)]
+			crystal(ox, 0, oz, height, width, color, (math.random() - 0.5) * 0.7, (math.random() - 0.5) * 0.7)
 		end
 	end
 end
@@ -609,12 +621,12 @@ local function buildCraterDecor()
 		steam.SpreadAngle = Vector2.new(25, 25)
 		steam.Parent = anchor
 	end
-	-- Crystal ring around the rim.
+	-- Crystal ring around the rim: chunky wedges, mixed sizes/colours.
 	for i = 1, 12 do
 		local angle = (i - 1) * (math.pi * 2 / 12) + 0.26
 		local x = math.cos(angle) * 33
 		local z = math.sin(angle) * 33
-		crystal(x, 0.4, z, 3 + math.random() * 2.5, CRYSTAL_COLORS[math.random(1, #CRYSTAL_COLORS)], (math.random() - 0.5) * 0.3)
+		crystal(x, 0.4, z, 3 + math.random() * 2.5, 2 + math.random(), CRYSTAL_COLORS[math.random(1, #CRYSTAL_COLORS)], (math.random() - 0.5) * 0.5, (math.random() - 0.5) * 0.5)
 	end
 	-- Beacon beam: a tall thin gold column from the crater centre,
 	-- pulsing slowly so it reads from spawn.

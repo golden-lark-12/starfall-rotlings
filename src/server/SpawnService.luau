@@ -93,7 +93,8 @@ function SpawnService.spawnOne(): Model?
 	-- Spawn on the crater floor (top of the crater disc), never at Y=0:
 	-- the disc sits above the ground, so Y=0 buries the Rotling in it.
 	local position = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
-	local model = RotlingFactory.build(def.id, mutation, position)
+	-- Crater spawns build at 1.5x so they read from the path.
+	local model = RotlingFactory.build(def.id, mutation, position, 1.5)
 	if not model then
 		return nil
 	end

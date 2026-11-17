@@ -155,7 +155,14 @@ function CarryService.tryGrab(player: Player, model: Model)
 		Remotes.bannerEvent():FireClient(player, "Your arms are full! Buy Extra Arms in the shop.", 3)
 		return
 	end
+	-- Shrink to about head size and bubble it BEFORE welding, so the
+	-- carried Rotling never blocks the player's view.
+	RotlingFactory.setCarriedVisual(model, true)
 	if not weldToPlayer(model, player) then
+		-- Weld failed: restore the crater look so the Rotling is not
+		-- left shrunken and bubble-wrapped on the floor.
+		RotlingFactory.setCarriedVisual(model, false)
+		RotlingFactory.setModelScale(model, 1.5)
 		return
 	end
 	CarryService.carryRotling(player, model)
@@ -210,6 +217,10 @@ end
 function CarryService.placeOnPad(player: Player, model: Model, baseId: number, padIndex: number)
 	unweld(model)
 	CarryService.removeCarried(player, model)
+	-- Full size again, bubble off, glow and tag back — before the
+	-- model is anchored and pivoted onto the pad.
+	RotlingFactory.setCarriedVisual(model, false)
+	RotlingFactory.setModelScale(model, 1)
 	local padCf = WorldBuilder.padCFrame(baseId, padIndex)
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
 	local lift = if def then def.size * 0.55 + 0.6 else 2.5
@@ -250,11 +261,20 @@ end
 -- Send a Rotling back to the crater as a free catch.
 function CarryService.scatterToCrater(model: Model)
 	unweld(model)
+	-- Back to crater size (1.5x), bubble off, glow and tag back.
+	RotlingFactory.setCarriedVisual(model, false)
+	RotlingFactory.setModelScale(model, 1.5)
 	local angle = math.random() * math.pi * 2
 	local radius = math.random() * Config.CRATER_RADIUS * 0.8
 	local pos = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
-	local lift = if def then def.size * 0.55 + 0.6 else 2.5
+	-- Lift from the scaled body, so the bigger crater Rotling rests on
+	-- the floor instead of sinking into it.
+	local body = model.PrimaryPart
+	local lift = if body and body:IsA("BasePart")
+		then body.Size.Y / 2 + 0.8
+		elseif def then def.size * 0.55 + 0.6
+		else 2.5
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.Anchored = true

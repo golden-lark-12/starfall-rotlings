@@ -7,10 +7,12 @@
 
 local Players = game:GetService("Players")
 
+local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 local Remotes = require(game:GetService("ReplicatedStorage").Shared.Remotes)
 local RotlingCatalog = require(game:GetService("ReplicatedStorage").Shared.RotlingCatalog)
 local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
+local RotlingFactory = require(script.Parent.RotlingFactory)
 
 local StealService = {}
 
@@ -60,6 +62,10 @@ function StealService.trySteal(player: Player, model: Model)
 	if not root or not body then
 		return
 	end
+	-- Same carried look as a grab: shrink to head size, bubble it, dim
+	-- the wash-out glow and hide the tag — a stolen Rotling must not
+	-- be a huge pale block either.
+	RotlingFactory.setCarriedVisual(model, true)
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.Anchored = false
@@ -69,7 +75,7 @@ function StealService.trySteal(player: Player, model: Model)
 	weld.Name = "CarryWeld"
 	weld.Part0 = root
 	weld.Part1 = body
-	weld.C0 = CFrame.new(0, 3.4, 0)
+	weld.C0 = CFrame.new(0, Config.CARRY_HEIGHT, 0)
 	weld.Parent = body
 	model:SetAttribute("State", "carried")
 	model:SetAttribute("BaseId", 0)

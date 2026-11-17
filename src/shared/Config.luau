@@ -32,7 +32,7 @@ Config.STARSTRUCK_CHANCE = 0.4 -- a free Rotling near an impact survives as Star
 Config.LOCK_DURATION = 60 -- seconds a base lock holds
 Config.LOCK_COOLDOWN = 90 -- seconds before the lock can be used again
 Config.LOCK_DURATION_PER_TIER = 30 -- +30s lock per shop lock tier
-Config.CARRY_HEIGHT = 3.4 -- studs above the head while carried
+Config.CARRY_HEIGHT = 3.0 -- studs above the head while carried (the Rotling is shrunk to ~head size, so it sits just above the head)
 Config.PLACE_RANGE = 14 -- how close to a free pad the carrier must stand
 
 -- Economy.

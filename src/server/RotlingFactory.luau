@@ -36,6 +36,85 @@ function RotlingFactory.setRestPose(model: Model)
 	end
 end
 
+-- Deepen a colour (push each channel away from the mean) so a Rotling
+-- reads vivid from across the crater instead of washed-out pale.
+local function saturate(color: Color3, amount: number): Color3
+	local mean = (color.R + color.G + color.B) / 3
+	local function adj(c: number): number
+		return math.clamp(mean + (c - mean) * amount, 0, 1)
+	end
+	return Color3.new(adj(color.R), adj(color.G), adj(color.B))
+end
+
+-- Set a Rotling's size as an ABSOLUTE scale relative to its build size
+-- (1 = as built). Uses GetScale so every transition (crater 1.5x,
+-- carried ~0.5x, placed 1x) lands exactly, however it got there.
+function RotlingFactory.setModelScale(model: Model, target: number)
+	local current = model:GetScale()
+	if current <= 0 then
+		current = 1
+	end
+	if math.abs(target - current) < 0.001 then
+		return
+	end
+	model:ScaleTo(target / current)
+end
+
+-- Carried look: shrink to about head size, ride in a clear bubble, and
+-- dim the wash-out sources (glow shell + highlight) so the Rotling keeps
+-- its real colours and face instead of reading as a big pale block over
+-- the player's head. The name tag hides while carried too (it overlaps
+-- the top HUD). Call with false on place/scatter to restore everything;
+-- the caller re-sets the size (1 on a pad, 1.5x back in the crater).
+function RotlingFactory.setCarriedVisual(model: Model, carried: boolean)
+	local body = model.PrimaryPart
+	if not body then
+		return
+	end
+	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
+	if carried then
+		local size = if def then def.size else 4
+		local factor = math.clamp(2.0 / size, 0.4, 0.7)
+		RotlingFactory.setModelScale(model, factor)
+		-- Clear bubble around the shrunken Rotling.
+		local bubble = Instance.new("Part")
+		bubble.Name = "CarryBubble"
+		bubble.Shape = Enum.PartType.Ball
+		local d = size * factor * 1.7
+		bubble.Size = Vector3.new(d, d, d)
+		bubble.Material = Enum.Material.Glass
+		bubble.Transparency = 0.85
+		bubble.CanCollide = false
+		bubble.CanQuery = false
+		bubble.CanTouch = false
+		bubble.CastShadow = false
+		bubble.Anchored = false
+		bubble.CFrame = body.CFrame
+		bubble.Parent = model
+		local w = Instance.new("WeldConstraint")
+		w.Part0 = body
+		w.Part1 = bubble
+		w.Parent = bubble
+	else
+		local bubble = model:FindFirstChild("CarryBubble")
+		if bubble then
+			bubble:Destroy()
+		end
+	end
+	local shell = model:FindFirstChild("GlowShell")
+	if shell and shell:IsA("BasePart") then
+		shell.Transparency = if carried then 1 else 0.72
+	end
+	local hl = model:FindFirstChildOfClass("Highlight")
+	if hl then
+		hl.Enabled = not carried
+	end
+	local label = body:FindFirstChild("RotlingLabel")
+	if label and label:IsA("BillboardGui") then
+		label.Enabled = not carried
+	end
+end
+
 local function startIdleMotion()
 	if idleStarted then
 		return
@@ -472,7 +551,7 @@ local function addMutationSparkle(model: Model, body: Part, mutation: string?)
 	emitter.Size = NumberSequence.new(0.4)
 	emitter.Transparency = NumberSequence.new(0.2, 0.9)
 	emitter.Lifetime = NumberRange.new(0.8, 1.4)
-	emitter.Rate = 6
+	emitter.Rate = 8
 	emitter.Speed = NumberRange.new(1, 2)
 	emitter.SpreadAngle = Vector2.new(360, 360)
 	emitter.Parent = body
@@ -483,7 +562,7 @@ local function addRarityHighlight(model: Model, rarityColor: Color3)
 	local highlight = Instance.new("Highlight")
 	highlight.Name = "RarityGlow"
 	highlight.FillColor = rarityColor
-	highlight.FillTransparency = 0.6
+	highlight.FillTransparency = 0.5
 	highlight.OutlineColor = rarityColor
 	highlight.OutlineTransparency = 0.25
 	highlight.Parent = model
@@ -491,7 +570,9 @@ end
 
 -- Rarity aura, on top of the highlight: Common has none, Rare sparkles,
 -- Epic glows (a soft neon shell), Legendary trails a rainbow, and
--- Mythic/Cosmic get the strongest glow plus sparkles.
+-- Mythic/Cosmic get the strongest glow plus sparkles. Rates, light
+-- range and trail length are tuned so the aura reads from the path,
+-- not only up close.
 local function addRarityAura(model: Model, body: Part, def: RotlingCatalog.RotlingDef, rarityColor: Color3)
 	local tier = RarityConfig.rarityTier(def.rarity)
 	local size = def.size
@@ -512,7 +593,7 @@ local function addRarityAura(model: Model, body: Part, def: RotlingCatalog.Rotli
 	end
 	local function glowShell()
 		local shell = makePart("GlowShell", Enum.PartType.Ball, Vector3.new(body.Size.X * 1.18, body.Size.Y * 1.18, body.Size.Z * 1.18), rarityColor, Enum.Material.Neon)
-		shell.Transparency = 0.78
+		shell.Transparency = 0.72
 		shell.CFrame = body.CFrame
 		shell.Parent = model
 		local weld = Instance.new("WeldConstraint")
@@ -521,12 +602,12 @@ local function addRarityAura(model: Model, body: Part, def: RotlingCatalog.Rotli
 		weld.Parent = shell
 	end
 	if tier == 2 then
-		sparkles(4)
+		sparkles(8)
 	elseif tier == 3 then
 		glowShell()
 	elseif tier == 4 then
 		glowShell()
-		sparkles(4)
+		sparkles(8)
 		-- Rainbow trail: two attachments, one rainbow colour sequence.
 		local a0 = Instance.new("Attachment")
 		a0.Name = "TrailA0"
@@ -549,13 +630,13 @@ local function addRarityAura(model: Model, body: Part, def: RotlingCatalog.Rotli
 			ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 90, 255)),
 		})
 		trail.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 0.85) })
-		trail.Lifetime = 0.5
-		trail.MinLength = 0.2
+		trail.Lifetime = 0.9
+		trail.MinLength = 0.6
 		trail.Parent = body
 	else
 		-- Mythic and Cosmic: strongest glow plus sparkles.
 		glowShell()
-		sparkles(8)
+		sparkles(12)
 	end
 end
 
@@ -608,7 +689,10 @@ function RotlingFactory.applyMutationVisual(model: Model, mutation: string?)
 end
 
 -- Build a Rotling Model at the given position, unowned and free.
-function RotlingFactory.build(defId: string, mutation: string?, position: Vector3): Model?
+-- `scale` is the build size relative to the catalogue size: crater
+-- spawns build at 1.5x so they read from the path; pads and showcases
+-- build at 1x. Carrying shrinks to ~head size and placing restores 1x.
+function RotlingFactory.build(defId: string, mutation: string?, position: Vector3, scale: number?): Model?
 	local def = RotlingCatalog.getDef(defId)
 	if not def then
 		return nil
@@ -635,7 +719,8 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 		bodyShape = Enum.PartType.Block
 	end
 
-	local bodyColor = def.bodyColor
+	-- Saturate the colours so they read vivid from the path, not pale.
+	local bodyColor = saturate(def.bodyColor, 1.35)
 	if mutation == "Gold" then
 		bodyColor = Color3.fromRGB(255, 215, 0)
 	elseif mutation == "Frozen" then
@@ -654,7 +739,7 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	model.PrimaryPart = body
 
 	-- Belly patch on the front.
-	local belly = makePart("Belly", Enum.PartType.Ball, Vector3.new(size * 0.5, size * 0.45, size * 0.2), def.bellyColor)
+	local belly = makePart("Belly", Enum.PartType.Ball, Vector3.new(size * 0.5, size * 0.45, size * 0.2), saturate(def.bellyColor, 1.2))
 	belly.CFrame = body.CFrame * CFrame.new(0, -size * 0.12, bodySize.Z / 2)
 	belly.Parent = model
 	local bellyWeld = Instance.new("WeldConstraint")
@@ -673,13 +758,14 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	addRarityHighlight(model, rarity.color)
 	addRarityAura(model, body, def, rarity.color)
 
-	-- Rarity glow: brighter and wider the higher the tier.
+	-- Rarity glow: brighter and wider the higher the tier, so the aura
+	-- reads from the path, not only up close.
 	local mut = MutationConfig.mutationByName(mutation)
 	local tier = RarityConfig.rarityTier(def.rarity)
 	local light = Instance.new("PointLight")
 	light.Color = if mut then mut.glow else rarity.color
-	light.Brightness = 1.5 + tier * 0.5
-	light.Range = 8 + tier * 2
+	light.Brightness = 2 + tier * 0.75
+	light.Range = 12 + tier * 3
 	light.Parent = body
 
 	-- Coin burst, fired once when the Rotling lands on a pad (placePop).
@@ -694,6 +780,17 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	burst.SpreadAngle = Vector2.new(360, 360)
 	burst.Enabled = false
 	burst.Parent = body
+
+	-- Build size: crater spawns are 1.5x so they read from the path.
+	-- Scaling grows the body around its centre, so re-seat the whole
+	-- model so its bottom rests on the surface again, then record the
+	-- rest pose the idle loop bobs around.
+	local targetScale = scale or 1
+	RotlingFactory.setModelScale(model, targetScale)
+	local b = model.PrimaryPart
+	if b and b:IsA("BasePart") then
+		model:PivotTo(CFrame.new(position + Vector3.new(0, b.Size.Y / 2 + 0.1, 0)))
+	end
 
 	-- Remember the rest pose so the idle loop can bob around it.
 	RotlingFactory.setRestPose(model)
