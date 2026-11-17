@@ -625,6 +625,25 @@ end
 
 -- The crater, dressed: a low rocky rim wall, more lava cracks, steam,
 -- a ring of crystals and a beacon beam so players see it from spawn.
+-- The conveyor belt: a flat dark strip across the crater diameter, on
+-- the spawn-to-crater axis (X). Rotlings spawn ON it in a line, so the
+-- crater reads as a conveyor delivering creatures — the readable spine
+-- every top entry has — instead of a random scatter on the bowl floor.
+-- The strip sits 0.05 proud of the crater disc (top 0.45 vs disc 0.4),
+-- so it never z-fights, and it is non-colliding: the disc underneath
+-- stays the walkable floor.
+local function buildBelt()
+	local belt = part("ConveyorBelt", Enum.PartType.Block, Vector3.new(Config.CRATER_RADIUS * 2, 0.15, Config.BELT_HALF_WIDTH * 2), Color3.fromRGB(35, 35, 45), CFrame.new(0, 0.375, 0), Enum.Material.Slate)
+	belt.CanCollide = false
+	belt.CastShadow = false
+	-- Yellow edge stripes so the belt reads as a belt from across the map.
+	for _, z in ipairs({ -2.75, 2.75 }) do
+		local stripe = part("BeltStripe", Enum.PartType.Block, Vector3.new(Config.CRATER_RADIUS * 2, 0.16, 0.5), Color3.fromRGB(255, 200, 0), CFrame.new(0, 0.38, z), Enum.Material.SmoothPlastic)
+		stripe.CanCollide = false
+		stripe.CastShadow = false
+	end
+end
+
 local function buildCraterDecor()
 	-- Rim wall: sixteen rock segments in a ring, low enough to step
 	-- over in spirit, non-colliding so no one ever gets stuck on it.
@@ -921,6 +940,7 @@ function WorldBuilder.build()
 	buildFloatingIslands()
 	buildSkyDecor()
 	buildCraterDecor()
+	buildBelt()
 	buildWind()
 	startFloatBob()
 end

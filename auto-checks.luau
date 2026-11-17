@@ -500,12 +500,14 @@ do
 		if not tagSrc:find("Config.TAG_MAX_DISTANCE") or not tagSrc:find("Config.TAG_MAX_SHOWN") then
 			table.insert(problems, "TagController does not enforce TAG_MAX_DISTANCE / TAG_MAX_SHOWN")
 		end
-		-- The billboard itself is bounded to the same 25 studs.
+		-- The billboard itself renders out to the photo-mode tag range
+		-- (40 studs); the TagController is the real gate, so a wide
+		-- billboard never clutters normal play.
 		local billDist = num(factorySrc:match("billboard%.MaxDistance%s*=%s*(%d+)"))
 		if not billDist then
 			table.insert(problems, "RotlingLabel MaxDistance not found in RotlingFactory.luau")
-		elseif billDist > 25 then
-			table.insert(problems, "RotlingLabel MaxDistance " .. tostring(billDist) .. " (over 25)")
+		elseif billDist > 40 then
+			table.insert(problems, "RotlingLabel MaxDistance " .. tostring(billDist) .. " (over 40)")
 		end
 		if #problems > 0 then
 			check("g", false, "name tags can stack into unreadable text — " .. table.concat(problems, "; ") .. ". Parts: SpawnService.findSpawnPosition, TagController.client.luau, RotlingLabel (RotlingFactory.luau)")
@@ -1299,6 +1301,211 @@ do
 			check("x", false, "tutorial arrows are missing or wrong — " .. table.concat(problems, "; ") .. ". Parts: TutorialController.client.luau")
 		else
 			check("x", true, "tutorial arrows work — gold arrow, 3 steps (crater -> base -> SELL), 60s, firstTime only, stops on first grab")
+		end
+	end
+end
+
+-- -- (y) conveyor belt through the crater ------------------------------------
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local spawnSrc = read("src/server/SpawnService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not worldSrc or not spawnSrc or not configSrc then
+		check("y", false, "could not verify the conveyor belt — WorldBuilder.luau, SpawnService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		-- A physical belt strip across the crater diameter, with edge stripes.
+		if not worldSrc:find("ConveyorBelt") then
+			table.insert(problems, "no ConveyorBelt part in WorldBuilder.luau")
+		end
+		if not worldSrc:find("BeltStripe") then
+			table.insert(problems, "no BeltStripe edge stripes in WorldBuilder.luau")
+		end
+		if not worldSrc:find("buildBelt%(%)") then
+			table.insert(problems, "buildBelt() not called from WorldBuilder.build()")
+		end
+		-- Rotlings spawn ON the belt (a line along X), not scattered
+		-- randomly: findSpawnPosition must use the belt width constant
+		-- and must not pick a random angle/radius.
+		local body = functionBody(spawnSrc, "findSpawnPosition")
+		if not body then
+			table.insert(problems, "SpawnService.findSpawnPosition not found")
+		else
+			if not body:find("Config.BELT_SPAWN_Z") then
+				table.insert(problems, "findSpawnPosition does not spawn on the belt (Config.BELT_SPAWN_Z)")
+			end
+			if body:find("math.pi") then
+				table.insert(problems, "findSpawnPosition still scatters by angle/radius instead of the belt line")
+			end
+		end
+		if #problems > 0 then
+			check("y", false, "the crater has no readable conveyor — " .. table.concat(problems, "; ") .. ". Parts: buildBelt / ConveyorBelt / BeltStripe (WorldBuilder.luau), findSpawnPosition (SpawnService.luau)")
+		else
+			check("y", true, "conveyor belt through the crater — dark strip + yellow edge stripes, Rotlings spawn on it in a line")
+		end
+	end
+end
+
+-- -- (z) game title + Index count + leaderboard in the top HUD ---------------
+do
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	if not hudSrc or not remotesSrc or not incomeSrc then
+		check("z", false, "could not verify the HUD identity — HUDController.client.luau, Remotes.luau or IncomeService.luau missing")
+	else
+		local problems: { string } = {}
+		if not hudSrc:find('"GameTitle"') or not hudSrc:find("STARFALL ROTLINGS") then
+			table.insert(problems, "no STARFALL ROTLINGS title label in the top HUD")
+		end
+		if not hudSrc:find("indexCount") or not hudSrc:find('"/12"') then
+			table.insert(problems, "no Index count (x/12) in the HUD")
+		end
+		if not hudSrc:find('"LeaderboardPanel"') then
+			table.insert(problems, "no LeaderboardPanel in the HUD")
+		end
+		if not remotesSrc:find("indexCount: number") or not remotesSrc:find("top3:") then
+			table.insert(problems, "HudData type lacks indexCount / top3 (Remotes.luau)")
+		end
+		if not incomeSrc:find("indexCount = found") or not incomeSrc:find("top3 = top3") then
+			table.insert(problems, "IncomeService.broadcastHud does not send indexCount / top3")
+		end
+		if #problems > 0 then
+			check("z", false, "the HUD has no identity or density — " .. table.concat(problems, "; ") .. ". Parts: GameTitle / LeaderboardPanel (HUDController.client.luau), HudData (Remotes.luau), broadcastHud (IncomeService.luau)")
+		else
+			check("z", true, "HUD identity + density — STARFALL ROTLINGS title, Index count x/12, top-3 leaderboard panel")
+		end
+	end
+end
+
+-- -- (aa) full-width storm banner ---------------------------------------------
+do
+	local warnSrc = read("src/client/StormWarningController.client.luau")
+	if not warnSrc then
+		check("aa", false, "could not verify the storm banner — StormWarningController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not warnSrc:find("UDim2.new%(1, %-32, 0, 56%)") then
+			table.insert(problems, "StormWarning bar is not full-width (UDim2.new(1, -32, 0, 56))")
+		end
+		if not warnSrc:find('makeLabel%(warnBar, "Warning".-, 34,') then
+			table.insert(problems, "storm warning text is not 34pt")
+		end
+		if #problems > 0 then
+			check("aa", false, "the storm banner is not full-width — " .. table.concat(problems, "; ") .. ". Parts: StormWarning (StormWarningController.client.luau)")
+		else
+			check("aa", true, "storm banner is full-width (UDim2 1,-32 x 56) with 34pt text — reads at thumbnail size")
+		end
+	end
+end
+
+-- -- (ab) giant hero meteors at storm start -----------------------------------
+do
+	local starSrc = read("src/server/StarfallService.luau")
+	if not starSrc then
+		check("ab", false, "could not verify hero meteors — StarfallService.luau missing")
+	else
+		local problems: { string } = {}
+		if not starSrc:find("spawnHeroMeteor") then
+			table.insert(problems, "no spawnHeroMeteor in StarfallService.luau")
+		end
+		if not starSrc:find("Vector3.new%(10, 10, 10%)") then
+			table.insert(problems, "hero meteor is not 10 studs (Vector3.new(10, 10, 10))")
+		end
+		if not starSrc:find("task.spawn%(spawnHeroMeteor%)") then
+			table.insert(problems, "hero meteors are not spawned at storm start")
+		end
+		if #problems > 0 then
+			check("ab", false, "no giant hero meteors in the storm — " .. table.concat(problems, "; ") .. ". Parts: spawnHeroMeteor (StarfallService.luau)")
+		else
+			check("ab", true, "hero meteors — 3 giant (10-stud) flaming meteors arc across the sky at storm start")
+		end
+	end
+end
+
+-- -- (ac) photo-mode cameras are close -----------------------------------------
+do
+	local photoSrc = read("src/client/PhotoModeController.client.luau")
+	if not photoSrc then
+		check("ac", false, "could not verify photo-mode cameras — PhotoModeController.client.luau missing")
+	else
+		local problems: { string } = {}
+		-- Shot 1 (hero): low and close behind the belt's near end.
+		if not photoSrc:find("Vector3.new%(42, 4.5, 9%)") then
+			table.insert(problems, "shot 1 is not the close hero camera (42, 4.5, 9)")
+		end
+		-- Shot 2 (crater): isometric overview.
+		if not photoSrc:find("Vector3.new%(24, 24, 24%)") then
+			table.insert(problems, "shot 2 is not the isometric overview (24, 24, 24)")
+		end
+		-- Shot 3 (base): 16 out, 7 up — closer than the old 30/12.
+		if not photoSrc:find("%* 16") then
+			table.insert(problems, "shot 3 is not 16 studs out from the base")
+		end
+		if not photoSrc:find("Vector3.new%(0, 7, 0%)") then
+			table.insert(problems, "shot 3 is not 7 studs up")
+		end
+		-- Shot 4 (carrying): looks at the chest, and says so.
+		if not photoSrc:find("Vector3.new%(0, 1.8, 0%)") then
+			table.insert(problems, "shot 4 does not look at the chest (0, 1.8, 0)")
+		end
+		if not photoSrc:find("in front of your chest") then
+			table.insert(problems, "shot 4 detail still says the Rotling is above the head")
+		end
+		if #problems > 0 then
+			check("ac", false, "photo-mode cameras are not reframed — " .. table.concat(problems, "; ") .. ". Parts: SHOTS / shotCFrame (PhotoModeController.client.luau)")
+		else
+			check("ac", true, "photo cameras reframed — hero close on the belt, crater isometric, base 16 out / 7 up, carrying looks at the chest")
+		end
+	end
+end
+
+-- -- (ad) photo-mode shows every name tag --------------------------------------
+do
+	local tagSrc = read("src/client/TagController.client.luau")
+	local configSrc = read("src/shared/Config.luau")
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	if not tagSrc or not configSrc or not factorySrc then
+		check("ad", false, "could not verify the photo-mode tag override — TagController.client.luau, Config.luau or RotlingFactory.luau missing")
+	else
+		local problems: { string } = {}
+		local photoDist = configValue(configSrc, "TAG_PHOTO_MAX_DISTANCE")
+		local photoShown = configValue(configSrc, "TAG_PHOTO_MAX_SHOWN")
+		if not photoDist then
+			table.insert(problems, "Config.TAG_PHOTO_MAX_DISTANCE not found")
+		elseif photoDist < 40 then
+			table.insert(problems, "photo tag distance " .. tostring(photoDist) .. " studs (under 40)")
+		end
+		if not photoShown then
+			table.insert(problems, "Config.TAG_PHOTO_MAX_SHOWN not found")
+		elseif photoShown < 99 then
+			table.insert(problems, "photo tag count " .. tostring(photoShown) .. " (under 99 — not all tags)")
+		end
+		if not tagSrc:find("PhotoMode") or not tagSrc:find("Config.TAG_PHOTO_MAX_DISTANCE") or not tagSrc:find("Config.TAG_PHOTO_MAX_SHOWN") then
+			table.insert(problems, "TagController does not lift the thinning in photo mode (PhotoMode attribute / TAG_PHOTO_MAX_*)")
+		end
+		-- The billboard must render out to the photo range, or the
+		-- override is capped by the billboard itself.
+		local billDist = num(factorySrc:match("billboard%.MaxDistance%s*=%s*(%d+)"))
+		if not billDist then
+			table.insert(problems, "RotlingLabel MaxDistance not found in RotlingFactory.luau")
+		elseif billDist < (photoDist or 40) then
+			table.insert(problems, "RotlingLabel MaxDistance " .. tostring(billDist) .. " caps the photo-mode range " .. tostring(photoDist or 40))
+		end
+		-- The tag itself is big, with a dark card + rarity border.
+		local billW, billH = factorySrc:match("billboard%.Size%s*=%s*UDim2%.fromOffset%((%d+),%s*(%d+)%)")
+		if not billW or not billH then
+			table.insert(problems, "RotlingLabel size not found in RotlingFactory.luau")
+		elseif num(billW) < 200 or num(billH) < 84 then
+			table.insert(problems, "RotlingLabel " .. tostring(billW) .. "x" .. tostring(billH) .. " (under 200x84)")
+		end
+		if not factorySrc:find('"Card"') or not factorySrc:find("cardStroke") then
+			table.insert(problems, "RotlingLabel has no dark card + rarity border")
+		end
+		if #problems > 0 then
+			check("ad", false, "photo-mode tags do not all read — " .. table.concat(problems, "; ") .. ". Parts: TagController.client.luau, RotlingLabel (RotlingFactory.luau), Config.TAG_PHOTO_MAX_*")
+		else
+			check("ad", true, "photo-mode tags — every tag within " .. tostring(photoDist) .. " studs shows, 200x84 with a dark card + rarity border")
 		end
 	end
 end

@@ -51,6 +51,21 @@ end
 -- connection must never take the whole feed down with it.
 function IncomeService.broadcastHud()
 	local storm = StarfallService.getStatus()
+	-- Leaderboard top 3 by coins, computed once per broadcast (cheap:
+	-- a handful of players) so every client's HUD can show it.
+	local top3: { { name: string, coins: number } } = {}
+	for _, other in ipairs(Players:GetPlayers()) do
+		local otherProfile = DataService.getProfile(other)
+		if otherProfile then
+			table.insert(top3, { name = other.Name, coins = otherProfile.coins })
+		end
+	end
+	table.sort(top3, function(a, b)
+		return a.coins > b.coins
+	end)
+	while #top3 > 3 do
+		table.remove(top3)
+	end
 	for _, player in ipairs(Players:GetPlayers()) do
 		local ok, err = pcall(function()
 			local profile = DataService.getProfile(player)
@@ -83,6 +98,8 @@ function IncomeService.broadcastHud()
 					stormPhase = storm.phase,
 					stormSeconds = storm.secondsLeft,
 					index = profile.index,
+					indexCount = found,
+					top3 = top3,
 					firstTime = profile.coins == 0 and profile.rebirths == 0 and found == 0,
 					missionText = mission.text,
 					missionProgress = MissionService.progress(player),

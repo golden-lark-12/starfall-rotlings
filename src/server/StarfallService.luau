@@ -209,6 +209,66 @@ local function spawnMeteor()
 	end)
 end
 
+-- Hero meteors: a few GIANT flaming rocks that arc across the sky at
+-- storm start, so the threat reads in a still screenshot (the small
+-- rain meteors are too fast and too small to see in one frame). Bigger,
+-- slower, brighter, with a long diagonal fall — the sky's exclamation
+-- mark. They land in the crater like the small ones (same damage and
+-- Starstruck rules), just louder.
+local function spawnHeroMeteor()
+	local angle = math.random() * math.pi * 2
+	local radius = math.random() * Config.CRATER_RADIUS * 0.6
+	local target = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
+	-- Start high and off to one side so the fall is a long diagonal
+	-- streak across the sky, not a straight drop.
+	local start = target + Vector3.new(math.random(-60, 60), 130, math.random(-60, 60))
+
+	local meteor = Instance.new("Part")
+	meteor.Name = "HeroMeteor"
+	meteor.Shape = Enum.PartType.Ball
+	meteor.Size = Vector3.new(10, 10, 10)
+	meteor.Color = Color3.fromRGB(255, 140, 30)
+	meteor.Material = Enum.Material.Neon
+	meteor.Anchored = true
+	meteor.CanCollide = false
+	meteor.CanQuery = false
+	meteor.CFrame = CFrame.new(start)
+	meteor.Parent = workspace
+
+	local fire = Instance.new("PointLight")
+	fire.Color = Color3.fromRGB(255, 160, 60)
+	fire.Brightness = 5
+	fire.Range = 30
+	fire.Parent = meteor
+
+	local tween = TweenService:Create(meteor, TweenInfo.new(1.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		CFrame = CFrame.new(target + Vector3.new(0, 4, 0)),
+	})
+	tween:Play()
+	tween.Completed:Connect(function()
+		meteor.Size = Vector3.new(16, 16, 16)
+		meteor.Color = Color3.fromRGB(255, 220, 120)
+		fire.Brightness = 8
+		Remotes.meteorImpactEvent():FireAllClients(target)
+		maybeStarstruck(target)
+		task.delay(0.3, function()
+			meteor:Destroy()
+		end)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if root and humanoid and humanoid.Health > 0 then
+				local flat = Vector3.new(root.Position.X, 0, root.Position.Z)
+				if flat.Magnitude <= Config.CRATER_RADIUS + 4 then
+					humanoid:TakeDamage(Config.STORM_DAMAGE)
+					CarryService.dropAllCarried(player)
+				end
+			end
+		end
+	end)
+end
+
 -- Force a storm right now (used by the TOUR.json scene setter).
 function StarfallService.forceStorm()
 	if phase ~= "storm" then
@@ -248,6 +308,12 @@ function StarfallService.start()
 				setPhase("storm", Config.STORM_DURATION)
 				stormActive = true
 				WorldBuilder.setWind(true)
+				-- Three hero meteors at storm start: big, slow, bright —
+				-- the threat shot needs a giant hazard visible in a still.
+				for _ = 1, 3 do
+					task.spawn(spawnHeroMeteor)
+					task.wait(0.4)
+				end
 				task.spawn(function()
 					while stormActive do
 						task.wait(1.5 + math.random() * 2)

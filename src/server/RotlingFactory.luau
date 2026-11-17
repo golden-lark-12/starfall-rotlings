@@ -472,16 +472,35 @@ local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef
 	local cps = RotlingCatalog.baseCps(def, mutation)
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "RotlingLabel"
-	billboard.Size = UDim2.fromOffset(150, 64)
+	billboard.Size = UDim2.fromOffset(200, 84)
 	billboard.StudsOffsetWorldSpace = Vector3.new(0, def.size * 0.85, 0)
 	billboard.AlwaysOnTop = true
 	billboard.LightInfluence = 0
-	-- One small name tag, visible only near the player: the always-on
-	-- labels cluttered the whole crater from across the map. Within 25
-	-- studs only (Config.TAG_MAX_DISTANCE), and the client TagController
-	-- shows at most the 3 nearest at once, so close tags never stack.
-	billboard.MaxDistance = 25
+	-- Big and readable at thumbnail size: the tag is the rarest readable
+	-- surface in the game, so it is 200x84 with a dark card behind it
+	-- and a border in the rarity colour — the bare-white-text version
+	-- washed out against the bright sky. The billboard renders out to
+	-- 40 studs (the photo-mode tag range); the client TagController is
+	-- the real gate — nearest 3 within 25 studs in normal play, every
+	-- tag within 40 in photo mode — so close tags never stack.
+	billboard.MaxDistance = 40
 	billboard.Parent = body
+
+	-- Dark card behind the text, with a rarity-colour border.
+	local card = Instance.new("Frame")
+	card.Name = "Card"
+	card.Size = UDim2.new(1, 0, 1, 0)
+	card.BackgroundColor3 = Color3.fromRGB(20, 15, 40)
+	card.BackgroundTransparency = 0.2
+	card.BorderSizePixel = 0
+	card.Parent = billboard
+	local cardCorner = Instance.new("UICorner")
+	cardCorner.CornerRadius = UDim.new(0, 8)
+	cardCorner.Parent = card
+	local cardStroke = Instance.new("UIStroke")
+	cardStroke.Color = rarity.color
+	cardStroke.Thickness = 2
+	cardStroke.Parent = card
 
 	local nameLabel = Instance.new("TextLabel")
 	nameLabel.Name = "Name"

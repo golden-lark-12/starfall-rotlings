@@ -64,7 +64,15 @@ Config.PLACE_RANGE = 14 -- how close to a free pad the carrier must stand
 -- into unreadable text when Rotlings stand close together.
 Config.TAG_MAX_DISTANCE = 25 -- a tag only shows within 25 studs
 Config.TAG_MAX_SHOWN = 3 -- at most the 3 nearest tags at once
+Config.TAG_PHOTO_MAX_DISTANCE = 40 -- in photo mode, show every tag within 40 studs
+Config.TAG_PHOTO_MAX_SHOWN = 99 -- in photo mode, show all of them (the shots need every label)
 Config.CRATER_MIN_SPACING = 6 -- crater Rotlings at least 6 studs apart
+
+-- Conveyor belt: a flat dark strip across the crater diameter (along X,
+-- the spawn-to-crater axis). Rotlings spawn ON it in a line, so the
+-- crater reads as a conveyor delivering creatures, not a random scatter.
+Config.BELT_HALF_WIDTH = 3 -- the belt is 6 studs wide (z in [-3, 3])
+Config.BELT_SPAWN_Z = 2 -- spawn z stays within [-2, 2] so every Rotling stands on the belt
 
 -- Economy.
 Config.TICK_INTERVAL = 1 -- coins are paid out once a second

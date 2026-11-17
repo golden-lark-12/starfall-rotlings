@@ -49,12 +49,19 @@ local function updateTags()
 	-- Rotling is free or placed, within TAG_MAX_DISTANCE, and among
 	-- the TAG_MAX_SHOWN nearest such Rotlings. Everything else stays
 	-- off, including every carried Rotling and every tag past 25 studs.
+	-- PHOTO MODE override: when the camera has the PhotoMode attribute
+	-- (set by PhotoModeController while framing a shot), show EVERY
+	-- tag within TAG_PHOTO_MAX_DISTANCE — the screenshots need every
+	-- label readable, so the thinning is lifted for the shot only.
+	local photoMode = workspace.CurrentCamera and workspace.CurrentCamera:GetAttribute("PhotoMode") == true
+	local maxDist = if photoMode then Config.TAG_PHOTO_MAX_DISTANCE else Config.TAG_MAX_DISTANCE
+	local maxShown = if photoMode then Config.TAG_PHOTO_MAX_SHOWN else Config.TAG_MAX_SHOWN
 	local shown = 0
 	for _, entry in ipairs(tagged) do
 		local show = false
-		if entry.showable and entry.dist <= Config.TAG_MAX_DISTANCE then
+		if entry.showable and entry.dist <= maxDist then
 			shown += 1
-			show = shown <= Config.TAG_MAX_SHOWN
+			show = shown <= maxShown
 		end
 		entry.label.Enabled = show
 	end

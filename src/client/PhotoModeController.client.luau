@@ -33,16 +33,22 @@ local player = Players.LocalPlayer
 -- carrying). Tune a CFrame here and every capture of that shot moves.
 local SHOTS = {
 	{
-		name = "1/5 — Spawn",
-		detail = "The slab, the path and the crater ahead",
-		position = Vector3.new(108, 7, 8),
-		lookAt = Vector3.new(20, 8, -12),
+		-- HERO, and the first thumbnail: low and close behind the
+		-- belt's near end, looking down the conveyor at the crater and
+		-- the beacon. The belt's Rotlings are ~15 studs away — big, with
+		-- their rarity tags readable — instead of a distant landscape.
+		name = "1/5 — Hero",
+		detail = "The belt, Rotlings and the beacon",
+		position = Vector3.new(42, 4.5, 9),
+		lookAt = Vector3.new(0, 2, 0),
 	},
 	{
 		name = "2/5 — Crater",
 		detail = "Free Rotlings, crystals and the beacon",
-		position = Vector3.new(22, 13, 22),
-		lookAt = Vector3.new(0, 1, 0),
+		-- Isometric overview, ~35 deg down: the whole belt, the crater
+		-- and the nearby bases in one frame, like a game diagram.
+		position = Vector3.new(24, 24, 24),
+		lookAt = Vector3.new(0, 0, 0),
 	},
 	{
 		name = "3/5 — My base",
@@ -52,7 +58,7 @@ local SHOTS = {
 	},
 	{
 		name = "4/5 — Carrying",
-		detail = "The Rotling above your head",
+		detail = "The Rotling in front of your chest",
 		position = nil, -- computed from the character, below
 		lookAt = nil,
 	},
@@ -119,19 +125,22 @@ end
 local function shotCFrame(index: number): CFrame
 	local shot = SHOTS[index]
 	if index == 3 then
-		-- My base: 30 studs out on the crater side, 12 up, looking
+		-- My base: 16 studs out on the crater side, 7 up, looking
 		-- back at the platform so the pads and the sign both show.
+		-- Closer than before (30 out / 12 up) so the base fills the
+		-- frame and the tags read.
 		local center = nearestBaseCenter()
 		local towardCrater = (Vector3.new(0, 0, 0) - center).Unit
-		local position = center + Vector3.new(towardCrater.X, 0, towardCrater.Z) * 30 + Vector3.new(0, 12, 0)
+		local position = center + Vector3.new(towardCrater.X, 0, towardCrater.Z) * 16 + Vector3.new(0, 7, 0)
 		return CFrame.lookAt(position, center + Vector3.new(0, 4, 0))
 	elseif index == 4 then
 		-- Carrying: close on the character from front-right-above,
-		-- looking at the head where the Rotling rides.
+		-- looking at the chest where the Rotling rides (it is welded
+		-- in front of the chest at arm height, not above the head).
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		local at = if root then root.Position else Vector3.new(0, 3, 0)
-		return CFrame.lookAt(at + Vector3.new(5, 3.5, 7), at + Vector3.new(0, 3.2, 0))
+		return CFrame.lookAt(at + Vector3.new(4, 2.5, 6), at + Vector3.new(0, 1.8, 0))
 	end
 	return CFrame.lookAt(shot.position :: Vector3, shot.lookAt :: Vector3)
 end

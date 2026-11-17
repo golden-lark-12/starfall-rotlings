@@ -100,18 +100,21 @@ local function freePositions(): { Vector3 }
 	return out
 end
 
--- Pick a crater spawn point at least CRATER_MIN_SPACING studs from every
--- other free Rotling, so their name tags never stack into unreadable
--- text. Tries several random spots and keeps the first that clears the
--- gap; if none does, keeps the spot farthest from its nearest neighbour.
+-- Pick a spawn point ON THE CONVEYOR BELT, at least CRATER_MIN_SPACING
+-- studs from every other free Rotling, so their name tags never stack
+-- into unreadable text. Tries several random spots along the belt and
+-- keeps the first that clears the gap; if none does, keeps the spot
+-- farthest from its nearest neighbour.
 local function findSpawnPosition(): Vector3
 	local others = freePositions()
 	local best: Vector3? = nil
 	local bestGap = -1
 	for _ = 1, 12 do
-		local angle = math.random() * math.pi * 2
-		local radius = math.random() * Config.CRATER_RADIUS * 0.8
-		local candidate = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
+		-- On the belt: x along the belt's length, z within the belt's
+		-- width, so every Rotling stands on the conveyor in a line.
+		local x = (math.random() * 2 - 1) * Config.CRATER_RADIUS * 0.85
+		local z = (math.random() * 2 - 1) * Config.BELT_SPAWN_Z
+		local candidate = Vector3.new(x, Config.CRATER_FLOOR_Y, z)
 		local gap = math.huge
 		for _, pos in ipairs(others) do
 			local flat = Vector3.new(candidate.X - pos.X, 0, candidate.Z - pos.Z)
@@ -128,9 +131,9 @@ local function findSpawnPosition(): Vector3
 	if best then
 		return best
 	end
-	local angle = math.random() * math.pi * 2
-	local radius = math.random() * Config.CRATER_RADIUS * 0.8
-	return Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
+	local x = (math.random() * 2 - 1) * Config.CRATER_RADIUS * 0.85
+	local z = (math.random() * 2 - 1) * Config.BELT_SPAWN_Z
+	return Vector3.new(x, Config.CRATER_FLOOR_Y, z)
 end
 
 function SpawnService.spawnOne(): Model?

@@ -23,6 +23,8 @@ export type HudData = {
 	stormPhase: string,
 	stormSeconds: number,
 	index: { [string]: boolean },
+	indexCount: number,
+	top3: { { name: string, coins: number } },
 	firstTime: boolean,
 	missionText: string,
 	missionProgress: number,
