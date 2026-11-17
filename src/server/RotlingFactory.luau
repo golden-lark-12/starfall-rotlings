@@ -1,10 +1,17 @@
--- Starfall Rotlings: builds a Rotling Model from a RotlingData definition.
+--!strict
+-- Starfall Rotlings: builds a Rotling Model from a RotlingCatalog definition.
 -- Every creature is Parts only: a body, a belly, big eyes, feet, one
--- accessory, a glow light and a name/rarity/coins-per-second label.
--- No meshes, decals or uploaded assets are used anywhere.
+-- accessory, a rarity glow light, a mutation sparkle and a name/rarity/
+-- coins-per-second label. No meshes, decals or uploaded assets are used
+-- anywhere. The body starts Anchored so a free Rotling rests on the
+-- crater floor instead of falling through the world; carrying un-anchors
+-- it and welds it to the player, placing re-anchors it.
 
-local RotlingData = require(game:GetService("ReplicatedStorage").Shared.RotlingData)
-local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local MutationConfig = require(ReplicatedStorage.Shared.MutationConfig)
+local RarityConfig = require(ReplicatedStorage.Shared.RarityConfig)
+local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 
 local RotlingFactory = {}
 
@@ -58,7 +65,7 @@ local function addFeet(model: Model, body: Part, size: number)
 	end
 end
 
-local function addAccessory(model: Model, body: Part, def: RotlingData.RotlingDef, rarityColor: Color3)
+local function addAccessory(model: Model, body: Part, def: RotlingCatalog.RotlingDef, rarityColor: Color3)
 	local size = def.size
 	local top = body.CFrame * CFrame.new(0, size * 0.55, 0)
 	if def.accessory == "horns" then
@@ -147,9 +154,9 @@ local function addAccessory(model: Model, body: Part, def: RotlingData.RotlingDe
 	end
 end
 
-local function addLabel(model: Model, body: Part, def: RotlingData.RotlingDef, mutation: string?)
-	local rarity = Config.rarityByName(def.rarity)
-	local cps = RotlingData.baseCps(def, mutation)
+local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef, mutation: string?)
+	local rarity = RarityConfig.rarityByName(def.rarity)
+	local cps = RotlingCatalog.baseCps(def, mutation)
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "RotlingLabel"
 	billboard.Size = UDim2.fromOffset(160, 72)
@@ -198,13 +205,90 @@ local function addLabel(model: Model, body: Part, def: RotlingData.RotlingDef, m
 	cpsLabel.Parent = billboard
 end
 
+-- Mutation sparkle: a slow particle emitter in the mutation's colour.
+local function addMutationSparkle(model: Model, body: Part, mutation: string?)
+	local mut = MutationConfig.mutationByName(mutation)
+	if not mut then
+		return
+	end
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "MutationSparkle"
+	emitter.Color = ColorSequence.new(mut.color)
+	emitter.Size = NumberSequence.new(0.4)
+	emitter.Transparency = NumberSequence.new(0.2, 0.9)
+	emitter.Lifetime = NumberRange.new(0.8, 1.4)
+	emitter.Rate = 6
+	emitter.Speed = NumberRange.new(1, 2)
+	emitter.SpreadAngle = Vector2.new(360, 360)
+	emitter.Parent = body
+end
+
+-- Rarity outline so a placed Rotling glows its tier colour from afar.
+local function addRarityHighlight(model: Model, rarityColor: Color3)
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "RarityGlow"
+	highlight.FillColor = rarityColor
+	highlight.FillTransparency = 0.75
+	highlight.OutlineColor = rarityColor
+	highlight.OutlineTransparency = 0.4
+	highlight.Parent = model
+end
+
+-- Repaint a live Rotling when its mutation changes (Starstruck at runtime).
+function RotlingFactory.applyMutationVisual(model: Model, mutation: string?)
+	local body = model.PrimaryPart
+	if not body or not body:IsA("BasePart") then
+		return
+	end
+	local mut = MutationConfig.mutationByName(mutation)
+	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
+	if not def then
+		return
+	end
+	if mutation == "Gold" then
+		body.Color = Color3.fromRGB(255, 215, 0)
+	elseif mutation == "Frozen" then
+		body.Color = Color3.fromRGB(170, 225, 255)
+	elseif mutation == "Starstruck" then
+		body.Color = Color3.fromRGB(255, 240, 170)
+		body.Material = Enum.Material.Neon
+	end
+	local old = body:FindFirstChild("MutationSparkle")
+	if old then
+		old:Destroy()
+	end
+	addMutationSparkle(model, body, mutation)
+	if mut then
+		local light = body:FindFirstChildOfClass("PointLight")
+		if light then
+			light.Color = mut.glow
+		end
+	end
+	-- Refresh the label's rarity line and coins-per-second.
+	local label = body:FindFirstChild("RotlingLabel")
+	if label then
+		local rarityLabel = label:FindFirstChild("Rarity")
+		if rarityLabel and rarityLabel:IsA("TextLabel") then
+			local text = def.rarity
+			if mutation then
+				text ..= " " .. mutation
+			end
+			rarityLabel.Text = text
+		end
+		local cpsLabel = label:FindFirstChild("Cps")
+		if cpsLabel and cpsLabel:IsA("TextLabel") then
+			cpsLabel.Text = "$" .. tostring(math.floor(RotlingCatalog.baseCps(def, mutation))) .. "/s"
+		end
+	end
+end
+
 -- Build a Rotling Model at the given position, unowned and free.
 function RotlingFactory.build(defId: string, mutation: string?, position: Vector3): Model?
-	local def = RotlingData.getDef(defId)
+	local def = RotlingCatalog.getDef(defId)
 	if not def then
 		return nil
 	end
-	local rarity = Config.rarityByName(def.rarity)
+	local rarity = RarityConfig.rarityByName(def.rarity)
 	local size = def.size
 
 	local model = Instance.new("Model")
@@ -227,15 +311,17 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	end
 
 	local bodyColor = def.bodyColor
-	local mut = Config.mutationByName(mutation)
 	if mutation == "Gold" then
 		bodyColor = Color3.fromRGB(255, 215, 0)
 	elseif mutation == "Frozen" then
 		bodyColor = Color3.fromRGB(170, 225, 255)
+	elseif mutation == "Starstruck" then
+		bodyColor = Color3.fromRGB(255, 240, 170)
 	end
 	local body = makePart("Body", bodyShape, bodySize, bodyColor)
-	body.Material = if mutation == "Rainbow" then Enum.Material.Neon else Enum.Material.SmoothPlastic
+	body.Material = if mutation == "Rainbow" or mutation == "Starstruck" then Enum.Material.Neon else Enum.Material.SmoothPlastic
 	body.CFrame = CFrame.new(position + Vector3.new(0, size * 0.55, 0))
+	body.Anchored = true -- rests on the crater floor; carrying un-anchors it
 	body.Parent = model
 	model.PrimaryPart = body
 
@@ -252,10 +338,13 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	addFeet(model, body, size)
 	addAccessory(model, body, def, rarity.color)
 	addLabel(model, body, def, mutation)
+	addMutationSparkle(model, body, mutation)
+	addRarityHighlight(model, rarity.color)
 
 	-- Rarity glow.
+	local mut = MutationConfig.mutationByName(mutation)
 	local light = Instance.new("PointLight")
-	light.Color = if mut then mut.color else rarity.color
+	light.Color = if mut then mut.glow else rarity.color
 	light.Brightness = 1.2
 	light.Range = 9
 	light.Parent = body

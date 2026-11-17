@@ -15,29 +15,52 @@ into your base and steal your Rotlings — unless you lock the base.
   Captain Crumb, Disco Pickle, Toaster Ghost, Sir Reginald Socks,
   Quantum Quokka, DJ Turnip, Baron von Bloop, Emperor Couch Potato and
   Galactic Gummy Bear — each built from Parts with its own silhouette,
-  big eyes and a name/rarity/coins-per-second label.
+  big eyes and a name/rarity/coins-per-second label. Every name was
+  checked against the Italian brainrot roster and appears on none of it.
 - **Rarities** Common, Rare, Epic, Legendary, Mythic, Cosmic, each with
-  its own glow colour, plus Gold, Frozen and Rainbow **mutations** that
-  multiply income.
+  its own glow colour, plus Gold, Frozen, Rainbow and **Starstruck**
+  mutations that multiply income. Starstruck is never rolled: a Rotling
+  only earns it by surviving a meteor hit during a storm.
 - **Stealing with a base lock** (60 seconds, then a cooldown), a **meteor
-  storm** to outrun, **rebirths** for a permanent income multiplier, a
-  **shop** (speed, carry slots, income), an **Index** of Rotlings found,
-  and **DataStore saves** of coins, upgrades and placed Rotlings.
-- **Real 3D world**: a sunset crater with Future lighting, bloom and
-  atmosphere, eight coloured bases, trees, glowing mushrooms, stars and
-  floating rocks, all under a 3D camera with a ScreenGui HUD on top.
+  storm** to outrun, **Rot Raiders** — NPC thieves that raid your base
+  on a timer, bonk them to make them drop the loot — **rebirths** for a
+  permanent income multiplier and a new base colour, a **shop** (speed,
+  carry slots, income, extra pads, longer locks), an **Index** of
+  Rotlings found with completion rewards, **leaderstats** (Coins,
+  Rebirths), a first-time **tutorial beam** pointing at the crater, and
+  **DataStore saves** of coins, upgrades and placed Rotlings.
+- **Real 3D world**: a space-sunset crater with Future lighting, bloom,
+  atmosphere, ColorCorrection and sun rays, purple ground, teal crater
+  glow and orange meteors, eight coloured bases, purple alien trees,
+  glowing mushrooms, stars and floating rocks, all under a 3D camera
+  with a ScreenGui HUD on top. Sounds for pickup, steal, storm alarm
+  and rebirth; the camera shakes when a meteor lands.
 
 ## Layout
 
-- `src/shared/` — `Config.luau` (every tuning number) and `RotlingData.luau` (the 12-creature cast).
+- `src/shared/` — `Config.luau` (every tuning number), `RarityConfig.luau`
+  (the six-tier ladder), `MutationConfig.luau` (Gold / Frozen / Rainbow /
+  Starstruck), `RotlingCatalog.luau` (the 12-creature cast),
+  `Formatting.luau` (K/M/B money, clocks) and `Remotes.luau` (the typed
+  client/server wire).
 - `src/server/` — `WorldBuilder` (bases and decor), `RotlingFactory`
-  (builds each creature from Parts), `Spawner` (crater spawns),
-  `Bases` (carry / place / steal / lock), `Storm` (the meteor cycle),
-  `Economy` (coins, shop, rebirth, DataStore), `Remotes` (the wire),
-  `Tour` (screenshot scene setters), `init.server.luau` (bootstrap).
-- `src/client/Game.client.luau` — the HUD, shop, Index, rebirth and
-  lock button. The client never decides a number; the server validates
-  every buy, rebirth, lock and placement.
+  (builds each creature from Parts), `SpawnService` (crater spawns and
+  the idle bob), `BaseService` (bases, pads, locks), `CarryService`
+  (carry / place / drop), `StealService` (stealing), `StarfallService`
+  (the meteor cycle and Starstruck), `RaiderService` (Rot Raiders),
+  `IncomeService` (coins per second, the HUD feed, floating income
+  numbers), `ShopService` (the five shop ladders), `RebirthService`
+  (rebirths and base colours), `IndexService` (found sets and rewards),
+  `LeaderstatsService` (Coins / Rebirths), `DataService` (profiles and
+  DataStore saves), `State` (shared server state), `Tour` (screenshot
+  scene setters), `init.server.luau` (bootstrap).
+- `src/client/` — `HUDController` (coins, income, storm timer, lock,
+  banner, rebirth), `ShopController`, `IndexController`,
+  `RarityPopupController` (the big MYTHIC! banner), `StormWarningController`
+  (the red warning bar), `TutorialController` (the crater beam),
+  `CameraFX` (meteor shake) and `GuiKit` (shared builders). The client
+  never decides a number; the server validates every buy, rebirth, lock
+  and placement.
 - `default.project.json` — the Rojo project: the static world skeleton
   (ground, crater, lighting, sky, spawn) plus the script layout.
 - `game.rbxl` — the place, built with Rojo from the project above.

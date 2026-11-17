@@ -1,9 +1,13 @@
+--!strict
 -- Starfall Rotlings: the cast.
 -- Twelve original creatures, each with its own silhouette, colours and
 -- accessory, built from Parts by RotlingFactory. Nothing here is borrowed
--- from any other game: these names, shapes and jokes are ours.
+-- from any other game: these names, shapes and jokes are ours. Every name
+-- was checked against the Italian brainrot roster (Tralalero, Tung Tung
+-- Sahur, Cappuccino Assassino and the rest) and appears on none of it.
 
-local Config = require(script.Parent.Config)
+local RarityConfig = require(script.Parent.RarityConfig)
+local MutationConfig = require(script.Parent.MutationConfig)
 
 export type RotlingDef = {
 	id: string,
@@ -18,9 +22,9 @@ export type RotlingDef = {
 	cpsMult: number, -- per-creature flavour multiplier on rarity cps
 }
 
-local RotlingData = {}
+local RotlingCatalog = {}
 
-RotlingData.DEFS = {
+RotlingCatalog.DEFS = {
 	{
 		id = "wombat",
 		name = "Wobble Wombat",
@@ -165,10 +169,10 @@ RotlingData.DEFS = {
 		size = 4.6,
 		cpsMult = 1.5,
 	},
-}
+} :: { RotlingDef }
 
-function RotlingData.getDef(id: string): RotlingDef?
-	for _, def in ipairs(RotlingData.DEFS) do
+function RotlingCatalog.getDef(id: string): RotlingDef?
+	for _, def in ipairs(RotlingCatalog.DEFS) do
 		if def.id == id then
 			return def
 		end
@@ -176,9 +180,9 @@ function RotlingData.getDef(id: string): RotlingDef?
 	return nil
 end
 
-function RotlingData.defsOfRarity(rarity: string): { RotlingDef }
+function RotlingCatalog.defsOfRarity(rarity: string): { RotlingDef }
 	local out = {}
-	for _, def in ipairs(RotlingData.DEFS) do
+	for _, def in ipairs(RotlingCatalog.DEFS) do
 		if def.rarity == rarity then
 			table.insert(out, def)
 		end
@@ -187,21 +191,18 @@ function RotlingData.defsOfRarity(rarity: string): { RotlingDef }
 end
 
 -- Pick a random creature of the rolled rarity.
-function RotlingData.rollDef(): RotlingDef
-	local rarity = Config.rollRarity()
-	local pool = RotlingData.defsOfRarity(rarity)
+function RotlingCatalog.rollDef(): RotlingDef
+	local rarity = RarityConfig.rollRarity()
+	local pool = RotlingCatalog.defsOfRarity(rarity)
 	return pool[math.random(1, #pool)]
 end
 
 -- Coins per second for one placed Rotling before player multipliers.
-function RotlingData.baseCps(def: RotlingDef, mutation: string?): number
-	local rarity = Config.rarityByName(def.rarity)
+function RotlingCatalog.baseCps(def: RotlingDef, mutation: string?): number
+	local rarity = RarityConfig.rarityByName(def.rarity)
 	local cps = rarity.cps * def.cpsMult
-	local mut = Config.mutationByName(mutation)
-	if mut then
-		cps *= mut.mult
-	end
+	cps *= MutationConfig.mutationMult(mutation)
 	return cps
 end
 
-return RotlingData
+return RotlingCatalog

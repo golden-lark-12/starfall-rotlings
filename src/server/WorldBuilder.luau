@@ -1,9 +1,12 @@
+--!strict
 -- Starfall Rotlings: builds the world at server start.
 -- The static skeleton (ground, crater, lighting, sky, spawn) lives in
 -- default.project.json; everything repetitive or placed by data lives
--- here: the eight bases, their pads, the lock gates, trees, rocks,
--- mushrooms, stars and clouds. All positions come from Config, so the
--- layout can be re-tuned without touching the project file.
+-- here: the eight bases, their pads, the lock gates, purple alien trees,
+-- rocks, mushrooms, stars and clouds. All positions come from Config, so
+-- the layout can be re-tuned without touching the project file. The
+-- palette is space-sunset on purpose: purple ground, teal crater glow,
+-- orange meteors — nothing like a green field.
 
 local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 
@@ -20,20 +23,26 @@ local BASE_COLORS = {
 	Color3.fromRGB(255, 130, 200),
 }
 
--- Pad offsets on a base platform, in the base's local space.
--- The base faces the crater: local -Z points at the origin.
+-- Pad offsets on a base platform, in the base's local space: two rows
+-- of four. The base faces the crater: local -Z points at the origin.
+-- Pads 7 and 8 start locked behind the shop.
 local PAD_OFFSETS = {
-	Vector3.new(-7, 0, -4.5),
-	Vector3.new(0, 0, -4.5),
-	Vector3.new(7, 0, -4.5),
-	Vector3.new(-7, 0, 4.5),
-	Vector3.new(0, 0, 4.5),
-	Vector3.new(7, 0, 4.5),
+	Vector3.new(-9, 0, -4.5),
+	Vector3.new(-3, 0, -4.5),
+	Vector3.new(3, 0, -4.5),
+	Vector3.new(9, 0, -4.5),
+	Vector3.new(-9, 0, 4.5),
+	Vector3.new(-3, 0, 4.5),
+	Vector3.new(3, 0, 4.5),
+	Vector3.new(9, 0, 4.5),
 }
 
 local padCFrames: { [number]: { [number]: CFrame } } = {}
 local baseCFrames: { [number]: CFrame } = {}
 local signLabels: { [number]: TextLabel } = {}
+local padParts: { [number]: { [number]: Part } } = {}
+local baseTrims: { [number]: Part } = {}
+local baseFlags: { [number]: Part } = {}
 
 function WorldBuilder.padCFrame(baseId: number, padIndex: number): CFrame?
 	local base = padCFrames[baseId]
@@ -51,6 +60,42 @@ function WorldBuilder.setBaseSign(baseId: number, text: string)
 	local label = signLabels[baseId]
 	if label then
 		label.Text = text
+	end
+end
+
+-- Recolour a base's trim, flag and pads (rebirth reward).
+function WorldBuilder.setBaseColor(baseId: number, color: Color3)
+	local trim = baseTrims[baseId]
+	if trim then
+		trim.Color = color
+	end
+	local flag = baseFlags[baseId]
+	if flag then
+		flag.Color = color
+	end
+	local pads = padParts[baseId]
+	if pads then
+		for _, pad in pairs(pads) do
+			pad.Color = color
+		end
+	end
+end
+
+-- Show or hide a locked pad: hidden pads cannot be used.
+function WorldBuilder.setPadLocked(baseId: number, padIndex: number, locked: boolean)
+	local pads = padParts[baseId]
+	if not pads then
+		return
+	end
+	local pad = pads[padIndex]
+	if not pad then
+		return
+	end
+	pad.Transparency = if locked then 1 else 0.35
+	pad.CanCollide = not locked
+	local prompt = pad:FindFirstChildOfClass("ProximityPrompt")
+	if prompt then
+		prompt.Enabled = not locked
 	end
 end
 
@@ -77,13 +122,15 @@ local function buildBase(baseId: number)
 	local cf = CFrame.lookAt(center + Vector3.new(0, 1, 0), Vector3.new(0, 1, 0))
 	baseCFrames[baseId] = cf
 	padCFrames[baseId] = {}
+	padParts[baseId] = {}
 
 	local color = BASE_COLORS[baseId]
 
 	-- Platform.
 	part("BasePlatform", Enum.PartType.Block, Vector3.new(26, 2, 22), Color3.fromRGB(70, 60, 90), cf * CFrame.new(0, 0, 0))
 	-- Trim: a bright edge strip on the crater side.
-	part("BaseTrim", Enum.PartType.Block, Vector3.new(26, 0.6, 1), color, cf * CFrame.new(0, 1.1, -11))
+	local trim = part("BaseTrim", Enum.PartType.Block, Vector3.new(26, 0.6, 1), color, cf * CFrame.new(0, 1.1, -11))
+	baseTrims[baseId] = trim
 	-- Back wall so placed Rotlings read as "home".
 	local wall = part("BaseWall", Enum.PartType.Block, Vector3.new(26, 8, 1.5), Color3.fromRGB(50, 45, 70), cf * CFrame.new(0, 5, 10.5))
 	wall.Transparency = 0.15
@@ -93,6 +140,7 @@ local function buildBase(baseId: number)
 	local flag = part("BannerFlag", Enum.PartType.Block, Vector3.new(0.4, 3.5, 5), color, cf * CFrame.new(-11, 11, 6.5))
 	flag.Material = Enum.Material.Neon
 	flag.CanCollide = false
+	baseFlags[baseId] = flag
 	local sign = Instance.new("BillboardGui")
 	sign.Name = "BaseSign"
 	sign.Size = UDim2.fromOffset(180, 56)
@@ -120,6 +168,7 @@ local function buildBase(baseId: number)
 		pad:SetAttribute("PadIndex", padIndex)
 		pad.Transparency = 0.35
 		padCFrames[baseId][padIndex] = padCf
+		padParts[baseId][padIndex] = pad
 		-- Press E on a pad to place the Rotling you carry. The server
 		-- checks you own this base and the pad is free.
 		local placePrompt = Instance.new("ProximityPrompt")
@@ -129,6 +178,10 @@ local function buildBase(baseId: number)
 		placePrompt.MaxActivationDistance = 10
 		placePrompt.RequiresLineOfSight = false
 		placePrompt.Parent = pad
+		-- Pads 7 and 8 start locked behind the shop.
+		if padIndex > Config.PADS_OPEN then
+			WorldBuilder.setPadLocked(baseId, padIndex, true)
+		end
 	end
 
 	-- Lock gate: a shimmering wall across the entrance, hidden until locked.
@@ -140,15 +193,16 @@ local function buildBase(baseId: number)
 end
 
 local function buildTrees()
+	-- Alien trees: purple and magenta canopies, never green.
 	for _ = 1, 30 do
 		local angle = math.random() * math.pi * 2
 		local radius = 135 + math.random() * 70
 		local x = math.cos(angle) * radius
 		local z = math.sin(angle) * radius
 		local height = 6 + math.random() * 6
-		local trunk = part("TreeTrunk", Enum.PartType.Cylinder, Vector3.new(height * 0.5, 1.2, 1.2), Color3.fromRGB(110, 75, 40), CFrame.new(x, height * 0.25, z) * CFrame.Angles(0, 0, math.rad(90)))
+		local trunk = part("TreeTrunk", Enum.PartType.Cylinder, Vector3.new(height * 0.5, 1.2, 1.2), Color3.fromRGB(90, 60, 110), CFrame.new(x, height * 0.25, z) * CFrame.Angles(0, 0, math.rad(90)))
 		trunk.CanCollide = false
-		local canopyColor = Color3.fromRGB(40 + math.random(0, 40), 130 + math.random(0, 60), 60)
+		local canopyColor = Color3.fromRGB(120 + math.random(0, 80), 50 + math.random(0, 40), 170 + math.random(0, 60))
 		local canopy = part("TreeTop", Enum.PartType.Ball, Vector3.new(height * 0.9, height * 0.9, height * 0.9), canopyColor, CFrame.new(x, height * 0.75, z))
 		canopy.CanCollide = false
 	end
@@ -161,7 +215,7 @@ local function buildRocksAndMushrooms()
 		local x = math.cos(angle) * radius
 		local z = math.sin(angle) * radius
 		local s = 1.5 + math.random() * 3
-		local rock = part("Rock", Enum.PartType.Ball, Vector3.new(s, s * 0.7, s), Color3.fromRGB(110, 105, 120), CFrame.new(x, s * 0.3, z) * CFrame.Angles(math.random(), math.random(), math.random()))
+		local rock = part("Rock", Enum.PartType.Ball, Vector3.new(s, s * 0.7, s), Color3.fromRGB(95, 80, 115), CFrame.new(x, s * 0.3, z) * CFrame.Angles(math.random(), math.random(), math.random()))
 		rock.Material = Enum.Material.Slate
 	end
 	-- Glowing mushrooms ring the crater.
@@ -197,13 +251,13 @@ local function buildSkyDecor()
 		star.CanQuery = false
 		star.CastShadow = false
 	end
-	-- Clouds: soft white blobs drifting high up.
+	-- Clouds: soft lavender blobs drifting high up.
 	for _ = 1, 10 do
 		local angle = math.random() * math.pi * 2
 		local radius = 60 + math.random() * 120
 		local x = math.cos(angle) * radius
 		local z = math.sin(angle) * radius
-		local cloud = part("Cloud", Enum.PartType.Ball, Vector3.new(18, 6, 12), Color3.fromRGB(255, 230, 220), CFrame.new(x, 48 + math.random() * 12, z))
+		local cloud = part("Cloud", Enum.PartType.Ball, Vector3.new(18, 6, 12), Color3.fromRGB(215, 190, 240), CFrame.new(x, 48 + math.random() * 12, z))
 		cloud.Transparency = 0.35
 		cloud.CanCollide = false
 		cloud.CanQuery = false
@@ -214,7 +268,7 @@ local function buildSkyDecor()
 		local angle = (i - 1) * (math.pi * 2 / 8)
 		local x = math.cos(angle) * 40
 		local z = math.sin(angle) * 40
-		local rock = part("FloatRock", Enum.PartType.Ball, Vector3.new(3, 2, 3), Color3.fromRGB(90, 80, 110), CFrame.new(x, 26 + math.random() * 8, z), Enum.Material.Slate)
+		local rock = part("FloatRock", Enum.PartType.Ball, Vector3.new(3, 2, 3), Color3.fromRGB(90, 80, 120), CFrame.new(x, 26 + math.random() * 8, z), Enum.Material.Slate)
 		rock.CanCollide = false
 		rock:SetAttribute("FloatSeed", i * 1.7)
 	end

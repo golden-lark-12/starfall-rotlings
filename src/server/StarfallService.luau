@@ -1,24 +1,32 @@
+--!strict
 -- Starfall Rotlings: the meteor storm.
 -- Every 90 seconds a storm sweeps the crater: ten seconds of warning
 -- while the sky darkens, then eight seconds of falling meteors. Anyone
 -- caught in the crater drops what they are carrying and takes damage.
--- Get home before it hits, or drop your catch.
+-- Get home before it hits, or drop your catch. A free Rotling near an
+-- impact may survive it and come back Starstruck, worth four times as
+-- much — the only way that mutation is ever earned.
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
-local Bases = require(script.Parent.Bases)
+local Config = require(ReplicatedStorage.Shared.Config)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
+local CarryService = require(script.Parent.CarryService)
+local RotlingFactory = require(script.Parent.RotlingFactory)
 
-local Storm = {}
+local StarfallService = {}
 
-local Remotes -- set by init()
+local ALARM_SOUND = "rbxasset://sounds/electronicpingshort.wav"
+
 local phase = "calm" -- calm | warn | storm
 local phaseEndsAt = 0
 local running = false
 
-function Storm.getStatus()
+function StarfallService.getStatus()
 	return {
 		phase = phase,
 		secondsLeft = math.max(0, math.ceil(phaseEndsAt - os.clock())),
@@ -30,6 +38,7 @@ local function setPhase(newPhase: string, duration: number)
 	phaseEndsAt = os.clock() + duration
 end
 
+-- Space-sunset palette: purple sky, orange storm light.
 local function dimSky()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
@@ -43,11 +52,45 @@ end
 local function restoreSky()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
-		atmosphere.Density = 0.35
-		atmosphere.Color = Color3.fromRGB(255, 170, 110)
+		atmosphere.Density = 0.4
+		atmosphere.Color = Color3.fromRGB(218, 140, 242)
 	end
 	Lighting.ClockTime = 17.8
 	Lighting.Brightness = 2
+end
+
+local function playAlarm()
+	local sound = Instance.new("Sound")
+	sound.SoundId = ALARM_SOUND
+	sound.Volume = 0.8
+	sound.PlaybackSpeed = 0.6
+	sound.Parent = workspace
+	sound:Play()
+	task.delay(2, function()
+		sound:Destroy()
+	end)
+end
+
+-- A free Rotling near an impact may survive it as Starstruck.
+local function maybeStarstruck(impact: Vector3)
+	for _, descendant in ipairs(workspace:GetDescendants()) do
+		if descendant:IsA("Model") and descendant:GetAttribute("State") == "free" then
+			local body = descendant.PrimaryPart
+			if body then
+				local flat = Vector3.new(body.Position.X - impact.X, 0, body.Position.Z - impact.Z)
+				if flat.Magnitude <= 10 then
+					local mutation = descendant:GetAttribute("Mutation")
+					if (mutation == nil or mutation == "") and math.random() < Config.STARSTRUCK_CHANCE then
+						descendant:SetAttribute("Mutation", "Starstruck")
+						RotlingFactory.applyMutationVisual(descendant, "Starstruck")
+						local def = RotlingCatalog.getDef(descendant:GetAttribute("DefId") :: string)
+						local name = if def then def.name else "A Rotling"
+						Remotes.bannerEvent():FireAllClients(name .. " survived a meteor and went STARSTRUCK! x4 income!", 4)
+					end
+				end
+			end
+		end
+	end
 end
 
 local function spawnMeteor()
@@ -83,6 +126,8 @@ local function spawnMeteor()
 		meteor.Size = Vector3.new(8, 8, 8)
 		meteor.Color = Color3.fromRGB(255, 220, 120)
 		fire.Brightness = 5
+		Remotes.meteorImpactEvent():FireAllClients(target)
+		maybeStarstruck(target)
 		task.delay(0.25, function()
 			meteor:Destroy()
 		end)
@@ -95,7 +140,7 @@ local function spawnMeteor()
 				local flat = Vector3.new(root.Position.X, 0, root.Position.Z)
 				if flat.Magnitude <= Config.CRATER_RADIUS + 4 then
 					humanoid:TakeDamage(Config.STORM_DAMAGE)
-					Bases.dropAllCarried(player)
+					CarryService.dropAllCarried(player)
 				end
 			end
 		end
@@ -103,15 +148,14 @@ local function spawnMeteor()
 end
 
 -- Force a storm right now (used by the TOUR.json scene setter).
-function Storm.forceStorm()
+function StarfallService.forceStorm()
 	if phase ~= "storm" then
 		setPhase("storm", Config.STORM_DURATION)
 		dimSky()
 	end
 end
 
-function Storm.start(remotesModule)
-	Remotes = remotesModule
+function StarfallService.start()
 	if running then
 		return
 	end
@@ -126,13 +170,14 @@ function Storm.start(remotesModule)
 			-- Warning: the sky darkens, everyone gets the message.
 			setPhase("warn", Config.STORM_WARN)
 			dimSky()
-			Remotes.fireBannerAll("METEOR STORM IN 10 SECONDS! Get home or drop your catch!", 10)
+			playAlarm()
+			Remotes.bannerEvent():FireAllClients("METEOR STORM IN 10 SECONDS! Get home or drop your catch!", 10)
 			while os.clock() < phaseEndsAt do
 				task.wait(0.5)
 			end
 			-- Storm: meteors rain on the crater.
 			setPhase("storm", Config.STORM_DURATION)
-			Remotes.fireBannerAll("METEOR STORM! Stay out of the crater!", 8)
+			Remotes.bannerEvent():FireAllClients("METEOR STORM! Stay out of the crater!", 8)
 			while os.clock() < phaseEndsAt do
 				spawnMeteor()
 				task.wait(Config.STORM_METEOR_INTERVAL)
@@ -143,4 +188,4 @@ function Storm.start(remotesModule)
 	end)
 end
 
-return Storm
+return StarfallService

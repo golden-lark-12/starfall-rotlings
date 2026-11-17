@@ -1,54 +1,65 @@
+--!strict
 -- Starfall Rotlings: server bootstrap.
--- Builds the world, starts the spawner, the storm and the economy, wires
--- the remotes, and handles players joining, dying and leaving.
+-- Builds the world, starts every service, wires the remotes, and handles
+-- players joining, dying and leaving. One system per module; the server
+-- owns every number and the client only ever asks.
 
 local Players = game:GetService("Players")
 
-local Bases = require(script.Parent.Bases)
-local Economy = require(script.Parent.Economy)
-local Remotes = require(script.Parent.Remotes)
-local Spawner = require(script.Parent.Spawner)
+local BaseService = require(script.Parent.BaseService)
+local CarryService = require(script.Parent.CarryService)
+local DataService = require(script.Parent.DataService)
+local IncomeService = require(script.Parent.IncomeService)
+local LeaderstatsService = require(script.Parent.LeaderstatsService)
+local RaiderService = require(script.Parent.RaiderService)
+local RebirthService = require(script.Parent.RebirthService)
+local ShopService = require(script.Parent.ShopService)
+local SpawnService = require(script.Parent.SpawnService)
+local StarfallService = require(script.Parent.StarfallService)
 local State = require(script.Parent.State)
-local Storm = require(script.Parent.Storm)
 local WorldBuilder = require(script.Parent.WorldBuilder)
 
--- Build first, then wire the modules that depend on the world.
+-- Build first, then start the services that depend on the world.
 WorldBuilder.build()
-Bases.init(Remotes)
-Remotes.init()
-Economy.start(Remotes)
-Storm.start(Remotes)
-Spawner.start()
+BaseService.init()
+CarryService.init()
+ShopService.init()
+RebirthService.init()
+IncomeService.start()
+StarfallService.start()
+SpawnService.start()
+RaiderService.start()
 
 -- Pad prompts: pressing E on any pad asks the server to place the
 -- Rotling you carry (it checks the pad is yours and free).
 for _, descendant in ipairs(workspace:GetDescendants()) do
 	if descendant:IsA("ProximityPrompt") and descendant.Parent and descendant.Parent.Name == "Pad" then
 		descendant.Triggered:Connect(function(player: Player)
-			Bases.tryPlace(player)
+			CarryService.tryPlace(player)
 		end)
 	end
 end
 
 local function onCharacterAdded(player: Player, character: Model)
-	Economy.applyWalkSpeed(player)
+	ShopService.applyWalkSpeed(player)
 	local humanoid = character:WaitForChild("Humanoid")
 	humanoid.Died:Connect(function()
 		-- Dying drops everything you were carrying into the crater.
-		Bases.dropAllCarried(player)
+		CarryService.dropAllCarried(player)
 	end)
 end
 
 local function onPlayerAdded(player: Player)
-	Economy.loadProfile(player)
-	local baseId = Bases.assignBase(player)
+	DataService.loadProfile(player)
+	LeaderstatsService.createLeaderstats(player)
+	local baseId = BaseService.assignBase(player)
 	if not baseId then
 		player:Kick("Starfall Rotlings is full! All 8 bases are taken. Try again soon.")
 		return
 	end
-	local profile = State.profiles[player.UserId]
+	local profile = DataService.getProfile(player)
 	if profile then
-		Bases.restorePlaced(player, profile.placed)
+		CarryService.restorePlaced(player, profile.placed)
 	end
 	player.CharacterAdded:Connect(function(character)
 		onCharacterAdded(player, character)
@@ -56,17 +67,16 @@ local function onPlayerAdded(player: Player)
 	if player.Character then
 		onCharacterAdded(player, player.Character)
 	end
-	Remotes.fireBanner(player, "Welcome to Starfall Rotlings! Grab a Rotling in the crater!", 5)
 	task.delay(2, function()
-		Remotes.broadcastHud()
+		IncomeService.broadcastHud()
 	end)
 end
 
 local function onPlayerRemoving(player: Player)
-	Bases.dropAllCarried(player)
-	Economy.saveProfile(player)
-	Bases.freeBase(player)
-	State.profiles[player.UserId] = nil
+	CarryService.dropAllCarried(player)
+	DataService.saveProfile(player)
+	BaseService.freeBase(player)
+	DataService.dropProfile(player)
 	State.carried[player.UserId] = nil
 end
 
@@ -79,7 +89,7 @@ end
 -- Save everyone when the server shuts down.
 game:BindToClose(function()
 	for _, player in ipairs(Players:GetPlayers()) do
-		Economy.saveProfile(player)
+		DataService.saveProfile(player)
 	end
 end)
 
