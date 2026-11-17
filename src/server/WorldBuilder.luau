@@ -48,6 +48,7 @@ local PAD_OFFSETS = {
 local padCFrames: { [number]: { [number]: CFrame } } = {}
 local baseCFrames: { [number]: CFrame } = {}
 local signLabels: { [number]: TextLabel } = {}
+local levelLabels: { [number]: TextLabel } = {}
 local padParts: { [number]: { [number]: Part } } = {}
 local baseTrims: { [number]: Part } = {}
 local baseFlags: { [number]: Part } = {}
@@ -80,6 +81,16 @@ function WorldBuilder.setBaseSign(baseId: number, text: string)
 	local label = signLabels[baseId]
 	if label then
 		label.Text = text
+	end
+end
+
+-- The base level sign: "Lv N" under the owner sign. Level is 1 + the
+-- Rotlings placed on that base, so a packed base visibly outranks an
+-- empty one. Updated from the HUD feed every second.
+function WorldBuilder.setBaseLevel(baseId: number, level: number)
+	local label = levelLabels[baseId]
+	if label then
+		label.Text = "Lv " .. tostring(level) .. " ★"
 	end
 end
 
@@ -318,6 +329,27 @@ local function buildBase(baseId: number)
 	cashLabel.TextStrokeTransparency = 0.3
 	cashLabel.Parent = sign
 	cashLabels[baseId] = cashLabel
+	-- Level sign: a small gold "Lv N" billboard hung under the owner
+	-- sign board, so every base shows its level at a glance.
+	local levelSign = Instance.new("BillboardGui")
+	levelSign.Name = "BaseLevel"
+	levelSign.Size = UDim2.fromOffset(140, 44)
+	levelSign.StudsOffsetWorldSpace = Vector3.new(0, -4.5, 0)
+	levelSign.AlwaysOnTop = true
+	levelSign.LightInfluence = 0
+	levelSign.MaxDistance = 60
+	levelSign.Parent = signBoard
+	local levelLabel = Instance.new("TextLabel")
+	levelLabel.Name = "LevelLabel"
+	levelLabel.Size = UDim2.new(1, 0, 1, 0)
+	levelLabel.BackgroundTransparency = 1
+	levelLabel.Text = "Lv 1 ★"
+	levelLabel.Font = Enum.Font.FredokaOne
+	levelLabel.TextScaled = true
+	levelLabel.TextColor3 = Color3.fromRGB(255, 225, 90)
+	levelLabel.TextStrokeTransparency = 0.3
+	levelLabel.Parent = levelSign
+	levelLabels[baseId] = levelLabel
 
 	-- Pads: glowing plates the Rotlings stand on, each on a plinth.
 	for padIndex, offset in ipairs(PAD_OFFSETS) do
@@ -697,6 +729,122 @@ local function buildSpawnDecor()
 	end
 end
 
+-- The SELL area: a gold pad on the path between spawn and the crater.
+-- Carry a Rotling here and press E to sell it for a minute of its
+-- income. Big gold SELL sign, so no one can miss it from spawn.
+local function buildSellArea()
+	local sellCf = CFrame.new(62, 0.5, 0)
+	local pad = part("SellPad", Enum.PartType.Block, Vector3.new(12, 1, 12), Color3.fromRGB(255, 200, 60), sellCf, Enum.Material.Neon)
+	pad.Transparency = 0.25
+	pad.CanCollide = false
+	pad.CastShadow = false
+	-- Gold trim ring around the pad.
+	for _, side in ipairs({ -1, 1 }) do
+		local trimX = part("SellTrim", Enum.PartType.Block, Vector3.new(12, 0.4, 1), Color3.fromRGB(255, 240, 150), sellCf * CFrame.new(0, 0.6, side * 6), Enum.Material.SmoothPlastic)
+		trimX.CanCollide = false
+		trimX.CastShadow = false
+		local trimZ = part("SellTrim", Enum.PartType.Block, Vector3.new(1, 0.4, 12), Color3.fromRGB(255, 240, 150), sellCf * CFrame.new(side * 6, 0.6, 0), Enum.Material.SmoothPlastic)
+		trimZ.CanCollide = false
+		trimZ.CastShadow = false
+	end
+	-- The SELL sign: a gold billboard on two posts behind the pad.
+	local postColor = Color3.fromRGB(72, 62, 92)
+	for _, sx in ipairs({ -1, 1 }) do
+		local post = part("SellPost", Enum.PartType.Cylinder, Vector3.new(6, 0.8, 0.8), postColor, sellCf * CFrame.new(sx * 4, 3.5, -6.5) * CFrame.Angles(0, 0, math.rad(90)))
+		post.CanCollide = false
+	end
+	local board = part("SellBoard", Enum.PartType.Block, Vector3.new(10, 4, 0.5), Color3.fromRGB(20, 15, 40), sellCf * CFrame.new(0, 7, -6.5))
+	board.CanCollide = false
+	board.CastShadow = false
+	local sign = Instance.new("BillboardGui")
+	sign.Name = "SellSign"
+	sign.Size = UDim2.fromOffset(300, 120)
+	sign.StudsOffsetWorldSpace = Vector3.new(0, 0, 0)
+	sign.AlwaysOnTop = true
+	sign.LightInfluence = 0
+	sign.MaxDistance = 80
+	sign.Parent = board
+	local signBg = Instance.new("Frame")
+	signBg.Name = "SignBg"
+	signBg.Size = UDim2.new(1, 0, 1, 0)
+	signBg.BackgroundColor3 = Color3.fromRGB(20, 15, 40)
+	signBg.BackgroundTransparency = 0.35
+	signBg.BorderSizePixel = 0
+	local signCorner = Instance.new("UICorner")
+	signCorner.CornerRadius = UDim.new(0, 10)
+	signCorner.Parent = signBg
+	signBg.Parent = sign
+	local sellLabel = Instance.new("TextLabel")
+	sellLabel.Name = "SellLabel"
+	sellLabel.Size = UDim2.new(1, 0, 0.55, 0)
+	sellLabel.BackgroundTransparency = 1
+	sellLabel.Text = "💰 SELL"
+	sellLabel.Font = Enum.Font.FredokaOne
+	sellLabel.TextScaled = true
+	sellLabel.TextColor3 = Color3.fromRGB(255, 225, 90)
+	sellLabel.TextStrokeTransparency = 0.3
+	sellLabel.Parent = sign
+	local sellHint = Instance.new("TextLabel")
+	sellHint.Name = "SellHint"
+	sellHint.Size = UDim2.new(1, 0, 0.45, 0)
+	sellHint.Position = UDim2.new(0, 0, 0.55, 0)
+	sellHint.BackgroundTransparency = 1
+	sellHint.Text = "Carry a Rotling here, press E"
+	sellHint.Font = Enum.Font.FredokaOne
+	sellHint.TextScaled = true
+	sellHint.TextColor3 = Color3.fromRGB(255, 255, 255)
+	sellHint.TextStrokeTransparency = 0.3
+	sellHint.Parent = sign
+	-- Press E on the pad to sell what you carry.
+	local sellPrompt = Instance.new("ProximityPrompt")
+	sellPrompt.ActionText = "Sell Rotling"
+	sellPrompt.ObjectText = "SELL — 1 min of income"
+	sellPrompt.HoldDuration = 0
+	sellPrompt.MaxActivationDistance = 12
+	sellPrompt.RequiresLineOfSight = false
+	sellPrompt.Parent = pad
+end
+
+-- Plaza decor: bright flag poles ringing the crater and warm lanterns
+-- flanking the path from spawn, so the middle of the map reads as a
+-- busy plaza instead of empty ground.
+local function buildPlazaDecor()
+	local flagColors = {
+		Color3.fromRGB(255, 90, 90),
+		Color3.fromRGB(255, 200, 60),
+		Color3.fromRGB(80, 230, 220),
+		Color3.fromRGB(255, 110, 200),
+		Color3.fromRGB(120, 255, 150),
+		Color3.fromRGB(255, 160, 90),
+		Color3.fromRGB(170, 120, 255),
+		Color3.fromRGB(120, 200, 255),
+	}
+	for i = 1, 8 do
+		local angle = (i - 1) * (math.pi * 2 / 8) + 0.39
+		local x = math.cos(angle) * 36
+		local z = math.sin(angle) * 36
+		local color = flagColors[i]
+		local pole = part("PlazaFlagPole", Enum.PartType.Cylinder, Vector3.new(9, 0.6, 0.6), Color3.fromRGB(72, 62, 92), CFrame.new(x, 4.5, z) * CFrame.Angles(0, 0, math.rad(90)))
+		pole.CanCollide = false
+		local flag = part("PlazaFlag", Enum.PartType.Block, Vector3.new(0.4, 2.5, 3.5), color, CFrame.new(x, 8, z) * CFrame.Angles(0, -angle + math.rad(90), 0), Enum.Material.Neon)
+		flag.CanCollide = false
+		flag.CastShadow = false
+	end
+	-- Lantern posts flanking the spawn-to-crater path.
+	for _, z in ipairs({ -8, 8 }) do
+		local post = part("PlazaLantern", Enum.PartType.Cylinder, Vector3.new(5, 0.7, 0.7), Color3.fromRGB(72, 62, 92), CFrame.new(78, 2.5, z) * CFrame.Angles(0, 0, math.rad(90)))
+		post.CanCollide = false
+		local lamp = part("PlazaLamp", Enum.PartType.Ball, Vector3.new(1.6, 1.6, 1.6), Color3.fromRGB(255, 220, 130), CFrame.new(78, 5.4, z), Enum.Material.Neon)
+		lamp.CanCollide = false
+		lamp.CastShadow = false
+		local light = Instance.new("PointLight")
+		light.Color = Color3.fromRGB(255, 220, 130)
+		light.Brightness = 0.6
+		light.Range = 14
+		light.Parent = lamp
+	end
+end
+
 -- Storm wind: horizontal streak emitters, off until a storm starts.
 local function buildWind()
 	for _, x in ipairs({ -70, 0, 70 }) do
@@ -764,6 +912,8 @@ function WorldBuilder.build()
 	end
 	buildPaths()
 	buildSpawnDecor()
+	buildSellArea()
+	buildPlazaDecor()
 	buildTrees()
 	buildRocksAndMushrooms()
 	buildHills()

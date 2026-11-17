@@ -15,7 +15,9 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
+local DailyService = require(script.Parent.DailyService)
 local DataService = require(script.Parent.DataService)
+local MissionService = require(script.Parent.MissionService)
 local StarfallService = require(script.Parent.StarfallService)
 local State = require(script.Parent.State)
 local WorldBuilder = require(script.Parent.WorldBuilder)
@@ -57,11 +59,14 @@ function IncomeService.broadcastHud()
 				-- The floating cash counter above the owner's base.
 				if baseId then
 					WorldBuilder.setBaseCoins(baseId, profile.coins)
+					-- The base level sign: 1 + Rotlings placed here.
+					WorldBuilder.setBaseLevel(baseId, 1 + #BaseService.getPlacedForPlayer(player))
 				end
 				local found = 0
 				for _ in pairs(profile.index) do
 					found += 1
 				end
+				local mission = MissionService.currentMission(player)
 				Remotes.hudEvent():FireClient(player, {
 					coins = profile.coins,
 					cps = IncomeService.coinsPerSecond(player),
@@ -79,6 +84,11 @@ function IncomeService.broadcastHud()
 					stormSeconds = storm.secondsLeft,
 					index = profile.index,
 					firstTime = profile.coins == 0 and profile.rebirths == 0 and found == 0,
+					missionText = mission.text,
+					missionProgress = MissionService.progress(player),
+					missionTarget = mission.target,
+					missionReward = mission.reward,
+					dailyReady = DailyService.isReady(player),
 				})
 			end
 		end)
@@ -161,7 +171,9 @@ function IncomeService.start()
 				for _, player in ipairs(Players:GetPlayers()) do
 					local profile = DataService.getProfile(player)
 					if profile then
-						profile.coins += IncomeService.coinsPerSecond(player)
+						local gained = IncomeService.coinsPerSecond(player)
+						profile.coins += gained
+						MissionService.addProgress(player, "earn", gained)
 						local LeaderstatsService = require(script.Parent.LeaderstatsService)
 						LeaderstatsService.refresh(player)
 					end

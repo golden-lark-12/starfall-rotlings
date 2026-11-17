@@ -42,6 +42,9 @@ function DataService.defaultProfile(): State.Profile
 		indexRewards = {},
 		indexFullRewarded = false,
 		placed = {},
+		missionIndex = 1,
+		missionProgress = 0,
+		lastDailyClaim = 0,
 	}
 end
 

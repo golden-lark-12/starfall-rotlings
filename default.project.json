@@ -1,1 +1,379 @@
-{"name":"starfall-rotlings","tree":{"$className":"DataModel","Lighting":{"$properties":{"Ambient":[0.55,0.45,0.7],"Brightness":3,"ClockTime":17,"FogColor":[0.7,0.5,0.8],"FogEnd":900,"GeographicLatitude":35,"GlobalShadows":true,"OutdoorAmbient":[0.8,0.65,0.9],"Technology":"Future"},"Atmosphere":{"$className":"Atmosphere","$properties":{"Color":[0.85,0.55,0.95],"Decay":[0.7,0.4,0.9],"Density":0.35,"Glare":0.15,"Haze":1.5,"Offset":0.25}},"Bloom":{"$className":"BloomEffect","$properties":{"Intensity":0.35,"Size":16,"Threshold":0.9}},"ColorCorrection":{"$className":"ColorCorrectionEffect","$properties":{"Brightness":0.06,"Contrast":0.12,"Saturation":0.45,"TintColor":[1,0.95,1]}},"Sky":{"$className":"Sky","$properties":{"CelestialBodiesShown":true,"StarCount":3000}},"SunRays":{"$className":"SunRaysEffect","$properties":{"Intensity":0.2,"Spread":0.7}}},"Players":{"$properties":{"CharacterAutoLoads":true}},"ReplicatedStorage":{"Shared":{"$path":"src/shared"},"StarfallRemotes":{"$className":"Folder","BuyItem":{"$className":"RemoteFunction"},"DoRebirth":{"$className":"RemoteFunction"},"MeteorImpact":{"$className":"RemoteEvent"},"PlaceRotling":{"$className":"RemoteEvent"},"RarityPopup":{"$className":"RemoteEvent"},"ShowBanner":{"$className":"RemoteEvent"},"ToggleLock":{"$className":"RemoteEvent"},"UpdateHud":{"$className":"RemoteEvent"}}},"ServerScriptService":{"Server":{"$path":"src/server"}},"SoundService":{"$properties":{"RespectFilteringEnabled":true}},"StarterPlayer":{"StarterPlayerScripts":{"Client":{"$path":"src/client"}}},"Workspace":{"$properties":{"FilteringEnabled":true},"Crater":{"$className":"Part","$properties":{"Anchored":true,"Color":[0.72,0.45,0.28],"Locked":true,"Material":"Slate","Shape":"Cylinder","Size":[0.4,56,56],"CFrame":[0,0.2,0,0,-1,0,1,0,0,0,0,1]}},"CraterGlow":{"$className":"Part","$properties":{"Anchored":true,"Color":[0.1,0.9,0.85],"Locked":true,"Material":"Neon","Shape":"Cylinder","Size":[0.4,58,58],"CFrame":[0,0.1,0,0,-1,0,1,0,0,0,0,1]}},"Ground":{"$className":"Part","$properties":{"Anchored":true,"Color":[0.45,0.33,0.62],"Locked":true,"Material":"Slate","Size":[480,20,480],"CFrame":[0,-10,0,1,0,0,0,1,0,0,0,1]}},"LavaCrack1":{"$className":"Part","$properties":{"Anchored":true,"Color":[1,0.55,0.15],"Locked":true,"Material":"Neon","Size":[18,0.2,1.2],"CFrame":[-8,0.45,6,0.8192,0,0.5736,0,1,0,-0.5736,0,0.8192]}},"LavaCrack2":{"$className":"Part","$properties":{"Anchored":true,"Color":[1,0.55,0.15],"Locked":true,"Material":"Neon","Size":[14,0.2,1.2],"CFrame":[10,0.45,-8,0.6428,0,-0.766,0,1,0,0.766,0,0.6428]}},"LavaCrack3":{"$className":"Part","$properties":{"Anchored":true,"Color":[1,0.55,0.15],"Locked":true,"Material":"Neon","Size":[12,0.2,1.2],"CFrame":[2,0.45,14,0.1736,0,0.9848,0,1,0,-0.9848,0,0.1736]}},"SpawnLocation":{"$className":"SpawnLocation","$properties":{"Anchored":true,"Color":[0.25,0.65,0.7],"Duration":0,"Enabled":true,"Locked":true,"Material":"SmoothPlastic","Neutral":true,"Size":[14,1,14],"CFrame":[94,0.5,0,0,0,1,0,1,0,-1,0,0]}}}}}
+{
+ "name": "starfall-rotlings",
+ "tree": {
+  "$className": "DataModel",
+  "Lighting": {
+   "$properties": {
+    "Ambient": [
+     0.75,
+     0.7,
+     0.85
+    ],
+    "Brightness": 3,
+    "ClockTime": 12.5,
+    "FogColor": [
+     0.65,
+     0.8,
+     1.0
+    ],
+    "FogEnd": 1500,
+    "GeographicLatitude": 35,
+    "GlobalShadows": true,
+    "OutdoorAmbient": [
+     1.0,
+     0.95,
+     1.0
+    ],
+    "Technology": "Future"
+   },
+   "Atmosphere": {
+    "$className": "Atmosphere",
+    "$properties": {
+     "Color": [
+      0.85,
+      0.55,
+      0.95
+     ],
+     "Decay": [
+      0.7,
+      0.4,
+      0.9
+     ],
+     "Density": 0.2,
+     "Glare": 0.08,
+     "Haze": 0.8,
+     "Offset": 0.25
+    }
+   },
+   "Bloom": {
+    "$className": "BloomEffect",
+    "$properties": {
+     "Intensity": 0.35,
+     "Size": 16,
+     "Threshold": 0.9
+    }
+   },
+   "ColorCorrection": {
+    "$className": "ColorCorrectionEffect",
+    "$properties": {
+     "Brightness": 0.1,
+     "Contrast": 0.15,
+     "Saturation": 0.65,
+     "TintColor": [
+      1,
+      0.95,
+      1
+     ]
+    }
+   },
+   "Sky": {
+    "$className": "Sky",
+    "$properties": {
+     "CelestialBodiesShown": true,
+     "StarCount": 3000
+    }
+   },
+   "SunRays": {
+    "$className": "SunRaysEffect",
+    "$properties": {
+     "Intensity": 0.2,
+     "Spread": 0.7
+    }
+   }
+  },
+  "Players": {
+   "$properties": {
+    "CharacterAutoLoads": true
+   }
+  },
+  "ReplicatedStorage": {
+   "Shared": {
+    "$path": "src/shared"
+   },
+   "StarfallRemotes": {
+    "$className": "Folder",
+    "BuyItem": {
+     "$className": "RemoteFunction"
+    },
+    "DoRebirth": {
+     "$className": "RemoteFunction"
+    },
+    "MeteorImpact": {
+     "$className": "RemoteEvent"
+    },
+    "PlaceRotling": {
+     "$className": "RemoteEvent"
+    },
+    "RarityPopup": {
+     "$className": "RemoteEvent"
+    },
+    "ShowBanner": {
+     "$className": "RemoteEvent"
+    },
+    "ToggleLock": {
+     "$className": "RemoteEvent"
+    },
+    "UpdateHud": {
+     "$className": "RemoteEvent"
+    },
+    "SellRotling": {
+     "$className": "RemoteEvent"
+    },
+    "ClaimDaily": {
+     "$className": "RemoteFunction"
+    }
+   }
+  },
+  "ServerScriptService": {
+   "Server": {
+    "$path": "src/server"
+   }
+  },
+  "SoundService": {
+   "$properties": {
+    "RespectFilteringEnabled": true
+   }
+  },
+  "StarterPlayer": {
+   "StarterPlayerScripts": {
+    "Client": {
+     "$path": "src/client"
+    }
+   }
+  },
+  "Workspace": {
+   "$properties": {
+    "FilteringEnabled": true
+   },
+   "Crater": {
+    "$className": "Part",
+    "$properties": {
+     "Anchored": true,
+     "Color": [
+      0.72,
+      0.45,
+      0.28
+     ],
+     "Locked": true,
+     "Material": "Slate",
+     "Shape": "Cylinder",
+     "Size": [
+      0.4,
+      56,
+      56
+     ],
+     "CFrame": [
+      0,
+      0.2,
+      0,
+      0,
+      -1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1
+     ]
+    }
+   },
+   "CraterGlow": {
+    "$className": "Part",
+    "$properties": {
+     "Anchored": true,
+     "Color": [
+      0.1,
+      0.9,
+      0.85
+     ],
+     "Locked": true,
+     "Material": "Neon",
+     "Shape": "Cylinder",
+     "Size": [
+      0.4,
+      58,
+      58
+     ],
+     "CFrame": [
+      0,
+      0.1,
+      0,
+      0,
+      -1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1
+     ]
+    }
+   },
+   "Ground": {
+    "$className": "Part",
+    "$properties": {
+     "Anchored": true,
+     "Color": [
+      0.55,
+      0.42,
+      0.72
+     ],
+     "Locked": true,
+     "Material": "Slate",
+     "Size": [
+      480,
+      20,
+      480
+     ],
+     "CFrame": [
+      0,
+      -10,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1
+     ]
+    }
+   },
+   "LavaCrack1": {
+    "$className": "Part",
+    "$properties": {
+     "Anchored": true,
+     "Color": [
+      1,
+      0.55,
+      0.15
+     ],
+     "Locked": true,
+     "Material": "Neon",
+     "Size": [
+      18,
+      0.2,
+      1.2
+     ],
+     "CFrame": [
+      -8,
+      0.45,
+      6,
+      0.8192,
+      0,
+      0.5736,
+      0,
+      1,
+      0,
+      -0.5736,
+      0,
+      0.8192
+     ]
+    }
+   },
+   "LavaCrack2": {
+    "$className": "Part",
+    "$properties": {
+     "Anchored": true,
+     "Color": [
+      1,
+      0.55,
+      0.15
+     ],
+     "Locked": true,
+     "Material": "Neon",
+     "Size": [
+      14,
+      0.2,
+      1.2
+     ],
+     "CFrame": [
+      10,
+      0.45,
+      -8,
+      0.6428,
+      0,
+      -0.766,
+      0,
+      1,
+      0,
+      0.766,
+      0,
+      0.6428
+     ]
+    }
+   },
+   "LavaCrack3": {
+    "$className": "Part",
+    "$properties": {
+     "Anchored": true,
+     "Color": [
+      1,
+      0.55,
+      0.15
+     ],
+     "Locked": true,
+     "Material": "Neon",
+     "Size": [
+      12,
+      0.2,
+      1.2
+     ],
+     "CFrame": [
+      2,
+      0.45,
+      14,
+      0.1736,
+      0,
+      0.9848,
+      0,
+      1,
+      0,
+      -0.9848,
+      0,
+      0.1736
+     ]
+    }
+   },
+   "SpawnLocation": {
+    "$className": "SpawnLocation",
+    "$properties": {
+     "Anchored": true,
+     "Color": [
+      0.25,
+      0.65,
+      0.7
+     ],
+     "Duration": 0,
+     "Enabled": true,
+     "Locked": true,
+     "Material": "SmoothPlastic",
+     "Neutral": true,
+     "Size": [
+      14,
+      1,
+      14
+     ],
+     "CFrame": [
+      94,
+      0.5,
+      0,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      -1,
+      0,
+      0
+     ]
+    }
+   }
+  }
+ }
+}

@@ -17,6 +17,7 @@ local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local BaseService = require(script.Parent.BaseService)
 local DataService = require(script.Parent.DataService)
 local IndexService = require(script.Parent.IndexService)
+local MissionService = require(script.Parent.MissionService)
 local RotlingFactory = require(script.Parent.RotlingFactory)
 local State = require(script.Parent.State)
 local WorldBuilder = require(script.Parent.WorldBuilder)
@@ -185,6 +186,7 @@ function CarryService.tryGrab(player: Player, model: Model)
 		return
 	end
 	CarryService.carryRotling(player, model)
+	MissionService.addProgress(player, "grab", 1)
 	playPickupSound(player)
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
 	if def then
@@ -272,6 +274,7 @@ function CarryService.placeOnPad(player: Player, model: Model, baseId: number, p
 	end
 	-- The idle loop bobs around this new rest pose.
 	RotlingFactory.setRestPose(model)
+	MissionService.addProgress(player, "place", 1)
 	Remotes.bannerEvent():FireClient(player, "Placed! It now earns coins every second.", 3)
 end
 

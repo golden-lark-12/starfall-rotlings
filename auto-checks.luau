@@ -775,6 +775,340 @@ do
 	end
 end
 
+-- -- (m) conveyor: always 6-10 Rotlings to grab ------------------------------
+do
+	local configSrc = read("src/shared/Config.luau")
+	local spawnSrc = read("src/server/SpawnService.luau")
+	if not configSrc or not spawnSrc then
+		check("m", false, "could not verify the conveyor — Config.luau or SpawnService.luau missing")
+	else
+		local problems: { string } = {}
+		local minFree = configValue(configSrc, "CRATER_MIN_FREE")
+		local maxFree = configValue(configSrc, "CRATER_MAX_FREE")
+		local initial = configValue(configSrc, "CRATER_INITIAL")
+		if not minFree then
+			table.insert(problems, "Config.CRATER_MIN_FREE not found")
+		elseif minFree < 6 then
+			table.insert(problems, "conveyor floor " .. tostring(minFree) .. " (under 6)")
+		end
+		if not maxFree then
+			table.insert(problems, "Config.CRATER_MAX_FREE not found")
+		elseif maxFree < 10 then
+			table.insert(problems, "conveyor cap " .. tostring(maxFree) .. " (under 10)")
+		end
+		if not initial then
+			table.insert(problems, "Config.CRATER_INITIAL not found")
+		elseif initial < 6 then
+			table.insert(problems, "conveyor starts with " .. tostring(initial) .. " Rotlings (under 6)")
+		end
+		-- The spawn loop tops the conveyor back up to the floor.
+		local startBody = functionBody(spawnSrc, "SpawnService.start")
+		if not startBody then
+			table.insert(problems, "SpawnService.start not found")
+		elseif not startBody:find("CRATER_MIN_FREE") then
+			table.insert(problems, "SpawnService.start never tops up to CRATER_MIN_FREE")
+		end
+		if #problems > 0 then
+			check("m", false, "the conveyor can run empty — " .. table.concat(problems, "; ") .. ". Parts: SpawnService.start, Config.CRATER_MIN_FREE / CRATER_MAX_FREE / CRATER_INITIAL")
+		else
+			check("m", true, "the conveyor stays populated — floor " .. tostring(minFree) .. ", cap " .. tostring(maxFree) .. ", starts with " .. tostring(initial) .. ", spawn loop tops up")
+		end
+	end
+end
+
+-- -- (n) bright, saturated, toy-like look -------------------------------------
+do
+	local ok, projectText = pcall(fs.readFile, root .. "/default.project.json")
+	local project: any = nil
+	if ok then
+		local decOk, decoded = pcall(serde.decode, "json", projectText)
+		if decOk then
+			project = decoded
+		end
+	end
+	if not project then
+		check("n", false, "could not verify the look — default.project.json missing or not valid JSON")
+	else
+		local problems: { string } = {}
+		local lighting = project.tree and project.tree.Lighting
+		local props = if lighting then lighting["$properties"] else nil
+		if not props then
+			table.insert(problems, "Lighting properties not found in default.project.json")
+		else
+			local clock = num(tostring(props.ClockTime))
+			if not clock then
+				table.insert(problems, "Lighting ClockTime not found")
+			elseif clock < 10 or clock > 15 then
+				table.insert(problems, "ClockTime " .. tostring(clock) .. " (not bright midday 10–15)")
+			end
+			local fogEnd = num(tostring(props.FogEnd))
+			if not fogEnd then
+				table.insert(problems, "Lighting FogEnd not found")
+			elseif fogEnd < 1200 then
+				table.insert(problems, "FogEnd " .. tostring(fogEnd) .. " (under 1200 — haze closes in)")
+			end
+		end
+		local atmosphere = if lighting then lighting.Atmosphere else nil
+		local atmoProps = if atmosphere then atmosphere["$properties"] else nil
+		if not atmoProps then
+			table.insert(problems, "Atmosphere not found in default.project.json")
+		else
+			local haze = num(tostring(atmoProps.Haze))
+			local density = num(tostring(atmoProps.Density))
+			if haze and haze > 1 then
+				table.insert(problems, "Atmosphere Haze " .. tostring(haze) .. " (over 1 — grey haze)")
+			end
+			if density and density > 0.25 then
+				table.insert(problems, "Atmosphere Density " .. tostring(density) .. " (over 0.25)")
+			end
+		end
+		local cc = if lighting then lighting.ColorCorrection else nil
+		local ccProps = if cc then cc["$properties"] else nil
+		if not ccProps then
+			table.insert(problems, "ColorCorrection not found in default.project.json")
+		else
+			local sat = num(tostring(ccProps.Saturation))
+			if not sat then
+				table.insert(problems, "ColorCorrection Saturation not found")
+			elseif sat < 0.6 then
+				table.insert(problems, "Saturation " .. tostring(sat) .. " (under 0.6 — not toy-like)")
+			end
+		end
+		-- Bloom stays cut (Phase 1): a bright sky must not re-wash.
+		local bloom = if lighting then lighting.Bloom else nil
+		local bloomProps = if bloom then bloom["$properties"] else nil
+		local intensity = if bloomProps then num(tostring(bloomProps.Intensity)) else nil
+		if intensity and intensity > 0.4 then
+			table.insert(problems, "Bloom Intensity " .. tostring(intensity) .. " (over 0.4 — washout is back)")
+		end
+		if #problems > 0 then
+			check("n", false, "the look is not bright and saturated — " .. table.concat(problems, "; ") .. ". Parts: Lighting / Atmosphere / ColorCorrection / Bloom (default.project.json)")
+		else
+			check("n", true, "bright toy-like look — midday ClockTime " .. tostring(if props then props.ClockTime else "?")
+				.. ", FogEnd " .. tostring(if props then props.FogEnd else "?") .. ", Haze " .. tostring(if atmoProps then atmoProps.Haze else "?")
+				.. ", Saturation " .. tostring(if ccProps then ccProps.Saturation else "?") .. ", Bloom " .. tostring(intensity))
+		end
+	end
+end
+
+-- -- (o) colourful bases with a level sign ------------------------------------
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	if not worldSrc or not incomeSrc then
+		check("o", false, "could not verify base level signs — WorldBuilder.luau or IncomeService.luau missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find('sign%.Name = "BaseSign"') then
+			table.insert(problems, '"BaseSign" billboard not found')
+		end
+		-- A level billboard hangs under the owner sign.
+		if not worldSrc:find('levelSign%.Name = "BaseLevel"') then
+			table.insert(problems, '"BaseLevel" billboard not found in WorldBuilder.luau')
+		end
+		if not worldSrc:find("function WorldBuilder.setBaseLevel") then
+			table.insert(problems, "WorldBuilder.setBaseLevel not found")
+		end
+		-- The level text is "Lv N" with a star.
+		if not worldSrc:find('"Lv "%s*%.%.%s*tostring%(level%)') then
+			table.insert(problems, 'level label does not show "Lv N"')
+		end
+		-- The HUD feed refreshes the level every second.
+		if not incomeSrc:find("WorldBuilder.setBaseLevel%(baseId,") then
+			table.insert(problems, "IncomeService.broadcastHud never calls WorldBuilder.setBaseLevel")
+		end
+		-- Bases are colourful: at least 6 distinct theme colours.
+		local colorCount = 0
+		for _ in worldSrc:gmatch("Color3%.fromRGB%(%d+, %d+, %d+%)") do
+			colorCount += 1
+		end
+		if colorCount < 6 then
+			table.insert(problems, "fewer than 6 theme colours in WorldBuilder.luau")
+		end
+		if #problems > 0 then
+			check("o", false, "bases lack a level sign — " .. table.concat(problems, "; ") .. ". Parts: BaseSign / BaseLevel / setBaseLevel (WorldBuilder.luau), IncomeService.broadcastHud")
+		else
+			check("o", true, "colourful bases with a level sign — BaseSign + BaseLevel (\"Lv N ★\") under it, refreshed every second from the HUD feed")
+		end
+	end
+end
+
+-- -- (p) a clear SELL area -----------------------------------------------------
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local sellSrc = read("src/server/SellService.luau")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	local projectOk, projectText = pcall(fs.readFile, root .. "/default.project.json")
+	local project: any = nil
+	if projectOk then
+		local decOk, decoded = pcall(serde.decode, "json", projectText)
+		if decOk then
+			project = decoded
+		end
+	end
+	if not worldSrc or not sellSrc or not remotesSrc or not project then
+		check("p", false, "could not verify the SELL area — WorldBuilder.luau, SellService.luau, Remotes.luau or default.project.json missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find('part%("SellPad"') then
+			table.insert(problems, 'no "SellPad" part in WorldBuilder.luau')
+		end
+		if not worldSrc:find('sign%.Name = "SellSign"') then
+			table.insert(problems, '"SellSign" billboard not found in WorldBuilder.luau')
+		end
+		if not worldSrc:find('"💰 SELL"') then
+			table.insert(problems, 'SELL sign does not say "💰 SELL"')
+		end
+		if not worldSrc:find('sellPrompt%.ActionText = "Sell Rotling"') then
+			table.insert(problems, 'no "Sell Rotling" prompt on the SELL pad')
+		end
+		if not sellSrc:find("function SellService.sellCarried") then
+			table.insert(problems, "SellService.sellCarried not found")
+		end
+		if not sellSrc:find("Config.SELL_MULT") then
+			table.insert(problems, "sell price does not use Config.SELL_MULT")
+		end
+		local remotes = project.tree and project.tree.ReplicatedStorage and project.tree.ReplicatedStorage.StarfallRemotes
+		if not remotes or not remotes.SellRotling then
+			table.insert(problems, "SellRotling RemoteEvent missing from default.project.json")
+		end
+		if not remotesSrc:find("function Remotes.sellEvent") then
+			table.insert(problems, "Remotes.sellEvent not found")
+		end
+		if #problems > 0 then
+			check("p", false, "no clear SELL area — " .. table.concat(problems, "; ") .. ". Parts: SellPad / SellSign (WorldBuilder.luau), SellService.sellCarried, SellRotling remote")
+		else
+			check("p", true, "clear SELL area — gold SellPad on the spawn path with a 💰 SELL sign and E prompt, server-priced at baseCps x " .. tostring(configValue(read("src/shared/Config.luau"), "SELL_MULT") or 60))
+		end
+	end
+end
+
+-- -- (q) top HUD: cash, income, Shop / Upgrade / Daily + mission bar --------
+do
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local shopSrc = read("src/client/ShopController.client.luau")
+	if not hudSrc or not shopSrc then
+		check("q", false, "could not verify the top HUD — HUDController.client.luau or ShopController.client.luau missing")
+	else
+		local problems: { string } = {}
+		-- Cash + income per second at the top.
+		if not hudSrc:find('makeLabel%(gui, "Coins"') then
+			table.insert(problems, 'no "Coins" label in HUDController.client.luau')
+		end
+		if not hudSrc:find('makeLabel%(gui, "Cps"') then
+			table.insert(problems, 'no "Cps" label in HUDController.client.luau')
+		end
+		-- Shop button in the top row (y <= 60), not down the side.
+		-- The position UDim2 is the SECOND UDim2 in the makeButton
+		-- call (the first is the size), so match past it.
+		local shopY = num(shopSrc:match('makeButton%(gui, "ShopButton".-UDim2%.new%(0,%s*%d+,%s*0,%s*%d+%), UDim2%.new%(0,%s*%d+,%s*0,%s*(%d+)%)'))
+		if not shopY then
+			table.insert(problems, '"ShopButton" not found in ShopController.client.luau')
+		elseif shopY > 60 then
+			table.insert(problems, "ShopButton sits at y=" .. tostring(shopY) .. " (not in the top bar)")
+		end
+		-- Upgrade + Daily buttons, same top row as Shop.
+		local upY = num(hudSrc:match('makeButton%(gui, "UpgradeButton".-UDim2%.new%(0,%s*%d+,%s*0,%s*%d+%), UDim2%.new%(0,%s*%d+,%s*0,%s*(%d+)%)'))
+		local dailyY = num(hudSrc:match('makeButton%(gui, "DailyButton".-UDim2%.new%(0,%s*%d+,%s*0,%s*%d+%), UDim2%.new%(0,%s*%d+,%s*0,%s*(%d+)%)'))
+		if not upY then
+			table.insert(problems, '"UpgradeButton" not found in HUDController.client.luau')
+		elseif upY > 60 then
+			table.insert(problems, "UpgradeButton sits at y=" .. tostring(upY) .. " (not in the top bar)")
+		end
+		if not dailyY then
+			table.insert(problems, '"DailyButton" not found in HUDController.client.luau')
+		elseif dailyY > 60 then
+			table.insert(problems, "DailyButton sits at y=" .. tostring(dailyY) .. " (not in the top bar)")
+		end
+		-- Upgrade opens the shop; Daily asks the server for the reward.
+		if not hudSrc:find('openShopEvent%(gui%):Fire%("upgrade"%)') then
+			table.insert(problems, "UpgradeButton does not fire the OpenShop event")
+		end
+		if not hudSrc:find("Remotes.dailyFunction%(%)") then
+			table.insert(problems, "DailyButton does not call Remotes.dailyFunction")
+		end
+		-- The mission bar under the top bar.
+		if not hudSrc:find('missionBar%.Name = "MissionBar"') then
+			table.insert(problems, '"MissionBar" frame not found in HUDController.client.luau')
+		end
+		if not hudSrc:find('missionFill%.Name = "MissionFill"') then
+			table.insert(problems, '"MissionFill" progress fill not found in HUDController.client.luau')
+		end
+		if #problems > 0 then
+			check("q", false, "the top HUD is incomplete — " .. table.concat(problems, "; ") .. ". Parts: Coins / Cps / UpgradeButton / DailyButton / MissionBar (HUDController.client.luau), ShopButton (ShopController.client.luau)")
+		else
+			check("q", true, "top HUD complete — cash + income/s centred, Shop / Upgrade / Daily in the top row, mission bar with progress fill under the top bar")
+		end
+	end
+end
+
+-- -- (r) missions + daily reward actually work ---------------------------------
+do
+	local configSrc = read("src/shared/Config.luau")
+	local missionSrc = read("src/server/MissionService.luau")
+	local dailySrc = read("src/server/DailyService.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	if not configSrc or not missionSrc or not dailySrc or not carrySrc or not incomeSrc or not remotesSrc then
+		check("r", false, "could not verify missions/daily — Config.luau, MissionService.luau, DailyService.luau, CarryService.luau, IncomeService.luau or Remotes.luau missing")
+	else
+		local problems: { string } = {}
+		-- Three missions defined in Config (one `{ id = "..." }` row
+		-- each — counted over the whole file, since the table spans
+		-- lines and Lua "." never crosses a newline).
+		local missionCount = 0
+		for _ in configSrc:gmatch('%{ id = "') do
+			missionCount += 1
+		end
+		if missionCount < 3 then
+			table.insert(problems, "Config.MISSIONS holds " .. tostring(missionCount) .. " missions (need 3)")
+		end
+		-- MissionService counts and pays.
+		if not missionSrc:find("function MissionService.addProgress") then
+			table.insert(problems, "MissionService.addProgress not found")
+		end
+		if not missionSrc:find("function MissionService.currentMission") then
+			table.insert(problems, "MissionService.currentMission not found")
+		end
+		if not missionSrc:find("profile%.coins %+= mission%.reward") then
+			table.insert(problems, "MissionService never pays the reward")
+		end
+		-- Hooks: grab, place, earn.
+		if not carrySrc:find('MissionService.addProgress%(player, "grab", 1%)') then
+			table.insert(problems, "CarryService.tryGrab never reports mission progress")
+		end
+		if not carrySrc:find('MissionService.addProgress%(player, "place", 1%)') then
+			table.insert(problems, "CarryService.placeOnPad never reports mission progress")
+		end
+		if not incomeSrc:find('MissionService.addProgress%(player, "earn", gained%)') then
+			table.insert(problems, "IncomeService tick never reports earn progress")
+		end
+		-- The HUD feed carries the mission and the daily state.
+		if not incomeSrc:find("missionText = mission%.text") then
+			table.insert(problems, "IncomeService.broadcastHud never sends the mission")
+		end
+		if not incomeSrc:find("dailyReady = DailyService.isReady%(player%)") then
+			table.insert(problems, "IncomeService.broadcastHud never sends dailyReady")
+		end
+		-- Daily: server-owned clock, wired remote.
+		if not dailySrc:find("function DailyService.claimDaily") then
+			table.insert(problems, "DailyService.claimDaily not found")
+		end
+		if not dailySrc:find("Config.DAILY_COOLDOWN") then
+			table.insert(problems, "DailyService never checks Config.DAILY_COOLDOWN")
+		end
+		if not remotesSrc:find("function Remotes.dailyFunction") then
+			table.insert(problems, "Remotes.dailyFunction not found")
+		end
+		if #problems > 0 then
+			check("r", false, "missions/daily are not wired — " .. table.concat(problems, "; ") .. ". Parts: MissionService / DailyService, CarryService hooks, IncomeService.broadcastHud")
+		else
+			check("r", true, "missions + daily work — " .. tostring(missionCount) .. " missions in Config, grab/place/earn hooks report progress, rewards paid server-side, HUD feed carries mission + dailyReady")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

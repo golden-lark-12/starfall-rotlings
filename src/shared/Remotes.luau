@@ -24,6 +24,11 @@ export type HudData = {
 	stormSeconds: number,
 	index: { [string]: boolean },
 	firstTime: boolean,
+	missionText: string,
+	missionProgress: number,
+	missionTarget: number,
+	missionReward: number,
+	dailyReady: boolean,
 }
 
 local Remotes = {}
@@ -39,6 +44,14 @@ end
 
 function Remotes.placeEvent(): RemoteEvent
 	return Remotes.getFolder():WaitForChild("PlaceRotling") :: RemoteEvent
+end
+
+function Remotes.sellEvent(): RemoteEvent
+	return Remotes.getFolder():WaitForChild("SellRotling") :: RemoteEvent
+end
+
+function Remotes.dailyFunction(): RemoteFunction
+	return Remotes.getFolder():WaitForChild("ClaimDaily") :: RemoteFunction
 end
 
 function Remotes.lockEvent(): RemoteEvent

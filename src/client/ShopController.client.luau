@@ -5,6 +5,7 @@
 -- buy; the server checks the price and answers with the result.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local Formatting = require(ReplicatedStorage.Shared.Formatting)
@@ -22,7 +23,8 @@ local SHOP_ORDER = { "Speed", "Carry", "Income", "Pads", "Lock" }
 
 local gui = GuiKit.getGui()
 
-local shopButton = GuiKit.makeButton(gui, "ShopButton", "🛒 Shop (B)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -172, 0, 172), GuiKit.COLORS.Blue)
+-- Top-left row, beside the HUD's Upgrade and Daily buttons.
+local shopButton = GuiKit.makeButton(gui, "ShopButton", "🛒 Shop (B)", UDim2.new(0, 120, 0, 44), UDim2.new(0, 12, 0, 30), GuiKit.COLORS.Blue)
 
 local shopPanel = GuiKit.makePanel(gui, "ShopPanel", UDim2.new(0, 420, 0, 560), UDim2.new(0.5, -210, 0.5, -280))
 shopPanel.Visible = false
@@ -42,7 +44,7 @@ for i, key in ipairs(SHOP_ORDER) do
 	GuiKit.makeLabel(row, "Desc", item.desc, UDim2.new(1, -130, 0, 22), UDim2.new(0, 10, 0, 34), 16, Color3.fromRGB(200, 200, 220))
 	local tierLabel = GuiKit.makeLabel(row, "Tier", "Tier 0/" .. tostring(#item.tiers), UDim2.new(1, -130, 0, 22), UDim2.new(0, 10, 0, 58), 16, Color3.fromRGB(160, 255, 170))
 	local buyButton = GuiKit.makeButton(row, "Buy", Formatting.formatMoney(item.tiers[1]), UDim2.new(0, 104, 0, 44), UDim2.new(1, -114, 0, 22), GuiKit.COLORS.Buy)
-	shopRows[key] = { tierLabel = tierLabel, buyButton = buyButton }
+	shopRows[key] = { row = row, tierLabel = tierLabel, buyButton = buyButton }
 	buyButton.MouseButton1Click:Connect(function()
 		local ok, message = Remotes.buyFunction():InvokeServer(key)
 		GuiKit.showBanner(gui, message, 3)
@@ -77,6 +79,32 @@ local function toggleShop()
 		refreshShop()
 	end
 end
+
+-- Open the shop from another controller (the HUD's Upgrade button).
+-- "upgrade" flashes the base-upgrade rows (Income, Pads) so the player
+-- sees where the upgrades live.
+local function openShop(section: string?)
+	GuiKit.closeOtherPanels(gui, "ShopPanel")
+	shopPanel.Visible = true
+	refreshShop()
+	if section == "upgrade" then
+		for _, key in ipairs({ "Income", "Pads" }) do
+			local entry = shopRows[key]
+			if entry then
+				TweenService:Create(entry.row, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					BackgroundColor3 = Color3.fromRGB(255, 225, 90),
+				}):Play()
+				task.delay(1, function()
+					TweenService:Create(entry.row, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+						BackgroundColor3 = GuiKit.COLORS.Panel,
+					}):Play()
+				end)
+			end
+		end
+	end
+end
+
+GuiKit.openShopEvent(gui).Event:Connect(openShop)
 
 shopButton.MouseButton1Click:Connect(toggleShop)
 shopClose.MouseButton1Click:Connect(function()

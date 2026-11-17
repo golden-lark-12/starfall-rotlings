@@ -122,6 +122,20 @@ function GuiKit.closeOtherPanels(gui: ScreenGui, exceptName: string?)
 	end
 end
 
+-- The shared "open the shop" signal: the HUD's Upgrade button fires it
+-- and the ShopController answers it (LocalScripts cannot require each
+-- other, so a BindableEvent in the ScreenGui is the wire).
+function GuiKit.openShopEvent(gui: ScreenGui): BindableEvent
+	local existing = gui:FindFirstChild("OpenShop")
+	if existing and existing:IsA("BindableEvent") then
+		return existing
+	end
+	local event = Instance.new("BindableEvent")
+	event.Name = "OpenShop"
+	event.Parent = gui
+	return event
+end
+
 local bannerToken = 0
 
 -- Show the shared centre banner line for a few seconds.

@@ -156,14 +156,21 @@ function SpawnService.start()
 		return
 	end
 	running = true
-	-- A few Rotlings are already waiting when the first player arrives.
-	for _ = 1, 5 do
+	-- A few Rotlings are already waiting when the first player arrives:
+	-- the conveyor starts full (CRATER_INITIAL), never empty.
+	for _ = 1, Config.CRATER_INITIAL do
 		SpawnService.spawnOne()
 	end
 	task.spawn(animateFree)
 	task.spawn(function()
 		while true do
 			task.wait(Config.SPAWN_INTERVAL)
+			-- The conveyor never drops below CRATER_MIN_FREE: top it
+			-- back up fast so there is always something to grab.
+			while SpawnService.countFree() < Config.CRATER_MIN_FREE
+				and SpawnService.countFree() < Config.CRATER_MAX_FREE do
+				SpawnService.spawnOne()
+			end
 			if SpawnService.countFree() < Config.CRATER_MAX_FREE then
 				SpawnService.spawnOne()
 			end

@@ -19,6 +19,25 @@ Config.GROUND_SIZE = 480
 -- Spawning.
 Config.SPAWN_INTERVAL = 4 -- seconds between spawn attempts
 Config.CRATER_MAX_FREE = 10 -- free Rotlings at once in the crater
+Config.CRATER_MIN_FREE = 6 -- the conveyor never drops below this: top up fast
+Config.CRATER_INITIAL = 8 -- Rotlings waiting when the first player arrives
+
+-- Missions: a short rotating list, one at a time. Progress is counted
+-- on the server (grabs, places, coins earned); finishing one pays the
+-- reward and moves to the next.
+Config.MISSIONS = {
+	{ id = "grab", text = "Grab 3 Rotlings", target = 3, reward = 300 },
+	{ id = "place", text = "Place 3 Rotlings on your base", target = 3, reward = 500 },
+	{ id = "earn", text = "Earn $5,000 coins", target = 5000, reward = 750 },
+}
+
+-- Daily reward: claimable once per cooldown from the HUD Daily button.
+Config.DAILY_REWARD = 1000
+Config.DAILY_COOLDOWN = 20 * 3600 -- 20 hours between claims
+
+-- Selling: carry a Rotling to the gold SELL pad by spawn and press E.
+-- A Rotling sells for one minute of its own income (baseCps x 60).
+Config.SELL_MULT = 60
 
 -- Meteor storm: a full cycle is calm + warning + storm.
 Config.STORM_PERIOD = 90
@@ -64,7 +83,7 @@ Config.RAIDER_WALK_SPEED = 14
 -- Saving.
 Config.SAVE_INTERVAL = 60 -- seconds between autosaves
 Config.DATASTORE_NAME = "StarfallRotlings_PlayerData"
-Config.SAVE_VERSION = 2
+Config.SAVE_VERSION = 3 -- v3 adds missionIndex/missionProgress/lastDailyClaim
 
 -- Index completion rewards.
 Config.INDEX_RARITY_REWARD = 500 -- coins for completing one rarity's set

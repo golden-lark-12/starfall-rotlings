@@ -23,6 +23,9 @@ export type Profile = {
 	indexRewards: { [string]: boolean },
 	indexFullRewarded: boolean,
 	placed: { PlacedEntry },
+	missionIndex: number, -- which Config.MISSIONS entry is active (1-based)
+	missionProgress: number, -- progress toward the active mission
+	lastDailyClaim: number, -- os.time() of the last daily reward claim (0 = never)
 }
 
 export type Raider = {
