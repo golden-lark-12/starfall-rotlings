@@ -67,9 +67,20 @@ into your base and steal your Rotlings — unless you lock the base.
   banner, rebirth), `ShopController`, `IndexController`,
   `RarityPopupController` (the big MYTHIC! banner), `StormWarningController`
   (the red warning bar), `TutorialController` (the crater beam),
-  `CameraFX` (meteor shake) and `GuiKit` (shared builders). The client
-  never decides a number; the server validates every buy, rebirth, lock
-  and placement.
+  `CameraFX` (meteor shake) and `GuiKit` (shared builders). `PhotoModeController`
+  (debug: press P or type `/photo` to step through 5 fixed camera shots —
+  spawn, crater, my base, carrying, HUD + name tags — chat hidden while a
+  shot is framed; capture each shot with the ⋯ menu → Screenshot, then
+  press P for the next). The client never decides a number; the server
+  validates every buy, rebirth, lock and placement.
+- `auto-checks.luau` — the pre-publish auto-checks (Lune): fails the build
+  on a carried Rotling above the head, a base sign overlapping a name tag,
+  a name tag overlapping the HUD, a crater Rotling under 1.5x, or a flat
+  cyan spawn platform. Run with `../tools/lune run auto-checks.luau .`
+  (or point it at another tree to grade that build).
+- `publish.sh` — the only way to publish: runs the auto-checks first and
+  stops before building or publishing on any failure, then Rojo-builds and
+  publishes to the Private place. Never call the Open Cloud helper directly.
 - `default.project.json` — the Rojo project: the static world skeleton
   (ground, crater, lighting, sky, spawn) plus the script layout.
 - `game.rbxl` — the place, built with Rojo from the project above.
@@ -85,6 +96,16 @@ into your base and steal your Rotlings — unless you lock the base.
 
     rojo build default.project.json --output game.rbxl
     mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+
+Before every publish, the auto-checks must pass:
+
+    ../tools/lune run auto-checks.luau .
+
+`publish.sh` runs them first and refuses to publish while any check
+fails — never publish around it. Photo mode is for judging the game
+from the same views: in Play, press P (or type `/photo`) to step
+through spawn → crater → my base → carrying → HUD + name tags, capture
+each shot with the ⋯ menu → Screenshot, and send the shots back.
 
 Play it in Roblox Studio: open `game.rbxl`, press Play, walk to the
 crater, press E on a Rotling to grab it, then press E on a glowing pad

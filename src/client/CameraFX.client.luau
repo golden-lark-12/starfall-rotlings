@@ -42,6 +42,12 @@ Remotes.meteorImpactEvent().OnClientEvent:Connect(function(impact: Vector3)
 end)
 
 RunService.RenderStepped:Connect(function()
+	-- Photo mode holds a fixed frame: never shake it. PhotoModeController
+	-- sets the camera's PhotoMode attribute while a shot is framed.
+	local cam = workspace.CurrentCamera
+	if cam and cam:GetAttribute("PhotoMode") then
+		return
+	end
 	if stormPhase == "storm" then
 		-- A steady low rumble, plus the odd lightning jolt.
 		trauma = math.min(1, trauma + 0.008)
