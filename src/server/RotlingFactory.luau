@@ -22,6 +22,7 @@ local function makePart(name: string, shape: Enum.PartType, size: Vector3, color
 	part.Size = size
 	part.Color = color
 	part.Material = material or Enum.Material.SmoothPlastic
+	part.Transparency = 0 -- opaque: Rotlings must read as solid characters, never ghosts
 	part.Anchored = false
 	part.CanCollide = false
 	part.CanQuery = false
@@ -31,15 +32,16 @@ local function makePart(name: string, shape: Enum.PartType, size: Vector3, color
 end
 
 local function addEyes(model: Model, body: Part, size: number)
-	-- Two big white eyes with dark pupils on the front face.
-	local eyeSize = size * 0.22
+	-- Two big white eyes with dark pupils on the front face, large enough
+	-- to read from across the crater.
+	local eyeSize = size * 0.26
 	local eyeY = size * 0.18
 	local eyeZ = body.Size.Z / 2 + eyeSize * 0.35
 	for _, side in ipairs({ -1, 1 }) do
 		local white = makePart("Eye", Enum.PartType.Ball, Vector3.new(eyeSize, eyeSize, eyeSize), Color3.fromRGB(255, 255, 255))
 		white.CFrame = body.CFrame * CFrame.new(side * size * 0.22, eyeY, eyeZ)
 		white.Parent = model
-		local pupil = makePart("Pupil", Enum.PartType.Ball, Vector3.new(eyeSize * 0.45, eyeSize * 0.45, eyeSize * 0.45), Color3.fromRGB(20, 20, 30))
+		local pupil = makePart("Pupil", Enum.PartType.Ball, Vector3.new(eyeSize * 0.5, eyeSize * 0.5, eyeSize * 0.5), Color3.fromRGB(20, 20, 30))
 		pupil.CFrame = body.CFrame * CFrame.new(side * size * 0.22, eyeY, eyeZ + eyeSize * 0.35)
 		pupil.Parent = model
 		local weld = Instance.new("WeldConstraint")
@@ -51,6 +53,17 @@ local function addEyes(model: Model, body: Part, size: number)
 		weld2.Part1 = pupil
 		weld2.Parent = pupil
 	end
+end
+
+local function addMouth(model: Model, body: Part, size: number)
+	-- A dark smile under the eyes, so the face reads as a character.
+	local mouth = makePart("Mouth", Enum.PartType.Block, Vector3.new(size * 0.3, size * 0.07, size * 0.06), Color3.fromRGB(30, 20, 30))
+	mouth.CFrame = body.CFrame * CFrame.new(0, -size * 0.08, body.Size.Z / 2 + size * 0.03)
+	mouth.Parent = model
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = body
+	weld.Part1 = mouth
+	weld.Parent = mouth
 end
 
 local function addFeet(model: Model, body: Part, size: number)
@@ -228,9 +241,9 @@ local function addRarityHighlight(model: Model, rarityColor: Color3)
 	local highlight = Instance.new("Highlight")
 	highlight.Name = "RarityGlow"
 	highlight.FillColor = rarityColor
-	highlight.FillTransparency = 0.75
+	highlight.FillTransparency = 0.6
 	highlight.OutlineColor = rarityColor
-	highlight.OutlineTransparency = 0.4
+	highlight.OutlineTransparency = 0.25
 	highlight.Parent = model
 end
 
@@ -338,6 +351,7 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	bellyWeld.Parent = belly
 
 	addEyes(model, body, size)
+	addMouth(model, body, size)
 	addFeet(model, body, size)
 	addAccessory(model, body, def, rarity.color)
 	addLabel(model, body, def, mutation)
@@ -348,8 +362,8 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	local mut = MutationConfig.mutationByName(mutation)
 	local light = Instance.new("PointLight")
 	light.Color = if mut then mut.glow else rarity.color
-	light.Brightness = 1.2
-	light.Range = 9
+	light.Brightness = 2
+	light.Range = 12
 	light.Parent = body
 
 	-- State the rest of the server reads and writes.

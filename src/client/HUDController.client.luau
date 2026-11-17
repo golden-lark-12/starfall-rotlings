@@ -106,7 +106,14 @@ Remotes.bannerEvent().OnClientEvent:Connect(function(text: string, duration: num
 	GuiKit.showBanner(gui, text, duration)
 end)
 
-Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
+-- The HUD feed: the server fires UpdateHud every second with coins, cps
+-- and the storm phase/seconds. The remote lookup is retried in a loop so
+-- a slow ReplicatedStorage replication can never silently kill the feed
+-- (a failed top-level lookup used to die here, leaving "Next storm: --"
+-- on screen forever). The server sends phases "calm" / "warn" /
+-- "storm" — the names must match StarfallService.setPhase exactly.
+local hudEventReceived = false
+local function onHudData(data: Remotes.HudData)
 	hud.coins = data.coins
 	hud.cps = data.cps
 	hud.rebirths = data.rebirths
@@ -116,6 +123,10 @@ Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 	hud.lockCooldown = data.lockCooldown
 	hud.stormPhase = data.stormPhase
 	hud.stormSeconds = data.stormSeconds
+	if not hudEventReceived then
+		hudEventReceived = true
+		print("[HUD] first UpdateHud received: phase=" .. tostring(hud.stormPhase) .. " seconds=" .. tostring(hud.stormSeconds) .. " coins=" .. tostring(hud.coins))
+	end
 
 	coinsLabel.Text = Formatting.formatMoney(hud.coins)
 	cpsLabel.Text = Formatting.formatCps(hud.cps) .. "  •  Rebirths: " .. tostring(hud.rebirths)
@@ -150,6 +161,20 @@ Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 
 	if rebirthPanel.Visible then
 		refreshRebirth()
+	end
+end
+
+task.spawn(function()
+	while true do
+		local ok, hudEvent = pcall(function()
+			return Remotes.hudEvent()
+		end)
+		if ok and hudEvent then
+			hudEvent.OnClientEvent:Connect(onHudData)
+			print("[HUD] connected to UpdateHud")
+			break
+		end
+		task.wait(1)
 	end
 end)
 

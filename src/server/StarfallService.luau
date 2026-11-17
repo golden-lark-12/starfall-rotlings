@@ -39,6 +39,13 @@ end
 local function setPhase(newPhase: string, duration: number)
 	phase = newPhase
 	phaseEndsAt = time() + duration
+	if newPhase == "calm" then
+		print("[Starfall] Calm: next storm in " .. tostring(duration) .. "s.")
+	elseif newPhase == "warn" then
+		print("[Starfall] Warning: storm in " .. tostring(duration) .. "s.")
+	elseif newPhase == "storm" then
+		print("[Starfall] METEOR STORM for " .. tostring(duration) .. "s.")
+	end
 end
 
 -- Space-sunset palette: purple sky, orange storm light.

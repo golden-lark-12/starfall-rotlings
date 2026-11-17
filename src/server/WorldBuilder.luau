@@ -274,8 +274,38 @@ local function buildSkyDecor()
 	end
 end
 
+-- The static skeleton (ground, crater, glow, lava cracks, spawn) lives in
+-- default.project.json as direct CFrame arrays. Rojo 7.7.1 silently drops
+-- "Position" and "Rotation" properties (verified by a minimal test build:
+-- a Part with Position+Rotation gets NO CFrame in the rbxl, only a direct
+-- "CFrame" array is written), so the project file MUST use CFrame. As a
+-- belt-and-braces guarantee, fixTerrain() re-asserts the same CFrames in
+-- code at boot, so the world is flat and correct in Studio even if the
+-- project file's CFrame is ever lost again.
+local function fixTerrain()
+	local function setCFrame(name: string, cf: CFrame)
+		local inst = workspace:FindFirstChild(name)
+		if inst and inst:IsA("BasePart") then
+			inst.CFrame = cf
+		else
+			warn("[WorldBuilder] terrain part missing: " .. name)
+		end
+	end
+	-- Flat discs: a Roblox cylinder's axis is X; rotating 90 deg about Z
+	-- makes the axis vertical, so Size [0.4, 56, 56] is a flat disc 0.4
+	-- thick and 56 wide. The glow ring is 58 wide, a 1-stud neon rim.
+	setCFrame("Crater", CFrame.new(0, 0.2, 0) * CFrame.Angles(0, 0, math.rad(90)))
+	setCFrame("CraterGlow", CFrame.new(0, 0.1, 0) * CFrame.Angles(0, 0, math.rad(90)))
+	setCFrame("Ground", CFrame.new(0, -10, 0))
+	setCFrame("LavaCrack1", CFrame.new(-8, 0.45, 6) * CFrame.Angles(0, math.rad(35), 0))
+	setCFrame("LavaCrack2", CFrame.new(10, 0.45, -8) * CFrame.Angles(0, math.rad(-50), 0))
+	setCFrame("LavaCrack3", CFrame.new(2, 0.45, 14) * CFrame.Angles(0, math.rad(80), 0))
+	setCFrame("SpawnLocation", CFrame.new(94, 0.5, 0) * CFrame.Angles(0, math.rad(90), 0))
+end
+
 function WorldBuilder.build()
 	math.randomseed(os.time())
+	fixTerrain()
 	for baseId = 1, Config.BASE_COUNT do
 		buildBase(baseId)
 	end

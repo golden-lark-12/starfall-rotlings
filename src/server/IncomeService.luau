@@ -14,7 +14,9 @@ local Formatting = require(ReplicatedStorage.Shared.Formatting)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local BaseService = require(script.Parent.BaseService)
+local CarryService = require(script.Parent.CarryService)
 local DataService = require(script.Parent.DataService)
+local StarfallService = require(script.Parent.StarfallService)
 local State = require(script.Parent.State)
 
 local IncomeService = {}
@@ -45,7 +47,6 @@ end
 -- Each player's send is protected: one bad profile or a dropped
 -- connection must never take the whole feed down with it.
 function IncomeService.broadcastHud()
-	local StarfallService = require(script.Parent.StarfallService)
 	local storm = StarfallService.getStatus()
 	for _, player in ipairs(Players:GetPlayers()) do
 		local ok, err = pcall(function()
@@ -65,8 +66,8 @@ function IncomeService.broadcastHud()
 					incomeTier = profile.incomeTier,
 					padsTier = profile.padsTier,
 					lockTier = profile.lockTier,
-					carried = #BaseService.getCarried(player),
-					carrySlots = BaseService.getCarrySlots(player),
+					carried = #CarryService.getCarried(player),
+					carrySlots = CarryService.getCarrySlots(player),
 					lockRemaining = if baseId then BaseService.lockRemaining(baseId) else 0,
 					lockCooldown = if baseId then BaseService.lockCooldownRemaining(baseId) else 0,
 					stormPhase = storm.phase,
@@ -146,9 +147,11 @@ end
 -- loop: a dead loop means the HUD (and the storm timer) freeze for
 -- everyone, with nothing in the Output to explain it.
 function IncomeService.start()
+	local tickCount = 0
 	task.spawn(function()
 		while true do
 			task.wait(Config.TICK_INTERVAL)
+			tickCount += 1
 			local ok, err = pcall(function()
 				for _, player in ipairs(Players:GetPlayers()) do
 					local profile = DataService.getProfile(player)
@@ -163,6 +166,13 @@ function IncomeService.start()
 			end)
 			if not ok then
 				warn("Starfall income tick failed: " .. tostring(err))
+			end
+			-- Storm heartbeat (every 5 ticks): proves the loop is alive
+			-- and shows the phase + seconds the HUD should be displaying.
+			if tickCount % 5 == 0 then
+				local status = StarfallService.getStatus()
+				local playerCount = #Players:GetPlayers()
+				print("[Starfall] tick " .. tostring(tickCount) .. ": storm phase=" .. tostring(status.phase) .. " secondsLeft=" .. tostring(math.ceil(status.secondsLeft)) .. " players=" .. tostring(playerCount))
 			end
 		end
 	end)

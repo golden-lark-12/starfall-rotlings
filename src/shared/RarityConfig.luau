@@ -14,7 +14,7 @@ export type Rarity = {
 local RarityConfig = {}
 
 RarityConfig.RARITIES = {
-	{ name = "Common", color = Color3.fromRGB(200, 200, 200), weight = 45, cps = 1 },
+	{ name = "Common", color = Color3.fromRGB(110, 200, 255), weight = 45, cps = 1 },
 	{ name = "Rare", color = Color3.fromRGB(80, 220, 100), weight = 28, cps = 4 },
 	{ name = "Epic", color = Color3.fromRGB(180, 90, 255), weight = 15, cps = 12 },
 	{ name = "Legendary", color = Color3.fromRGB(255, 200, 40), weight = 8, cps = 35 },
