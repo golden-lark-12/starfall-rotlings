@@ -22,6 +22,19 @@ gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.Parent = player:WaitForChild("PlayerGui")
 
+-- Dark top bar behind the coins, income and storm timer: the HUD must
+-- stay readable over any bright 3D background (bloom, beam, crystals),
+-- so the top row always sits on a dark strip instead of bare sky.
+-- Created first, so it renders behind every label and button.
+local topBar = Instance.new("Frame")
+topBar.Name = "TopBar"
+topBar.Size = UDim2.new(1, 0, 0, 104)
+topBar.Position = UDim2.new(0, 0, 0, 0)
+topBar.BackgroundColor3 = Color3.fromRGB(20, 15, 40)
+topBar.BackgroundTransparency = 0.4
+topBar.BorderSizePixel = 0
+topBar.Parent = gui
+
 -- Coins, big and top-centre (clear of Roblox's own top-left buttons).
 -- Anchored to the centre by scale, so a narrow window never pushes
 -- them into the storm timer on the right.

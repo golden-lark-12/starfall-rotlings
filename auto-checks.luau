@@ -2,12 +2,27 @@
 -- Runs BEFORE EVERY publish and FAILS the build (exit 1) if any of
 -- these are true. Print pass or fail for each check, with the part
 -- names involved:
---   (a) a carried Rotling sits above the player's head instead of in
---       front or in hand
+--   (a) a carried Rotling sits above the player's head or covers the
+--       face instead of riding in front of the chest at arm height,
+--       as a real model with no bubble
 --   (b) the base sign overlaps any name tag
 --   (c) a name tag overlaps the HUD buttons or the top bar
 --   (d) crater Rotlings are smaller than the agreed minimum size (1.5x)
 --   (e) the spawn platform is a flat cyan block with no texture
+--   (f) glow/bloom washes the screen out (Bloom too strong, beam or
+--       crystal lights too bright, HUD unreadable over bright ground)
+--   (g) name tags stack when Rotlings stand close (no spacing, tags
+--       shown too far away, no nearest-N limit)
+--   (h) Rotling models read as flat semi-transparent boxes (any part
+--       transparent, glow shell too opaque, highlight too strong)
+--   (i) the base sign is a giant wall/slab instead of a small sign
+--       on a post above the base
+--   (j) the carry slot stays full after placing ("arms full" bug:
+--       duplicate carry entries, single-remove, place not clearing)
+--   (k) a displayed money string has a doubled "$" (any "$$", any
+--       hand-rolled "$" .. tostring instead of Formatting.formatMoney)
+--   (l) the meteor storm never triggers when the countdown hits zero
+--       (storm loop unguarded, no meteors spawned, no watchdog)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -18,12 +33,10 @@
 -- The gate: publish.sh runs this script first and stops before
 -- building or publishing on any failure. Nothing here needs a running
 -- game: the checks read src/ and default.project.json as text and
--- prove the structural conditions that cause each overlap/size fault
--- (one stacked sign billboard, tags hidden while carried, bounded
--- MaxDistance, the 1.5x spawn scale, the spawn slab's material and
--- colour). True screen-space overlap — a sign and a tag landing on
--- the same pixels from some camera angle — can only be judged from a
--- running game, which is what photo mode is for (P or /photo).
+-- prove the structural conditions that cause each fault. True
+-- screen-space overlap — a sign and a tag landing on the same pixels
+-- from some camera angle — can only be judged from a running game,
+-- which is what photo mode is for (P or /photo).
 -- A check that cannot be proven from the source FAILS closed: it
 -- prints "could not verify" and the build does not publish.
 
@@ -58,9 +71,17 @@ local function num(text: string?): number?
 	return tonumber(text)
 end
 
--- The weld offset that carries a Rotling: split "0, Config.CARRY_HEIGHT, 0"
--- into numbers, resolving Config.CARRY_HEIGHT from Config.luau.
-local function parseOffset(source: string, carryHeight: number?): { number }?
+-- Resolve a Config.NAME token to its number from Config.luau.
+local function configValue(configSrc: string?, name: string): number?
+	if not configSrc then
+		return nil
+	end
+	return num(configSrc:match(name .. "%s*=%s*([%-]?[%d%.]+)"))
+end
+
+-- The weld offset that carries a Rotling: split the CFrame.new(...)
+-- args into numbers, resolving Config.NAME tokens from Config.luau.
+local function parseOffset(source: string, configSrc: string?): { number }?
 	local raw = source:match("weld%.C0%s*=%s*CFrame%.new%(([^)]+)%)")
 	if not raw then
 		return nil
@@ -68,11 +89,13 @@ local function parseOffset(source: string, carryHeight: number?): { number }?
 	local out: { number } = {}
 	for part in raw:gmatch("[^,]+") do
 		part = part:gsub("^%s+", ""):gsub("%s+$", "")
-		if part == "Config.CARRY_HEIGHT" then
-			if not carryHeight then
+		local cfgName = part:match("^Config%.([%w_]+)$")
+		if cfgName then
+			local v = configValue(configSrc, cfgName)
+			if not v then
 				return nil
 			end
-			table.insert(out, carryHeight)
+			table.insert(out, v)
 		else
 			local n = tonumber(part)
 			if not n then
@@ -103,27 +126,79 @@ local function enclosingFunction(source: string, pos: number): string?
 	return name
 end
 
--- -- (a) carried Rotling above the head --------------------------------------
+-- The body of a named function (up to the next top-level "function ").
+local function functionBody(source: string, fnName: string): string?
+	local s = source:find("function " .. fnName .. "%(")
+	if not s then
+		return nil
+	end
+	local e = source:find("\nfunction ", s + 10)
+	if not e then
+		e = #source
+	end
+	return source:sub(s, e)
+end
+
+-- Strip "--" comments, one line at a time (code only, for money checks).
+local function stripComments(source: string): string
+	local lines: { string } = {}
+	for line in (source .. "\n"):gmatch("(.-)\n") do
+		table.insert(lines, line:gsub("%-%-.*$", ""))
+	end
+	return table.concat(lines, "\n")
+end
+
+-- -- (a) carried Rotling: front of chest at arm height, real model ------
+-- Spec (Malek, playtest verdict): the Rotling must NOT cover the face.
+-- Chosen position: in front of the chest at arm height (forward -Z,
+-- chest height), real model, no bubble, never above the head.
 do
 	local configSrc = read("src/shared/Config.luau")
-	local carryHeight = nil
-	if configSrc then
-		carryHeight = num(configSrc:match("CARRY_HEIGHT%s*=%s*([%d%.]+)"))
-	end
 	local carrySrc = read("src/server/CarryService.luau")
 	local stealSrc = read("src/server/StealService.luau")
-	local off1 = if carrySrc then parseOffset(carrySrc, carryHeight) else nil
-	local off2 = if stealSrc then parseOffset(stealSrc, carryHeight) else nil
-	if not carryHeight or not off1 or not off2 then
-		check("a", false, "could not verify the carry weld — CarryWeld C0 or Config.CARRY_HEIGHT not found in CarryService.luau / StealService.luau / Config.luau")
-	elseif (math.abs(off1[1]) < 0.5 and math.abs(off1[3]) < 0.5 and off1[2] >= 1.5)
-		or (math.abs(off2[1]) < 0.5 and math.abs(off2[3]) < 0.5 and off2[2] >= 1.5) then
-		check("a", false, "carried Rotling sits above the player's head — CarryWeld C0 = (0, "
-			.. tostring(carryHeight) .. ", 0) in CarryService.weldToPlayer and StealService.trySteal; Config.CARRY_HEIGHT = "
-			.. tostring(carryHeight) .. "; CarryBubble rides at the same offset. Expected: a forward (Z) offset in front of the player, or hand height.")
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	local off1 = if carrySrc then parseOffset(carrySrc, configSrc) else nil
+	local off2 = if stealSrc then parseOffset(stealSrc, configSrc) else nil
+	if not off1 or not off2 or not factorySrc then
+		check("a", false, "could not verify the carry weld — CarryWeld C0 not found in CarryService.luau / StealService.luau, or RotlingFactory.luau missing")
 	else
-		check("a", true, "carried Rotling rides in front or in hand — CarryWeld C0 = ("
-			.. table.concat(off1, ", ") .. ") in CarryService.weldToPlayer, (" .. table.concat(off2, ", ") .. ") in StealService.trySteal")
+		local problems: { string } = {}
+		local function badOffset(off: { number }, where: string)
+			-- Above the head / over the face: near-zero X and Z with
+			-- Y at head height or above. Chest height is around
+			-- -0.3; forward is -Z, at least 1.5 studs out.
+			if math.abs(off[1]) >= 0.5 then
+				table.insert(problems, where .. " C0 X = " .. tostring(off[1]) .. " (not centred on the chest)")
+			end
+			if off[2] < -1.5 or off[2] > 1.0 then
+				table.insert(problems, where .. " C0 Y = " .. tostring(off[2]) .. " (not arm height, must be -1.5..1.0)")
+			end
+			if off[3] > -1.5 then
+				table.insert(problems, where .. " C0 Z = " .. tostring(off[3]) .. " (not in front of the chest, must be <= -1.5)")
+			end
+		end
+		badOffset(off1, "CarryService.weldToPlayer")
+		badOffset(off2, "StealService.trySteal")
+		-- No bubble: nothing in the factory may create a CarryBubble.
+		if factorySrc:find("CarryBubble") then
+			table.insert(problems, "RotlingFactory still creates a CarryBubble")
+		end
+		-- Carried model stays readable: the carried scale clamp must
+		-- never shrink below 0.5 (the old 0.4–0.7 clamp collapsed the
+		-- model into a tiny brown box over the face).
+		local clampLo = num(factorySrc:match("math%.clamp%(Config%.CARRY_MAX_HEIGHT%s*/%s*size,%s*([%d%.]+),"))
+		if not clampLo then
+			table.insert(problems, "carried scale clamp not found in RotlingFactory.setCarriedVisual")
+		elseif clampLo < 0.5 then
+			table.insert(problems, "carried scale clamp lower bound " .. tostring(clampLo) .. " (under 0.5 — model collapses to a box)")
+		end
+		if #problems > 0 then
+			check("a", false, "carried Rotling covers the face or rides as a box — " .. table.concat(problems, "; ") .. ". Parts: CarryWeld (CarryService.weldToPlayer, StealService.trySteal), setCarriedVisual (RotlingFactory.luau)")
+		else
+			check("a", true, "carried Rotling rides in front of the chest at arm height — CarryWeld C0 = ("
+				.. table.concat(off1, ", ") .. ") in CarryService.weldToPlayer, (" .. table.concat(off2, ", ")
+				.. ") in StealService.trySteal, no CarryBubble, carried scale >= 0.5")
+		end
 	end
 end
 
@@ -317,6 +392,385 @@ do
 				check("e", true, "spawn platform is dressed — SpawnLocation Material " .. tostring(material)
 					.. (if dressed then ", spawn dressing present in WorldBuilder.luau" else ""))
 			end
+		end
+	end
+end
+
+-- -- (f) glow/bloom washout ---------------------------------------------------
+do
+	local ok, projectText = pcall(fs.readFile, root .. "/default.project.json")
+	local project: any = nil
+	if ok then
+		local decOk, decoded = pcall(serde.decode, "json", projectText)
+		if decOk then
+			project = decoded
+		end
+	end
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	if not project or not factorySrc or not worldSrc or not hudSrc then
+		check("f", false, "could not verify glow/bloom — default.project.json, RotlingFactory.luau, WorldBuilder.luau or HUDController.client.luau missing")
+	else
+		local problems: { string } = {}
+		local lighting = project.tree and project.tree.Lighting
+		local bloom = if lighting then lighting.Bloom else nil
+		local bloomProps = if bloom then bloom["$properties"] else nil
+		local intensity = if bloomProps then num(tostring(bloomProps.Intensity)) else nil
+		local threshold = if bloomProps then num(tostring(bloomProps.Threshold)) else nil
+		if not intensity or not threshold then
+			table.insert(problems, "BloomEffect Intensity/Threshold not found in default.project.json")
+		else
+			if intensity > 0.4 then
+				table.insert(problems, "Bloom Intensity " .. tostring(intensity) .. " (over 0.4 — must be cut at least in half from 0.8)")
+			end
+			if threshold < 0.9 then
+				table.insert(problems, "Bloom Threshold " .. tostring(threshold) .. " (under 0.9)")
+			end
+		end
+		-- Crater beacon beam light: dim, not a second sun.
+		local beamBright = num(worldSrc:match("beamLight%.Brightness%s*=%s*([%d%.]+)"))
+		if not beamBright then
+			table.insert(problems, "crater beam PointLight Brightness not found in WorldBuilder.luau")
+		elseif beamBright > 1 then
+			table.insert(problems, "crater beam light Brightness " .. tostring(beamBright) .. " (over 1)")
+		end
+		-- Rotling point lights: base at most 1, per-tier at most 0.5
+		-- (old: 2 + tier * 0.75, up to 6.5 for Cosmic).
+		local lightBase, lightStep = factorySrc:match("light%.Brightness%s*=%s*([%d%.]+)%s*%+%s*tier%s*%*%s*([%d%.]+)")
+		if not lightBase or not lightStep then
+			table.insert(problems, "Rotling PointLight Brightness formula not found in RotlingFactory.luau")
+		else
+			local b = num(lightBase)
+			local s = num(lightStep)
+			if not b or not s then
+				table.insert(problems, "Rotling PointLight Brightness formula not numeric")
+			elseif b > 1 or s > 0.5 then
+				table.insert(problems, "Rotling PointLight Brightness " .. tostring(b) .. " + tier * " .. tostring(s) .. " (over 1 + tier * 0.5)")
+			end
+		end
+		-- HUD stays readable over any bright 3D background: a dark
+		-- top bar behind the coins/cps/storm labels.
+		if not hudSrc:find('topBar%.Name = "TopBar"') then
+			table.insert(problems, "HUD TopBar (dark bar behind the top labels) not found in HUDController.client.luau")
+		end
+		if #problems > 0 then
+			check("f", false, "glow/bloom can wash the screen out — " .. table.concat(problems, "; ") .. ". Parts: BloomEffect (default.project.json), CraterBeacon beam light (WorldBuilder.luau), Rotling PointLight (RotlingFactory.luau), TopBar (HUDController.client.luau)")
+		else
+			check("f", true, "glow/bloom is dimmed — Bloom Intensity " .. tostring(intensity) .. " / Threshold " .. tostring(threshold)
+				.. ", beam light Brightness " .. tostring(beamBright) .. ", Rotling light " .. tostring(lightBase) .. " + tier * " .. tostring(lightStep)
+				.. ", HUD TopBar present")
+		end
+	end
+end
+
+-- -- (g) name tags stack when Rotlings stand close ----------------------------
+do
+	local configSrc = read("src/shared/Config.luau")
+	local spawnSrc = read("src/server/SpawnService.luau")
+	local tagSrc = read("src/client/TagController.client.luau")
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	if not configSrc or not spawnSrc or not tagSrc or not factorySrc then
+		check("g", false, "could not verify tag spacing — Config.luau, SpawnService.luau, TagController.client.luau or RotlingFactory.luau missing")
+	else
+		local problems: { string } = {}
+		local spacing = configValue(configSrc, "CRATER_MIN_SPACING")
+		local tagDist = configValue(configSrc, "TAG_MAX_DISTANCE")
+		local tagShown = configValue(configSrc, "TAG_MAX_SHOWN")
+		if not spacing then
+			table.insert(problems, "Config.CRATER_MIN_SPACING not found")
+		elseif spacing < 6 then
+			table.insert(problems, "crater spacing " .. tostring(spacing) .. " studs (under 6)")
+		end
+		if not tagDist then
+			table.insert(problems, "Config.TAG_MAX_DISTANCE not found")
+		elseif tagDist > 25 then
+			table.insert(problems, "tag distance " .. tostring(tagDist) .. " studs (over 25)")
+		end
+		if not tagShown then
+			table.insert(problems, "Config.TAG_MAX_SHOWN not found")
+		elseif tagShown > 3 then
+			table.insert(problems, "at most " .. tostring(tagShown) .. " tags shown (over 3)")
+		end
+		-- Spawns actually use the spacing when picking a position.
+		if not spawnSrc:find("findSpawnPosition") or not spawnSrc:find("Config.CRATER_MIN_SPACING") then
+			table.insert(problems, "SpawnService.spawnOne does not pick a spaced position (findSpawnPosition / CRATER_MIN_SPACING)")
+		end
+		-- The client enforces the nearest-N rule every tick.
+		if not tagSrc:find("Config.TAG_MAX_DISTANCE") or not tagSrc:find("Config.TAG_MAX_SHOWN") then
+			table.insert(problems, "TagController does not enforce TAG_MAX_DISTANCE / TAG_MAX_SHOWN")
+		end
+		-- The billboard itself is bounded to the same 25 studs.
+		local billDist = num(factorySrc:match("billboard%.MaxDistance%s*=%s*(%d+)"))
+		if not billDist then
+			table.insert(problems, "RotlingLabel MaxDistance not found in RotlingFactory.luau")
+		elseif billDist > 25 then
+			table.insert(problems, "RotlingLabel MaxDistance " .. tostring(billDist) .. " (over 25)")
+		end
+		if #problems > 0 then
+			check("g", false, "name tags can stack into unreadable text — " .. table.concat(problems, "; ") .. ". Parts: SpawnService.findSpawnPosition, TagController.client.luau, RotlingLabel (RotlingFactory.luau)")
+		else
+			check("g", true, "name tags cannot stack — crater spacing " .. tostring(spacing) .. " studs, tags within " .. tostring(tagDist)
+				.. " studs, at most " .. tostring(tagShown) .. " nearest shown (TagController), billboard MaxDistance " .. tostring(billDist))
+		end
+	end
+end
+
+-- -- (h) Rotling models read as flat semi-transparent boxes ------------------
+do
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	if not factorySrc then
+		check("h", false, "could not verify Rotling models — RotlingFactory.luau missing")
+	else
+		local problems: { string } = {}
+		-- Every body part is built solid: makePart sets Transparency 0.
+		local makePartBody = functionBody(factorySrc, "makePart")
+		if not makePartBody then
+			table.insert(problems, "makePart not found in RotlingFactory.luau")
+		elseif not makePartBody:find("part%.Transparency%s*=%s*0[^%d%.]") and not makePartBody:find("part%.Transparency%s*=%s*0%s*$") then
+			table.insert(problems, "makePart does not set Transparency = 0")
+		end
+		-- The glow shell is nearly clear (0.88), never a pale wash.
+		local shellTrans = num(factorySrc:match('makePart%("GlowShell".-shell%.Transparency%s*=%s*([%d%.]+)'))
+		if not shellTrans then
+			-- Fallback: the glowShell() helper sets it on its own line.
+			shellTrans = num(factorySrc:match("shell%.Transparency%s*=%s*([%d%.]+)"))
+		end
+		if not shellTrans then
+			table.insert(problems, "GlowShell Transparency not found")
+		elseif shellTrans < 0.85 then
+			table.insert(problems, "GlowShell Transparency " .. tostring(shellTrans) .. " (under 0.85 — reads as a pale box)")
+		end
+		-- The shell exists only for the top tiers (4+): lower tiers
+		-- get sparkles, not a shell. Every glowShell() call must
+		-- sit at or after the tier == 4 branch (tier 4 itself, and
+		-- the else branch = Mythic/Cosmic, tier 5+); none may sit
+		-- under tier 2 or tier 3.
+		local auraBody = functionBody(factorySrc, "addRarityAura")
+		local shellCalls = 0
+		local shellBeforeTier4 = false
+		if not auraBody then
+			table.insert(problems, "addRarityAura not found in RotlingFactory.luau")
+		else
+			local tier4At = auraBody:find("elseif tier == 4 then") or auraBody:find("if tier == 4 then")
+			for line in (auraBody .. "\n"):gmatch("(.-)\n") do
+				if line:match("^%s*glowShell%(%)%s*$") then
+					shellCalls += 1
+				end
+			end
+			if not tier4At then
+				table.insert(problems, "no tier == 4 branch in addRarityAura")
+			else
+				-- Standalone call lines only: the nested "local
+				-- function glowShell()" definition sits before the
+				-- branches and is not a call.
+				local before = auraBody:sub(1, tier4At)
+				for line in (before .. "\n"):gmatch("(.-)\n") do
+					if line:match("^%s*glowShell%(%)%s*$") then
+						shellBeforeTier4 = true
+					end
+				end
+			end
+			if shellCalls < 1 then
+				table.insert(problems, "no glowShell() call in addRarityAura (top tiers have no shell at all)")
+			end
+			if shellBeforeTier4 then
+				table.insert(problems, "glowShell() is called before the tier == 4 branch (a low tier gets a shell)")
+			end
+		end
+		local tier4Shell = shellCalls >= 1 and not shellBeforeTier4
+		-- The rarity highlight is a faint tint, not a solid wash.
+		local hlFill = num(factorySrc:match("highlight%.FillTransparency%s*=%s*([%d%.]+)"))
+		if not hlFill then
+			table.insert(problems, "rarity Highlight FillTransparency not found")
+		elseif hlFill < 0.7 then
+			table.insert(problems, "rarity Highlight FillTransparency " .. tostring(hlFill) .. " (under 0.7)")
+		end
+		if #problems > 0 then
+			check("h", false, "Rotling models can read as flat semi-transparent boxes — " .. table.concat(problems, "; ") .. ". Parts: makePart / GlowShell / Highlight (RotlingFactory.luau)")
+		else
+			check("h", true, "Rotling models are solid — makePart Transparency 0, GlowShell Transparency " .. tostring(shellTrans)
+				.. " tier 4+ only, Highlight FillTransparency " .. tostring(hlFill))
+		end
+	end
+end
+
+-- -- (i) base sign is a giant wall/slab ---------------------------------------
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not worldSrc then
+		check("i", false, "could not verify the base sign — WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		-- No tall wall behind the base: the old 26x8x1.5 BaseWall is gone.
+		if worldSrc:find('Name = "BaseWall"') then
+			table.insert(problems, 'a "BaseWall" part still exists in WorldBuilder.luau')
+		end
+		-- The sign is a small board on a post: at most 10 wide, 5 tall.
+		local boardX, boardY = worldSrc:match('part%("SignBoard", Enum%.PartType%.Block, Vector3%.new%(([%d%.]+),%s*([%d%.]+),%s*[%d%.]+%)')
+		if not boardX or not boardY then
+			table.insert(problems, "SignBoard (8x4x0.5 block on a post) not found in WorldBuilder.luau")
+		else
+			local bx = num(boardX)
+			local by = num(boardY)
+			if not bx or not by then
+				table.insert(problems, "SignBoard size not numeric")
+			elseif bx > 10 or by > 5 then
+				table.insert(problems, "SignBoard is " .. tostring(bx) .. "x" .. tostring(by) .. " studs (over 10x5 — a wall, not a sign)")
+			end
+		end
+		if not worldSrc:find('part%("SignPost"') then
+			table.insert(problems, "SignPost (the post the sign hangs on) not found in WorldBuilder.luau")
+		end
+		-- The billboard itself is small: 200x100, not a wall of text.
+		local signW, signH = worldSrc:match("sign%.Size%s*=%s*UDim2%.fromOffset%((%d+),%s*(%d+)%)")
+		if not signW or not signH then
+			table.insert(problems, "BaseSign Size (UDim2.fromOffset) not found in WorldBuilder.luau")
+		elseif tonumber(signW) > 300 or tonumber(signH) > 150 then
+			table.insert(problems, "BaseSign is " .. signW .. "x" .. signH .. " (over 300x150)")
+		end
+		if #problems > 0 then
+			check("i", false, "the base sign is a giant wall/slab — " .. table.concat(problems, "; ") .. ". Parts: SignBoard / SignPost / BaseSign (WorldBuilder.luau)")
+		else
+			check("i", true, "the base sign is small — SignBoard " .. tostring(boardX) .. "x" .. tostring(boardY)
+				.. " studs on a SignPost, BaseSign " .. tostring(signW) .. "x" .. tostring(signH) .. ", no BaseWall")
+		end
+	end
+end
+
+-- -- (j) "arms full" after placing --------------------------------------------
+do
+	local carrySrc = read("src/server/CarryService.luau")
+	if not carrySrc then
+		check("j", false, "could not verify the carry slot — CarryService.luau missing")
+	else
+		local problems: { string } = {}
+		-- carryRotling is idempotent: the same model can never be
+		-- inserted twice (a duplicate survived its place and the
+		-- slot read as full forever).
+		local carryBody = functionBody(carrySrc, "CarryService.carryRotling")
+		if not carryBody then
+			table.insert(problems, "CarryService.carryRotling not found")
+		elseif not carryBody:find("table%.find%(carried, model%)") then
+			table.insert(problems, "carryRotling has no duplicate guard (table.find before insert)")
+		end
+		-- removeCarried removes EVERY copy, not just the first.
+		local removeBody = functionBody(carrySrc, "CarryService.removeCarried")
+		if not removeBody then
+			table.insert(problems, "CarryService.removeCarried not found")
+		elseif not removeBody:find("while index do") or not removeBody:find("table%.remove%(carried, index%)") then
+			table.insert(problems, "removeCarried does not loop-remove every copy (while + table.remove)")
+		end
+		-- Placing clears the slot: placeOnPad calls removeCarried and
+		-- verifies the slot is clear afterwards.
+		local placeBody = functionBody(carrySrc, "CarryService.placeOnPad")
+		if not placeBody then
+			table.insert(problems, "CarryService.placeOnPad not found")
+		elseif not placeBody:find("removeCarried%(player, model%)") then
+			table.insert(problems, "placeOnPad does not call removeCarried")
+		end
+		if #problems > 0 then
+			check("j", false, "the carry slot can stay full after placing — " .. table.concat(problems, "; ") .. ". Parts: carryRotling / removeCarried / placeOnPad (CarryService.luau)")
+		else
+			check("j", true, "grab → place → grab works — carryRotling is idempotent (duplicate guard), removeCarried removes every copy, placeOnPad clears the slot")
+		end
+	end
+end
+
+-- -- (k) doubled "$" in any displayed money string ----------------------------
+do
+	-- Walk src/ recursively, strip comments, and flag any hand-rolled
+	-- "$" .. concatenation or any "$$" literal. Every money display
+	-- must go through Formatting.formatMoney (which already carries
+	-- the "$"), so a second "$" can never appear.
+	local badFiles: { string } = {}
+	local function walk(dir: string)
+		local ok, entries = pcall(fs.readDir, root .. "/" .. dir)
+		if not ok then
+			return
+		end
+		for _, entry in ipairs(entries :: { string }) do
+			local path = dir .. "/" .. entry
+			local metaOk, meta = pcall(fs.metadata, root .. "/" .. path)
+			if metaOk and meta.kind == "directory" then
+				walk(path)
+			elseif entry:sub(-5) == ".luau" then
+				local src = read(path)
+				if src then
+					local code = stripComments(src)
+					-- Formatting.luau IS the shared function: it is
+					-- the one file allowed to prepend "$". Every
+					-- other file must go through it.
+					local handRolled = path ~= "src/shared/Formatting.luau"
+						and (code:find('"%$"%.%.') or code:find("'%$'%.%."))
+					if handRolled or code:find('%$%$') then
+						table.insert(badFiles, path)
+					end
+				end
+			end
+		end
+	end
+	walk("src")
+	-- The three money displays all use the shared function.
+	local worldSrc = read("src/server/WorldBuilder.luau") or ""
+	local factorySrc = read("src/server/RotlingFactory.luau") or ""
+	local indexSrc = read("src/client/IndexController.client.luau") or ""
+	local problems: { string } = {}
+	if #badFiles > 0 then
+		table.insert(problems, "hand-rolled money in " .. table.concat(badFiles, ", "))
+	end
+	if not worldSrc:find("Formatting%.formatMoney%(coins%)") then
+		table.insert(problems, "WorldBuilder.setBaseCoins does not use Formatting.formatMoney")
+	end
+	if not factorySrc:find("Formatting%.formatMoney%(cps%)") then
+		table.insert(problems, "RotlingFactory addLabel Cps does not use Formatting.formatMoney")
+	end
+	if not indexSrc:find("Formatting%.formatMoney%(math%.floor") then
+		table.insert(problems, "IndexController card Cps does not use Formatting.formatMoney")
+	end
+	if #problems > 0 then
+		check("k", false, "a displayed money string can show \"$$\" — " .. table.concat(problems, "; ") .. ". Parts: Formatting.formatMoney (src/shared/Formatting.luau)")
+	else
+		check("k", true, "no displayed money string can show \"$$\" — no hand-rolled \"$\" in src/, sign / Rotling label / Index card all use Formatting.formatMoney")
+	end
+end
+
+-- -- (l) meteor storm never triggers ------------------------------------------
+do
+	local starSrc = read("src/server/StarfallService.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	if not starSrc or not incomeSrc then
+		check("l", false, "could not verify the storm — StarfallService.luau or IncomeService.luau missing")
+	else
+		local problems: { string } = {}
+		-- The phase cycle is pcall-guarded: one error can no longer
+		-- kill the storm thread silently while the HUD countdown
+		-- keeps ticking from the stale phaseEndsAt.
+		local startBody = functionBody(starSrc, "StarfallService.start")
+		if not startBody then
+			table.insert(problems, "StarfallService.start not found")
+		elseif not startBody:find("pcall%(function%(%)") then
+			table.insert(problems, "StarfallService.start cycle is not pcall-guarded")
+		end
+		-- The storm phase actually spawns meteors.
+		if not starSrc:find('setPhase%("storm"') then
+			table.insert(problems, 'no setPhase("storm", ...) in StarfallService.luau')
+		end
+		if not starSrc:find("spawnMeteor%(%)") then
+			table.insert(problems, "spawnMeteor() is never called in StarfallService.luau")
+		end
+		-- The watchdog exists and is called from a separate healthy
+		-- loop, so a stalled phase machine restarts itself.
+		if not starSrc:find("function StarfallService.ensureRunning") then
+			table.insert(problems, "StarfallService.ensureRunning watchdog not found")
+		end
+		if not incomeSrc:find("StarfallService.ensureRunning%(%)") then
+			table.insert(problems, "IncomeService heartbeat does not call StarfallService.ensureRunning()")
+		end
+		if #problems > 0 then
+			check("l", false, "the meteor storm can fail to trigger — " .. table.concat(problems, "; ") .. ". Parts: StarfallService.start / ensureRunning, IncomeService heartbeat")
+		else
+			check("l", true, "the storm triggers when the countdown hits zero — pcall-guarded cycle, setPhase(\"storm\") spawns meteors, ensureRunning watchdog called from the IncomeService heartbeat")
 		end
 	end
 end

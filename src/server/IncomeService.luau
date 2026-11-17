@@ -174,10 +174,14 @@ function IncomeService.start()
 			end
 			-- Storm heartbeat (every 5 ticks): proves the loop is alive
 			-- and shows the phase + seconds the HUD should be displaying.
+			-- Also the storm watchdog: if the phase machine ever stalls,
+			-- ensureRunning restarts it, so a dead storm thread can
+			-- never leave the countdown ticking to zero with no storm.
 			if tickCount % 5 == 0 then
 				local status = StarfallService.getStatus()
 				local playerCount = #Players:GetPlayers()
 				print("[Starfall] tick " .. tostring(tickCount) .. ": storm phase=" .. tostring(status.phase) .. " secondsLeft=" .. tostring(math.ceil(status.secondsLeft)) .. " players=" .. tostring(playerCount))
+				StarfallService.ensureRunning()
 			end
 		end
 	end)

@@ -84,10 +84,12 @@ function WorldBuilder.setBaseSign(baseId: number, text: string)
 end
 
 -- The floating cash counter above a base (updated from the income feed).
+-- One shared money format: Formatting.formatMoney already carries the
+-- "$", so never prepend another one or the sign reads "$$".
 function WorldBuilder.setBaseCoins(baseId: number, coins: number)
 	local label = cashLabels[baseId]
 	if label then
-		label.Text = "$" .. Formatting.formatMoney(coins)
+		label.Text = Formatting.formatMoney(coins)
 	end
 end
 
@@ -233,9 +235,13 @@ local function buildBase(baseId: number)
 	-- Trim: a bright edge strip on the crater side.
 	local trim = part("BaseTrim", Enum.PartType.Block, Vector3.new(26, 0.6, 1), color, cf * CFrame.new(0, 1.1, -11))
 	baseTrims[baseId] = trim
-	-- Back wall so placed Rotlings read as "home".
-	local wall = part("BaseWall", Enum.PartType.Block, Vector3.new(26, 8, 1.5), Color3.fromRGB(88, 78, 118), cf * CFrame.new(0, 5, 10.5))
-	wall.Transparency = 0.15
+	-- Back edge: a LOW trim, not a wall. The old 8-stud back wall was a
+	-- giant grey slab that filled the screen and blocked the view of
+	-- the base from the crater side; a 1.5-stud edge keeps the "home"
+	-- read without ever becoming a wall.
+	local backTrim = part("BaseBackTrim", Enum.PartType.Block, Vector3.new(26, 1.5, 1), darken(color, 0.6), cf * CFrame.new(0, 1.75, 10.5))
+	backTrim.CanCollide = false
+	table.insert(baseWalls[baseId], backTrim)
 	-- Low walls around the perimeter (decorative: non-colliding so no
 	-- one ever gets trapped on their own base). The front keeps a gap
 	-- for the entrance, where the lock gate stands.
@@ -256,18 +262,27 @@ local function buildBase(baseId: number)
 	flag.Material = Enum.Material.Neon
 	flag.CanCollide = false
 	baseFlags[baseId] = flag
-	-- Owner sign: a dark rounded backing so the name stays legible.
-	-- Name on line 1, $ counter on its own line 2 underneath — the two
-	-- never overlap. The sign only shows within 60 studs, so it never
-	-- sits at the screen edge over the HUD buttons.
+	-- Owner sign: a SMALL sign on its own post at the back of the base —
+	-- a few studs, never a wall. The old sign hung on the tall flag
+	-- against the 8-stud back wall, so the whole thing read as one giant
+	-- translucent slab covering the screen. Now the sign is a dark
+	-- 8x4 board on a short post, with the name on line 1 and the $
+	-- counter on its own line 2 underneath — the two never overlap.
+	-- The sign only shows within 60 studs, so it never sits at the
+	-- screen edge over the HUD buttons.
+	local signPost = part("SignPost", Enum.PartType.Cylinder, Vector3.new(5.5, 0.8, 0.8), Color3.fromRGB(72, 62, 92), cf * CFrame.new(0, 3.75, 9.5) * CFrame.Angles(0, 0, math.rad(90)))
+	signPost.CanCollide = false
+	local signBoard = part("SignBoard", Enum.PartType.Block, Vector3.new(8, 4, 0.5), Color3.fromRGB(20, 15, 40), cf * CFrame.new(0, 7, 9.5))
+	signBoard.CanCollide = false
+	signBoard.CastShadow = false
 	local sign = Instance.new("BillboardGui")
 	sign.Name = "BaseSign"
 	sign.Size = UDim2.fromOffset(200, 100)
-	sign.StudsOffsetWorldSpace = Vector3.new(0, 4, 0)
+	sign.StudsOffsetWorldSpace = Vector3.new(0, 0, 0)
 	sign.AlwaysOnTop = true
 	sign.LightInfluence = 0
 	sign.MaxDistance = 60
-	sign.Parent = flag
+	sign.Parent = signBoard
 	local signBg = Instance.new("Frame")
 	signBg.Name = "SignBg"
 	signBg.Size = UDim2.new(1, 0, 1, 0)
@@ -296,7 +311,7 @@ local function buildBase(baseId: number)
 	cashLabel.Position = UDim2.new(0, 0, 0.55, 0)
 	cashLabel.Size = UDim2.new(1, 0, 0.45, 0)
 	cashLabel.BackgroundTransparency = 1
-	cashLabel.Text = "$0"
+	cashLabel.Text = Formatting.formatMoney(0)
 	cashLabel.Font = Enum.Font.FredokaOne
 	cashLabel.TextScaled = true
 	cashLabel.TextColor3 = Color3.fromRGB(255, 225, 90)
@@ -629,22 +644,57 @@ local function buildCraterDecor()
 		crystal(x, 0.4, z, 3 + math.random() * 2.5, 2 + math.random(), CRYSTAL_COLORS[math.random(1, #CRYSTAL_COLORS)], (math.random() - 0.5) * 0.5, (math.random() - 0.5) * 0.5)
 	end
 	-- Beacon beam: a tall thin gold column from the crater centre,
-	-- pulsing slowly so it reads from spawn.
+	-- pulsing slowly so it reads from spawn. Kept dim (a bright beam
+	-- plus Bloom washed the whole crater white): mostly transparent,
+	-- with a soft light, not a floodlight.
 	local beam = part("CraterBeacon", Enum.PartType.Cylinder, Vector3.new(90, 2.4, 2.4), Color3.fromRGB(255, 200, 60), CFrame.new(0, 45, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Neon)
-	beam.Transparency = 0.45
+	beam.Transparency = 0.6
 	beam.CanCollide = false
 	beam.CanQuery = false
 	beam.CastShadow = false
 	local beamLight = Instance.new("PointLight")
 	beamLight.Color = Color3.fromRGB(255, 200, 60)
-	beamLight.Brightness = 2
-	beamLight.Range = 40
+	beamLight.Brightness = 1
+	beamLight.Range = 25
 	beamLight.Parent = beam
 	local TweenService = game:GetService("TweenService")
 	local pulse = TweenService:Create(beam, TweenInfo.new(2.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-		Transparency = 0.65,
+		Transparency = 0.75,
 	})
 	pulse:Play()
+end
+
+-- The spawn platform, dressed: the bare cyan Neon slab is gone. A
+-- warm stone trim frames the platform, a centre pad marks where to
+-- stand, and four small corner posts with glowing tips finish it — so
+-- spawn reads as a place, not a flat block.
+local function buildSpawnDecor()
+	local spawnCf = CFrame.new(94, 0.5, 0) * CFrame.Angles(0, math.rad(90), 0)
+	-- Trim: four warm-stone strips framing the 14x14 platform top.
+	local trimColor = Color3.fromRGB(205, 185, 145)
+	for _, side in ipairs({ -1, 1 }) do
+		local trimX = part("SpawnTrim", Enum.PartType.Block, Vector3.new(14, 0.3, 1), trimColor, spawnCf * CFrame.new(0, 0.65, side * 6.5), Enum.Material.Slate)
+		trimX.CanCollide = false
+		trimX.CastShadow = false
+		local trimZ = part("SpawnTrim", Enum.PartType.Block, Vector3.new(1, 0.3, 14), trimColor, spawnCf * CFrame.new(side * 6.5, 0.65, 0), Enum.Material.Slate)
+		trimZ.CanCollide = false
+		trimZ.CastShadow = false
+	end
+	-- Centre pad: a slate medallion where players stand.
+	local pad = part("SpawnPad", Enum.PartType.Cylinder, Vector3.new(0.3, 6, 6), Color3.fromRGB(90, 70, 120), spawnCf * CFrame.new(0, 0.65, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate)
+	pad.CanCollide = false
+	pad.CastShadow = false
+	-- Corner posts with glowing tips.
+	for _, sx in ipairs({ -1, 1 }) do
+		for _, sz in ipairs({ -1, 1 }) do
+			local post = part("SpawnDecor", Enum.PartType.Cylinder, Vector3.new(2, 0.6, 0.6), Color3.fromRGB(72, 62, 92), spawnCf * CFrame.new(sx * 6.5, 1.5, sz * 6.5) * CFrame.Angles(0, 0, math.rad(90)))
+			post.CanCollide = false
+			post.CastShadow = false
+			local tip = part("SpawnDecor", Enum.PartType.Ball, Vector3.new(1, 1, 1), Color3.fromRGB(120, 220, 255), spawnCf * CFrame.new(sx * 6.5, 2.8, sz * 6.5), Enum.Material.Neon)
+			tip.CanCollide = false
+			tip.CastShadow = false
+		end
+	end
 end
 
 -- Storm wind: horizontal streak emitters, off until a storm starts.
@@ -713,6 +763,7 @@ function WorldBuilder.build()
 		buildBase(baseId)
 	end
 	buildPaths()
+	buildSpawnDecor()
 	buildTrees()
 	buildRocksAndMushrooms()
 	buildHills()

@@ -10,6 +10,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
+local Config = require(ReplicatedStorage.Shared.Config)
+local Formatting = require(ReplicatedStorage.Shared.Formatting)
 local MutationConfig = require(ReplicatedStorage.Shared.MutationConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.RarityConfig)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
@@ -60,10 +62,11 @@ function RotlingFactory.setModelScale(model: Model, target: number)
 	model:ScaleTo(target / current)
 end
 
--- Carried look: shrink to about head size, ride in a clear bubble, and
--- dim the wash-out sources (glow shell + highlight) so the Rotling keeps
--- its real colours and face instead of reading as a big pale block over
--- the player's head. The name tag hides while carried too (it overlaps
+-- Carried look: the REAL model at a readable size, riding in front of
+-- the chest — no bubble, no shrink-to-a-box. The glow shell and the
+-- highlight are dimmed while carried so the Rotling keeps its real
+-- colours and face instead of reading as a big pale block over the
+-- player's view. The name tag hides while carried too (it overlaps
 -- the top HUD). Call with false on place/scatter to restore everything;
 -- the caller re-sets the size (1 on a pad, 1.5x back in the crater).
 function RotlingFactory.setCarriedVisual(model: Model, carried: boolean)
@@ -73,37 +76,16 @@ function RotlingFactory.setCarriedVisual(model: Model, carried: boolean)
 	end
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
 	if carried then
+		-- Readable, not tiny: at most CARRY_MAX_HEIGHT studs tall, so
+		-- the face and colours read from the front instead of the
+		-- model collapsing into a brown box.
 		local size = if def then def.size else 4
-		local factor = math.clamp(2.0 / size, 0.4, 0.7)
+		local factor = math.clamp(Config.CARRY_MAX_HEIGHT / size, 0.5, 1.0)
 		RotlingFactory.setModelScale(model, factor)
-		-- Clear bubble around the shrunken Rotling.
-		local bubble = Instance.new("Part")
-		bubble.Name = "CarryBubble"
-		bubble.Shape = Enum.PartType.Ball
-		local d = size * factor * 1.7
-		bubble.Size = Vector3.new(d, d, d)
-		bubble.Material = Enum.Material.Glass
-		bubble.Transparency = 0.85
-		bubble.CanCollide = false
-		bubble.CanQuery = false
-		bubble.CanTouch = false
-		bubble.CastShadow = false
-		bubble.Anchored = false
-		bubble.CFrame = body.CFrame
-		bubble.Parent = model
-		local w = Instance.new("WeldConstraint")
-		w.Part0 = body
-		w.Part1 = bubble
-		w.Parent = bubble
-	else
-		local bubble = model:FindFirstChild("CarryBubble")
-		if bubble then
-			bubble:Destroy()
-		end
 	end
 	local shell = model:FindFirstChild("GlowShell")
 	if shell and shell:IsA("BasePart") then
-		shell.Transparency = if carried then 1 else 0.72
+		shell.Transparency = if carried then 1 else 0.88
 	end
 	local hl = model:FindFirstChildOfClass("Highlight")
 	if hl then
@@ -495,8 +477,10 @@ local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef
 	billboard.AlwaysOnTop = true
 	billboard.LightInfluence = 0
 	-- One small name tag, visible only near the player: the always-on
-	-- labels cluttered the whole crater from across the map.
-	billboard.MaxDistance = 40
+	-- labels cluttered the whole crater from across the map. Within 25
+	-- studs only (Config.TAG_MAX_DISTANCE), and the client TagController
+	-- shows at most the 3 nearest at once, so close tags never stack.
+	billboard.MaxDistance = 25
 	billboard.Parent = body
 
 	local nameLabel = Instance.new("TextLabel")
@@ -531,7 +515,9 @@ local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef
 	cpsLabel.Position = UDim2.new(0, 0, 0.7, 0)
 	cpsLabel.Size = UDim2.new(1, 0, 0.3, 0)
 	cpsLabel.BackgroundTransparency = 1
-	cpsLabel.Text = "$" .. tostring(math.floor(cps)) .. "/s"
+	-- One shared money format (Formatting.formatMoney already carries
+	-- the "$"): never prepend another "$" here or the sign reads "$$".
+	cpsLabel.Text = Formatting.formatMoney(cps) .. "/s"
 	cpsLabel.Font = Enum.Font.FredokaOne
 	cpsLabel.TextScaled = true
 	cpsLabel.TextColor3 = Color3.fromRGB(255, 230, 90)
@@ -558,21 +544,26 @@ local function addMutationSparkle(model: Model, body: Part, mutation: string?)
 end
 
 -- Rarity outline so a placed Rotling glows its tier colour from afar.
+-- Kept subtle (mostly transparent) so the outline reads as a rim, not
+-- a translucent wash over the whole model.
 local function addRarityHighlight(model: Model, rarityColor: Color3)
 	local highlight = Instance.new("Highlight")
 	highlight.Name = "RarityGlow"
 	highlight.FillColor = rarityColor
-	highlight.FillTransparency = 0.5
+	highlight.FillTransparency = 0.75
 	highlight.OutlineColor = rarityColor
-	highlight.OutlineTransparency = 0.25
+	highlight.OutlineTransparency = 0.5
 	highlight.Parent = model
 end
 
 -- Rarity aura, on top of the highlight: Common has none, Rare sparkles,
--- Epic glows (a soft neon shell), Legendary trails a rainbow, and
--- Mythic/Cosmic get the strongest glow plus sparkles. Rates, light
--- range and trail length are tuned so the aura reads from the path,
--- not only up close.
+-- Epic sparkles too (no shell — a translucent shell around every Epic
+-- made the whole crater read as semi-transparent blobs), Legendary adds
+-- a faint shell plus a rainbow trail, and Mythic/Cosmic get the shell
+-- plus sparkles. The shell is nearly transparent (0.88) so the solid
+-- body and face underneath always read first. Rates, light range and
+-- trail length are tuned so the aura reads from the path, not only up
+-- close.
 local function addRarityAura(model: Model, body: Part, def: RotlingCatalog.RotlingDef, rarityColor: Color3)
 	local tier = RarityConfig.rarityTier(def.rarity)
 	local size = def.size
@@ -593,7 +584,7 @@ local function addRarityAura(model: Model, body: Part, def: RotlingCatalog.Rotli
 	end
 	local function glowShell()
 		local shell = makePart("GlowShell", Enum.PartType.Ball, Vector3.new(body.Size.X * 1.18, body.Size.Y * 1.18, body.Size.Z * 1.18), rarityColor, Enum.Material.Neon)
-		shell.Transparency = 0.72
+		shell.Transparency = 0.88
 		shell.CFrame = body.CFrame
 		shell.Parent = model
 		local weld = Instance.new("WeldConstraint")
@@ -604,7 +595,7 @@ local function addRarityAura(model: Model, body: Part, def: RotlingCatalog.Rotli
 	if tier == 2 then
 		sparkles(8)
 	elseif tier == 3 then
-		glowShell()
+		sparkles(8)
 	elseif tier == 4 then
 		glowShell()
 		sparkles(8)
@@ -683,7 +674,7 @@ function RotlingFactory.applyMutationVisual(model: Model, mutation: string?)
 		end
 		local cpsLabel = label:FindFirstChild("Cps")
 		if cpsLabel and cpsLabel:IsA("TextLabel") then
-			cpsLabel.Text = "$" .. tostring(math.floor(RotlingCatalog.baseCps(def, mutation))) .. "/s"
+			cpsLabel.Text = Formatting.formatMoney(RotlingCatalog.baseCps(def, mutation)) .. "/s"
 		end
 	end
 end
@@ -758,14 +749,15 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	addRarityHighlight(model, rarity.color)
 	addRarityAura(model, body, def, rarity.color)
 
-	-- Rarity glow: brighter and wider the higher the tier, so the aura
-	-- reads from the path, not only up close.
+	-- Rarity glow: dimmer and shorter the higher the tier, so a crowd
+	-- of Rotlings never washes the crater white. The colour still reads
+	-- the tier from the path.
 	local mut = MutationConfig.mutationByName(mutation)
 	local tier = RarityConfig.rarityTier(def.rarity)
 	local light = Instance.new("PointLight")
 	light.Color = if mut then mut.glow else rarity.color
-	light.Brightness = 2 + tier * 0.75
-	light.Range = 12 + tier * 3
+	light.Brightness = 1 + tier * 0.35
+	light.Range = 8 + tier * 1.5
 	light.Parent = body
 
 	-- Coin burst, fired once when the Rotling lands on a pad (placePop).

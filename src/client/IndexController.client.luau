@@ -10,6 +10,7 @@ local UserInputService = game:GetService("UserInputService")
 local RarityConfig = require(ReplicatedStorage.Shared.RarityConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
+local Formatting = require(ReplicatedStorage.Shared.Formatting)
 local GuiKit = require(script.Parent:WaitForChild("GuiKit"))
 
 local gui = GuiKit.getGui()
@@ -43,7 +44,7 @@ do
 		local rarity = RarityConfig.rarityByName(def.rarity)
 		GuiKit.makeLabel(card, "Name", "???", UDim2.new(1, -8, 0, 26), UDim2.new(0, 4, 0, 6), 18, Color3.fromRGB(255, 255, 255))
 		GuiKit.makeLabel(card, "Rarity", def.rarity, UDim2.new(1, -8, 0, 20), UDim2.new(0, 4, 0, 32), 15, rarity.color)
-		GuiKit.makeLabel(card, "Cps", "$" .. tostring(math.floor(RotlingCatalog.baseCps(def, nil))) .. "/s", UDim2.new(1, -8, 0, 20), UDim2.new(0, 4, 0, 54), 15, Color3.fromRGB(255, 230, 90))
+		GuiKit.makeLabel(card, "Cps", Formatting.formatMoney(math.floor(RotlingCatalog.baseCps(def, nil))) .. "/s", UDim2.new(1, -8, 0, 20), UDim2.new(0, 4, 0, 54), 15, Color3.fromRGB(255, 230, 90))
 		local flavorLabel = GuiKit.makeLabel(card, "Flavor", def.flavor, UDim2.new(1, -8, 0, 18), UDim2.new(0, 4, 0, 74), 11, Color3.fromRGB(200, 200, 220))
 		flavorLabel.TextWrapped = true
 		indexCards[def.id] = card

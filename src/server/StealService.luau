@@ -62,9 +62,9 @@ function StealService.trySteal(player: Player, model: Model)
 	if not root or not body then
 		return
 	end
-	-- Same carried look as a grab: shrink to head size, bubble it, dim
-	-- the wash-out glow and hide the tag — a stolen Rotling must not
-	-- be a huge pale block either.
+	-- Same carried look as a grab: the real model at a readable size,
+	-- in front of the chest at arm height — never a shrunken box above
+	-- the head, never a bubble.
 	RotlingFactory.setCarriedVisual(model, true)
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
@@ -75,7 +75,7 @@ function StealService.trySteal(player: Player, model: Model)
 	weld.Name = "CarryWeld"
 	weld.Part0 = root
 	weld.Part1 = body
-	weld.C0 = CFrame.new(0, Config.CARRY_HEIGHT, 0)
+	weld.C0 = CFrame.new(0, Config.CARRY_Y, Config.CARRY_Z)
 	weld.Parent = body
 	model:SetAttribute("State", "carried")
 	model:SetAttribute("BaseId", 0)

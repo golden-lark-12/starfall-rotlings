@@ -32,8 +32,20 @@ Config.STARSTRUCK_CHANCE = 0.4 -- a free Rotling near an impact survives as Star
 Config.LOCK_DURATION = 60 -- seconds a base lock holds
 Config.LOCK_COOLDOWN = 90 -- seconds before the lock can be used again
 Config.LOCK_DURATION_PER_TIER = 30 -- +30s lock per shop lock tier
-Config.CARRY_HEIGHT = 3.0 -- studs above the head while carried (the Rotling is shrunk to ~head size, so it sits just above the head)
+-- Carrying: the Rotling rides IN FRONT OF THE CHEST at arm height,
+-- never above the head and never over the face. Forward is -Z off the
+-- HumanoidRootPart, so a negative Z puts it in front of the player.
+Config.CARRY_Y = -0.3 -- studs below the root centre: chest/arm height
+Config.CARRY_Z = -2.2 -- studs in front of the chest
+-- Carried size: the real model at a readable scale, never a tiny box.
+Config.CARRY_MAX_HEIGHT = 3.0 -- a carried Rotling is at most 3 studs tall
 Config.PLACE_RANGE = 14 -- how close to a free pad the carrier must stand
+
+-- Name tags: only the nearest few, only up close, so they never stack
+-- into unreadable text when Rotlings stand close together.
+Config.TAG_MAX_DISTANCE = 25 -- a tag only shows within 25 studs
+Config.TAG_MAX_SHOWN = 3 -- at most the 3 nearest tags at once
+Config.CRATER_MIN_SPACING = 6 -- crater Rotlings at least 6 studs apart
 
 -- Economy.
 Config.TICK_INTERVAL = 1 -- coins are paid out once a second

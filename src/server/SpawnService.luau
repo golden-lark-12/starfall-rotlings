@@ -85,14 +85,61 @@ local function animateFree()
 	end
 end
 
+-- Positions of every free Rotling in the crater, so a new spawn can
+-- keep its distance instead of piling onto the others.
+local function freePositions(): { Vector3 }
+	local out = {}
+	for _, descendant in ipairs(workspace:GetDescendants()) do
+		if descendant:IsA("Model") and descendant:GetAttribute("State") == "free" then
+			local body = descendant.PrimaryPart
+			if body then
+				table.insert(out, body.Position)
+			end
+		end
+	end
+	return out
+end
+
+-- Pick a crater spawn point at least CRATER_MIN_SPACING studs from every
+-- other free Rotling, so their name tags never stack into unreadable
+-- text. Tries several random spots and keeps the first that clears the
+-- gap; if none does, keeps the spot farthest from its nearest neighbour.
+local function findSpawnPosition(): Vector3
+	local others = freePositions()
+	local best: Vector3? = nil
+	local bestGap = -1
+	for _ = 1, 12 do
+		local angle = math.random() * math.pi * 2
+		local radius = math.random() * Config.CRATER_RADIUS * 0.8
+		local candidate = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
+		local gap = math.huge
+		for _, pos in ipairs(others) do
+			local flat = Vector3.new(candidate.X - pos.X, 0, candidate.Z - pos.Z)
+			gap = math.min(gap, flat.Magnitude)
+		end
+		if #others == 0 or gap >= Config.CRATER_MIN_SPACING then
+			return candidate
+		end
+		if gap > bestGap then
+			bestGap = gap
+			best = candidate
+		end
+	end
+	if best then
+		return best
+	end
+	local angle = math.random() * math.pi * 2
+	local radius = math.random() * Config.CRATER_RADIUS * 0.8
+	return Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
+end
+
 function SpawnService.spawnOne(): Model?
 	local def = RotlingCatalog.rollDef()
 	local mutation = MutationConfig.rollMutation()
-	local angle = math.random() * math.pi * 2
-	local radius = math.random() * Config.CRATER_RADIUS * 0.8
 	-- Spawn on the crater floor (top of the crater disc), never at Y=0:
 	-- the disc sits above the ground, so Y=0 buries the Rotling in it.
-	local position = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
+	-- Spaced at least CRATER_MIN_SPACING from every other free Rotling.
+	local position = findSpawnPosition()
 	-- Crater spawns build at 1.5x so they read from the path.
 	local model = RotlingFactory.build(def.id, mutation, position, 1.5)
 	if not model then

@@ -25,6 +25,7 @@ local ALARM_SOUND = "rbxasset://sounds/electronicpingshort.wav"
 
 local phase = "calm" -- calm | warn | storm
 local phaseEndsAt = 0
+local lastPhaseChangeAt = 0 -- wall-clock time of the last setPhase
 local running = false
 local stormActive = false -- true only while meteors fall; guards the lightning flash from racing restoreSky
 
@@ -38,15 +39,28 @@ function StarfallService.getStatus()
 	}
 end
 
+local function calmDuration(): number
+	return Config.STORM_PERIOD - Config.STORM_WARN - Config.STORM_DURATION
+end
+
 local function setPhase(newPhase: string, duration: number)
 	phase = newPhase
 	phaseEndsAt = time() + duration
+	lastPhaseChangeAt = time()
 	if newPhase == "calm" then
 		print("[Starfall] Calm: next storm in " .. tostring(duration) .. "s.")
 	elseif newPhase == "warn" then
 		print("[Starfall] Warning: storm in " .. tostring(duration) .. "s.")
 	elseif newPhase == "storm" then
 		print("[Starfall] METEOR STORM for " .. tostring(duration) .. "s.")
+	end
+end
+
+-- Wait out the current phase (calm, warn or storm) without ever
+-- spinning: the loop wakes every half second to re-check the clock.
+local function waitPhase()
+	while time() < phaseEndsAt do
+		task.wait(0.5)
 	end
 end
 
@@ -209,43 +223,77 @@ function StarfallService.start()
 	end
 	running = true
 	task.spawn(function()
-		setPhase("calm", Config.STORM_PERIOD - Config.STORM_WARN - Config.STORM_DURATION)
+		setPhase("calm", calmDuration())
 		while true do
-			-- Calm: the crater is safe, Rotlings spawn freely.
-			while time() < phaseEndsAt do
-				task.wait(0.5)
-			end
-			-- Warning: the sky darkens, everyone gets the message.
-			setPhase("warn", Config.STORM_WARN)
-			dimSky()
-			playAlarm()
-			Remotes.bannerEvent():FireAllClients("METEOR STORM IN 10 SECONDS! Get home or drop your catch!", 10)
-			while time() < phaseEndsAt do
-				task.wait(0.5)
-			end
-			-- Storm: meteors rain on the crater, lightning flashes, the
-			-- wind blows. The lightning loop runs beside the meteor loop
-			-- and stops the moment the storm ends.
-			setPhase("storm", Config.STORM_DURATION)
-			stormActive = true
-			WorldBuilder.setWind(true)
-			task.spawn(function()
-				while stormActive do
-					task.wait(1.5 + math.random() * 2)
-					lightningFlash()
+			-- One full cycle (calm -> warn -> storm) is pcall-guarded:
+			-- the old loop had no error handling, so a single error
+			-- anywhere killed the storm forever, silently, while the
+			-- HUD countdown (driven by IncomeService's own loop) kept
+			-- ticking down from the stale phaseEndsAt — the countdown
+			-- hit zero and nothing ever happened. Now a failed cycle
+			-- warns, restores the sky, and the machine resets to calm
+			-- and tries again next cycle instead of dying.
+			local ok, err = pcall(function()
+				-- Calm: the crater is safe, Rotlings spawn freely.
+				waitPhase()
+				-- Warning: the sky darkens, everyone gets the message.
+				setPhase("warn", Config.STORM_WARN)
+				dimSky()
+				playAlarm()
+				Remotes.bannerEvent():FireAllClients("METEOR STORM IN 10 SECONDS! Get home or drop your catch!", 10)
+				waitPhase()
+				-- Storm: meteors rain on the crater, lightning flashes, the
+				-- wind blows. The lightning loop runs beside the meteor loop
+				-- and stops the moment the storm ends.
+				setPhase("storm", Config.STORM_DURATION)
+				stormActive = true
+				WorldBuilder.setWind(true)
+				task.spawn(function()
+					while stormActive do
+						task.wait(1.5 + math.random() * 2)
+						lightningFlash()
+					end
+				end)
+				Remotes.bannerEvent():FireAllClients("METEOR STORM! Stay out of the crater!", 8)
+				while time() < phaseEndsAt do
+					spawnMeteor()
+					task.wait(Config.STORM_METEOR_INTERVAL)
 				end
+				stormActive = false
+				WorldBuilder.setWind(false)
+				restoreSky()
 			end)
-			Remotes.bannerEvent():FireAllClients("METEOR STORM! Stay out of the crater!", 8)
-			while time() < phaseEndsAt do
-				spawnMeteor()
-				task.wait(Config.STORM_METEOR_INTERVAL)
+			if not ok then
+				warn("[Starfall] storm cycle failed: " .. tostring(err) .. " — resetting to calm.")
+				stormActive = false
+				pcall(function()
+					WorldBuilder.setWind(false)
+				end)
+				pcall(restoreSky)
 			end
-			stormActive = false
-			WorldBuilder.setWind(false)
-			restoreSky()
-			setPhase("calm", Config.STORM_PERIOD - Config.STORM_WARN - Config.STORM_DURATION)
+			setPhase("calm", calmDuration())
 		end
 	end)
+end
+
+-- Watchdog: if the phase machine ever stalls (the phase expired 10+
+-- seconds ago but never advanced — the loop thread died), restart it.
+-- Called from IncomeService's 5-second heartbeat, which is a separate
+-- healthy loop, so a dead storm thread can never hide again.
+function StarfallService.ensureRunning()
+	if not running then
+		return
+	end
+	if time() > phaseEndsAt + 10 and time() - lastPhaseChangeAt > 10 then
+		warn("[Starfall] watchdog: phase '" .. phase .. "' stalled (ended " .. tostring(math.floor(time() - phaseEndsAt)) .. "s ago) — restarting the storm loop.")
+		stormActive = false
+		pcall(function()
+			WorldBuilder.setWind(false)
+		end)
+		pcall(restoreSky)
+		running = false
+		StarfallService.start()
+	end
 end
 
 return StarfallService

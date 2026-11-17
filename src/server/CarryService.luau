@@ -1,10 +1,11 @@
 --!strict
 -- Starfall Rotlings: carrying, placing and dropping.
--- A player grabs a free Rotling in the crater, carries it home on their
--- head and sets it on a pad, where it earns. Dying or a meteor hit drops
--- everything carried back into the crater. Placed Rotlings are handed to
--- StealService by the grab prompt (deferred require: StealService calls
--- back into this module to carry what it lifts).
+-- A player grabs a free Rotling in the crater, carries it home in front
+-- of their chest at arm height and sets it on a pad, where it earns.
+-- Dying or a meteor hit drops everything carried back into the crater.
+-- Placed Rotlings are handed to StealService by the grab prompt
+-- (deferred require: StealService calls back into this module to carry
+-- what it lifts).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -72,7 +73,10 @@ local function weldToPlayer(model: Model, player: Player): boolean
 	weld.Name = "CarryWeld"
 	weld.Part0 = root
 	weld.Part1 = body
-	weld.C0 = CFrame.new(0, Config.CARRY_HEIGHT, 0)
+	-- In front of the chest at arm height: forward is -Z off the root,
+	-- so a negative Z puts the Rotling ahead of the player, never over
+	-- the head or the face.
+	weld.C0 = CFrame.new(0, Config.CARRY_Y, Config.CARRY_Z)
 	weld.Parent = body
 	model:SetAttribute("State", "carried")
 	return true
@@ -94,6 +98,13 @@ function CarryService.carryRotling(player: Player, model: Model)
 		carried = {}
 		State.carried[player.UserId] = carried
 	end
+	-- Never insert the same model twice: a duplicate entry survives
+	-- its place (removeCarried used to take only the first copy), so
+	-- the slot read as full forever after one place. Insert is
+	-- idempotent now — a second carry of the same model is a no-op.
+	if table.find(carried, model) then
+		return
+	end
 	table.insert(carried, model)
 	model:SetAttribute("OwnerUserId", player.UserId)
 	CarryService.setPromptState(model)
@@ -104,9 +115,12 @@ function CarryService.removeCarried(player: Player, model: Model)
 	if not carried then
 		return
 	end
+	-- Remove EVERY copy, not just the first: a stale duplicate must
+	-- never survive a place and leave the slot reading as full.
 	local index = table.find(carried, model)
-	if index then
+	while index do
 		table.remove(carried, index)
+		index = table.find(carried, model)
 	end
 end
 
@@ -155,12 +169,17 @@ function CarryService.tryGrab(player: Player, model: Model)
 		Remotes.bannerEvent():FireClient(player, "Your arms are full! Buy Extra Arms in the shop.", 3)
 		return
 	end
-	-- Shrink to about head size and bubble it BEFORE welding, so the
-	-- carried Rotling never blocks the player's view.
+	-- Already carrying this exact model (a prompt double-fire must
+	-- never insert it twice): ignore the second grab.
+	if table.find(CarryService.getCarried(player), model) then
+		return
+	end
+	-- The real model at a readable size, in front of the chest — never
+	-- a shrunken box above the head, never a bubble.
 	RotlingFactory.setCarriedVisual(model, true)
 	if not weldToPlayer(model, player) then
 		-- Weld failed: restore the crater look so the Rotling is not
-		-- left shrunken and bubble-wrapped on the floor.
+		-- left shrunken on the floor.
 		RotlingFactory.setCarriedVisual(model, false)
 		RotlingFactory.setModelScale(model, 1.5)
 		return
@@ -217,8 +236,15 @@ end
 function CarryService.placeOnPad(player: Player, model: Model, baseId: number, padIndex: number)
 	unweld(model)
 	CarryService.removeCarried(player, model)
-	-- Full size again, bubble off, glow and tag back — before the
-	-- model is anchored and pivoted onto the pad.
+	-- The slot MUST be clear now: if the model is still listed as
+	-- carried, the arms-full bug is back — say so loudly in Output
+	-- instead of leaving the player stuck.
+	if table.find(CarryService.getCarried(player), model) then
+		warn("[CarryService] placeOnPad: " .. model.Name .. " still in " .. player.Name .. "'s carried list after removeCarried")
+		CarryService.removeCarried(player, model)
+	end
+	-- Full size again, glow and tag back — before the model is anchored
+	-- and pivoted onto the pad.
 	RotlingFactory.setCarriedVisual(model, false)
 	RotlingFactory.setModelScale(model, 1)
 	local padCf = WorldBuilder.padCFrame(baseId, padIndex)
@@ -261,7 +287,7 @@ end
 -- Send a Rotling back to the crater as a free catch.
 function CarryService.scatterToCrater(model: Model)
 	unweld(model)
-	-- Back to crater size (1.5x), bubble off, glow and tag back.
+	-- Back to crater size (1.5x), carried look off, glow and tag back.
 	RotlingFactory.setCarriedVisual(model, false)
 	RotlingFactory.setModelScale(model, 1.5)
 	local angle = math.random() * math.pi * 2
