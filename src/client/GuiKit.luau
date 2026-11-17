@@ -5,8 +5,26 @@
 -- Pure construction: no game logic lives here.
 
 local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
 
 local GuiKit = {}
+
+-- One palette for the whole HUD, so every button and panel matches:
+-- dark purple panels, gold coins, green income, red lock, blue shop,
+-- purple index, pink rebirth.
+GuiKit.COLORS = {
+	Panel = Color3.fromRGB(30, 25, 55),
+	PanelLight = Color3.fromRGB(50, 45, 90),
+	Gold = Color3.fromRGB(255, 225, 90),
+	Green = Color3.fromRGB(160, 255, 170),
+	Red = Color3.fromRGB(255, 90, 90),
+	Blue = Color3.fromRGB(90, 160, 255),
+	Purple = Color3.fromRGB(180, 110, 255),
+	Pink = Color3.fromRGB(255, 110, 180),
+	Close = Color3.fromRGB(200, 60, 60),
+	Buy = Color3.fromRGB(80, 200, 100),
+	White = Color3.fromRGB(255, 255, 255),
+}
 
 function GuiKit.getGui(): ScreenGui
 	local player = Players.LocalPlayer
@@ -43,7 +61,7 @@ function GuiKit.makeButton(parent: Instance, name: string, text: string, size: U
 	button.BorderSizePixel = 0
 	button.Text = text
 	button.Font = Enum.Font.FredokaOne
-	button.TextSize = 22
+	button.TextSize = 20
 	button.TextColor3 = Color3.fromRGB(255, 255, 255)
 	button.TextStrokeTransparency = 0.3
 	local corner = Instance.new("UICorner")
@@ -54,6 +72,23 @@ function GuiKit.makeButton(parent: Instance, name: string, text: string, size: U
 	stroke.Transparency = 0.5
 	stroke.Color = Color3.fromRGB(20, 10, 40)
 	stroke.Parent = button
+	-- Bouncy press: shrink a touch on press, spring back on release.
+	local originalSize = size
+	local function pressedSize(): UDim2
+		return UDim2.new(size.X.Scale, math.floor(size.X.Offset * 0.94), size.Y.Scale, math.floor(size.Y.Offset * 0.94))
+	end
+	button.MouseButton1Down:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = pressedSize(),
+		}):Play()
+	end)
+	local function release()
+		TweenService:Create(button, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Size = originalSize,
+		}):Play()
+	end
+	button.MouseButton1Up:Connect(release)
+	button.MouseLeave:Connect(release)
 	button.Parent = parent
 	return button
 end

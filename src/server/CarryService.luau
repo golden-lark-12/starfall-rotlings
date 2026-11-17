@@ -16,6 +16,7 @@ local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local BaseService = require(script.Parent.BaseService)
 local DataService = require(script.Parent.DataService)
 local IndexService = require(script.Parent.IndexService)
+local RotlingFactory = require(script.Parent.RotlingFactory)
 local State = require(script.Parent.State)
 local WorldBuilder = require(script.Parent.WorldBuilder)
 
@@ -200,7 +201,10 @@ function CarryService.tryPlace(player: Player)
 		Remotes.bannerEvent():FireClient(player, "Stand on your base to place it.", 2)
 		return
 	end
-	CarryService.placeOnPad(player, carried[1], baseId, padIndex)
+	local model = carried[1]
+	CarryService.placeOnPad(player, model, baseId, padIndex)
+	-- Pop + coin burst on the pad (sound + particles in placePop).
+	RotlingFactory.placePop(model)
 end
 
 function CarryService.placeOnPad(player: Player, model: Model, baseId: number, padIndex: number)
@@ -229,6 +233,8 @@ function CarryService.placeOnPad(player: Player, model: Model, baseId: number, p
 	if def then
 		IndexService.markFound(player, def.id)
 	end
+	-- The idle loop bobs around this new rest pose.
+	RotlingFactory.setRestPose(model)
 	Remotes.bannerEvent():FireClient(player, "Placed! It now earns coins every second.", 3)
 end
 
@@ -260,6 +266,8 @@ function CarryService.scatterToCrater(model: Model)
 	model:SetAttribute("BaseId", 0)
 	model:SetAttribute("PadIndex", 0)
 	CarryService.setPromptState(model)
+	-- The idle loop bobs around this new rest pose.
+	RotlingFactory.setRestPose(model)
 	-- Deferred require: SpawnService grabs through this module.
 	local SpawnService = require(script.Parent.SpawnService)
 	SpawnService.registerFree(model)
@@ -283,7 +291,6 @@ function CarryService.restorePlaced(player: Player, saved: { State.PlacedEntry }
 	if not baseId then
 		return
 	end
-	local RotlingFactory = require(script.Parent.RotlingFactory)
 	for _, entry in ipairs(saved) do
 		local padCf = WorldBuilder.padCFrame(baseId, entry.pad)
 		if padCf and (State.placed[baseId] or {})[entry.pad] == nil then

@@ -27,6 +27,7 @@ function BaseService.assignBase(player: Player): number?
 			local profile = DataService.getProfile(player)
 			State.unlockedPads[baseId] = Config.PADS_OPEN + (if profile then profile.padsTier else 0)
 			WorldBuilder.setBaseSign(baseId, player.DisplayName .. "'s Base")
+			WorldBuilder.setBaseCoins(baseId, if profile then profile.coins else 0)
 			if profile and profile.rebirths > 0 then
 				local RebirthService = require(script.Parent.RebirthService)
 				local color = RebirthService.COLORS[(profile.rebirths - 1) % #RebirthService.COLORS + 1]
@@ -55,6 +56,7 @@ function BaseService.freeBase(player: Player)
 	State.unlockedPads[baseId] = nil
 	State.baseColors[baseId] = nil
 	WorldBuilder.setBaseSign(baseId, "Base " .. tostring(baseId))
+	WorldBuilder.setBaseCoins(baseId, 0)
 end
 
 function BaseService.getPlayerBase(userId: number): number?
@@ -122,8 +124,13 @@ end
 function BaseService.setGateVisible(baseId: number, visible: boolean)
 	for _, descendant in ipairs(workspace:GetDescendants()) do
 		if descendant.Name == "LockGate" and descendant:GetAttribute("BaseId") == baseId then
-			descendant.Transparency = if visible then 0.25 else 1
+			-- A locked gate glows red-hot (Neon) so it reads as a barrier;
+			-- unlocked it vanishes entirely.
+			descendant.Transparency = if visible then 0.3 else 1
 			descendant.CanCollide = visible
+			if descendant:IsA("BasePart") then
+				descendant.Material = if visible then Enum.Material.Neon else Enum.Material.ForceField
+			end
 		end
 	end
 end

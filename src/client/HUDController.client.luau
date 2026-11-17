@@ -23,32 +23,38 @@ gui.IgnoreGuiInset = true
 gui.Parent = player:WaitForChild("PlayerGui")
 
 -- Coins, big and top-centre (clear of Roblox's own top-left buttons).
-local coinsLabel = GuiKit.makeLabel(gui, "Coins", "$0", UDim2.new(0, 340, 0, 56), UDim2.new(0.5, -170, 0, 8), 44, Color3.fromRGB(255, 225, 90))
-local cpsLabel = GuiKit.makeLabel(gui, "Cps", "+$0/s", UDim2.new(0, 340, 0, 30), UDim2.new(0.5, -170, 0, 64), 24, Color3.fromRGB(160, 255, 170))
+-- Anchored to the centre by scale, so a narrow window never pushes
+-- them into the storm timer on the right.
+local coinsLabel = GuiKit.makeLabel(gui, "Coins", "$0", UDim2.new(0, 280, 0, 56), UDim2.new(0.5, 0, 0, 8), 44, GuiKit.COLORS.Gold)
+coinsLabel.AnchorPoint = Vector2.new(0.5, 0)
+local cpsLabel = GuiKit.makeLabel(gui, "Cps", "+$0/s", UDim2.new(0, 280, 0, 30), UDim2.new(0.5, 0, 0, 64), 24, GuiKit.COLORS.Green)
+cpsLabel.AnchorPoint = Vector2.new(0.5, 0)
 
--- Storm timer, top-right.
-local stormLabel = GuiKit.makeLabel(gui, "Storm", "Next storm: --", UDim2.new(0, 260, 0, 36), UDim2.new(1, -270, 0, 10), 22, Color3.fromRGB(255, 255, 255))
+-- Storm timer, top-right, 12px clear of the screen edge.
+local stormLabel = GuiKit.makeLabel(gui, "Storm", "Next storm: --", UDim2.new(0, 230, 0, 36), UDim2.new(1, -242, 0, 10), 22, GuiKit.COLORS.White)
 stormLabel.TextXAlignment = Enum.TextXAlignment.Right
 
--- Right-side buttons.
-local rebirthButton = GuiKit.makeButton(gui, "RebirthButton", "✨ Rebirth (R)", UDim2.new(0, 170, 0, 48), UDim2.new(1, -185, 0, 60), Color3.fromRGB(255, 110, 180))
-local lockButton = GuiKit.makeButton(gui, "LockButton", "🔓 Lock Base (L)", UDim2.new(0, 170, 0, 48), UDim2.new(1, -185, 0, 116), Color3.fromRGB(255, 90, 90))
+-- Right-side buttons, 12px clear of the screen edge.
+local rebirthButton = GuiKit.makeButton(gui, "RebirthButton", "✨ Rebirth (R)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -172, 0, 60), GuiKit.COLORS.Pink)
+local lockButton = GuiKit.makeButton(gui, "LockButton", "🔓 Lock Base (L)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -172, 0, 116), GuiKit.COLORS.Red)
 
--- Hint line, bottom-centre.
-local hintLabel = GuiKit.makeLabel(gui, "Hint", "Grab a Rotling in the crater!", UDim2.new(0, 700, 0, 30), UDim2.new(0.5, -350, 1, -44), 22, Color3.fromRGB(255, 255, 255))
+-- Hint line, bottom-centre, anchored so it never clips at the sides.
+local hintLabel = GuiKit.makeLabel(gui, "Hint", "Grab a Rotling in the crater!", UDim2.new(0, 620, 0, 30), UDim2.new(0.5, 0, 1, -44), 22, GuiKit.COLORS.White)
+hintLabel.AnchorPoint = Vector2.new(0.5, 0)
 
 -- Banner line, centre screen, fades on its own.
-local bannerLabel = GuiKit.makeLabel(gui, "Banner", "", UDim2.new(0, 760, 0, 44), UDim2.new(0.5, -380, 0, 130), 30, Color3.fromRGB(255, 240, 120))
+local bannerLabel = GuiKit.makeLabel(gui, "Banner", "", UDim2.new(0, 640, 0, 44), UDim2.new(0.5, 0, 0, 130), 30, GuiKit.COLORS.Gold)
+bannerLabel.AnchorPoint = Vector2.new(0.5, 0)
 bannerLabel.Visible = false
 
 -- -- Rebirth panel ------------------------------------------------------------
 
 local rebirthPanel = GuiKit.makePanel(gui, "RebirthPanel", UDim2.new(0, 420, 0, 260), UDim2.new(0.5, -210, 0.5, -130))
 rebirthPanel.Visible = false
-GuiKit.makeLabel(rebirthPanel, "Title", "✨ REBIRTH", UDim2.new(1, 0, 0, 44), UDim2.new(0, 0, 0, 8), 30, Color3.fromRGB(255, 255, 255))
-local rebirthClose = GuiKit.makeButton(rebirthPanel, "Close", "X", UDim2.new(0, 40, 0, 40), UDim2.new(1, -48, 0, 8), Color3.fromRGB(200, 60, 60))
-local rebirthInfo = GuiKit.makeLabel(rebirthPanel, "Info", "", UDim2.new(1, -24, 0, 90), UDim2.new(0, 12, 0, 60), 20, Color3.fromRGB(255, 255, 255))
-local rebirthBuy = GuiKit.makeButton(rebirthPanel, "RebirthBuy", "Rebirth!", UDim2.new(0, 240, 0, 52), UDim2.new(0.5, -120, 0, 170), Color3.fromRGB(255, 110, 180))
+GuiKit.makeLabel(rebirthPanel, "Title", "✨ REBIRTH", UDim2.new(1, 0, 0, 44), UDim2.new(0, 0, 0, 8), 30, GuiKit.COLORS.White)
+local rebirthClose = GuiKit.makeButton(rebirthPanel, "Close", "X", UDim2.new(0, 40, 0, 40), UDim2.new(1, -48, 0, 8), GuiKit.COLORS.Close)
+local rebirthInfo = GuiKit.makeLabel(rebirthPanel, "Info", "", UDim2.new(1, -24, 0, 90), UDim2.new(0, 12, 0, 60), 20, GuiKit.COLORS.White)
+local rebirthBuy = GuiKit.makeButton(rebirthPanel, "RebirthBuy", "Rebirth!", UDim2.new(0, 240, 0, 52), UDim2.new(0.5, -120, 0, 170), GuiKit.COLORS.Pink)
 
 local hud = {
 	coins = 0,
@@ -150,7 +156,7 @@ local function onHudData(data: Remotes.HudData)
 		lockButton.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
 	else
 		lockButton.Text = "🔓 Lock Base (L)"
-		lockButton.BackgroundColor3 = Color3.fromRGB(255, 90, 90)
+		lockButton.BackgroundColor3 = GuiKit.COLORS.Red
 	end
 
 	if hud.carried > 0 then

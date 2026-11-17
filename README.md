@@ -30,11 +30,20 @@ into your base and steal your Rotlings — unless you lock the base.
   Rebirths), a first-time **tutorial beam** pointing at the crater, and
   **DataStore saves** of coins, upgrades and placed Rotlings.
 - **Real 3D world**: a space-sunset crater with Future lighting, bloom,
-  atmosphere, ColorCorrection and sun rays, purple ground, teal crater
-  glow and orange meteors, eight coloured bases, purple alien trees,
-  glowing mushrooms, stars and floating rocks, all under a 3D camera
-  with a ScreenGui HUD on top. Sounds for pickup, steal, storm alarm
-  and rebirth; the camera shakes when a meteor lands.
+  atmosphere, ColorCorrection and sun rays — now dressed: hills, angular
+  boulders, crystal clusters, glowing mushrooms, floating islands that
+  bob, a big ringed planet and 120 stars overhead, a tiered crater rim
+  with lava cracks, steam and a pulsing gold beacon beam, and a
+  warm-stone path from every base to the crater. Bases are real places:
+  tiled checkerboard floors, low walls, a gate that glows red when
+  locked, an owner sign, a per-base theme colour, a plinth under every
+  pad and a floating gold cash counter. Rotlings are chunky characters
+  with big heads, eyes, mouths, arms, feet and a prop that fits each
+  name (chef hat, toast slice, disco ball, monocle, orbit ring), rarity
+  auras (sparkles, glow shells, a rainbow trail), an idle bob and spin,
+  and a pop with a coin burst and ding when placed. Storms darken the
+  sky with lightning, thunder, wind streaks and a shaking camera. The
+  HUD is rounded and bouncy, one palette, nothing clipped at the edges.
 
 ## Layout
 

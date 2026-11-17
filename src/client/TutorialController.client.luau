@@ -15,7 +15,8 @@ local GuiKit = require(script.Parent:WaitForChild("GuiKit"))
 local player = Players.LocalPlayer
 local gui = GuiKit.getGui()
 
-local tutorialLabel = GuiKit.makeLabel(gui, "Tutorial", "", UDim2.new(0, 700, 0, 30), UDim2.new(0.5, -350, 1, -80), 22, Color3.fromRGB(180, 255, 200))
+local tutorialLabel = GuiKit.makeLabel(gui, "Tutorial", "", UDim2.new(0, 620, 0, 30), UDim2.new(0.5, 0, 1, -80), 22, GuiKit.COLORS.Green)
+tutorialLabel.AnchorPoint = Vector2.new(0.5, 0)
 tutorialLabel.Visible = false
 
 local beam: Part? = nil

@@ -14,12 +14,12 @@ local GuiKit = require(script.Parent:WaitForChild("GuiKit"))
 
 local gui = GuiKit.getGui()
 
-local indexButton = GuiKit.makeButton(gui, "IndexButton", "📖 Index (I)", UDim2.new(0, 170, 0, 48), UDim2.new(1, -185, 0, 228), Color3.fromRGB(180, 110, 255))
+local indexButton = GuiKit.makeButton(gui, "IndexButton", "📖 Index (I)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -172, 0, 228), GuiKit.COLORS.Purple)
 
 local indexPanel = GuiKit.makePanel(gui, "IndexPanel", UDim2.new(0, 520, 0, 420), UDim2.new(0.5, -260, 0.5, -210))
 indexPanel.Visible = false
-GuiKit.makeLabel(indexPanel, "Title", "📖 ROTLING INDEX", UDim2.new(1, 0, 0, 44), UDim2.new(0, 0, 0, 8), 30, Color3.fromRGB(255, 255, 255))
-local indexClose = GuiKit.makeButton(indexPanel, "Close", "X", UDim2.new(0, 40, 0, 40), UDim2.new(1, -48, 0, 8), Color3.fromRGB(200, 60, 60))
+GuiKit.makeLabel(indexPanel, "Title", "📖 ROTLING INDEX", UDim2.new(1, 0, 0, 44), UDim2.new(0, 0, 0, 8), 30, GuiKit.COLORS.White)
+local indexClose = GuiKit.makeButton(indexPanel, "Close", "X", UDim2.new(0, 40, 0, 40), UDim2.new(1, -48, 0, 8), GuiKit.COLORS.Close)
 local indexCount = GuiKit.makeLabel(indexPanel, "Count", "Found 0 / 12", UDim2.new(1, 0, 0, 26), UDim2.new(0, 0, 0, 48), 20, Color3.fromRGB(160, 255, 170))
 
 local indexCards = {}

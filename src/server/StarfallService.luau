@@ -17,6 +17,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local CarryService = require(script.Parent.CarryService)
 local RotlingFactory = require(script.Parent.RotlingFactory)
+local WorldBuilder = require(script.Parent.WorldBuilder)
 
 local StarfallService = {}
 
@@ -25,6 +26,7 @@ local ALARM_SOUND = "rbxasset://sounds/electronicpingshort.wav"
 local phase = "calm" -- calm | warn | storm
 local phaseEndsAt = 0
 local running = false
+local stormActive = false -- true only while meteors fall; guards the lightning flash from racing restoreSky
 
 function StarfallService.getStatus()
 	return {
@@ -48,18 +50,21 @@ local function setPhase(newPhase: string, duration: number)
 	end
 end
 
--- Space-sunset palette: purple sky, orange storm light.
--- These must match the bright base lighting in default.project.json
--- (Brightness 3, ClockTime 17.0): a storm dims the sky a little, it
--- never drops the world back to navy-black.
+-- Storm palette: the sky goes properly dark, not just a little dim.
+-- These must restore to the bright base lighting in
+-- default.project.json (Brightness 3, ClockTime 17.0, Ambient
+-- 0.55/0.45/0.7, OutdoorAmbient 0.8/0.65/0.9): a storm darkens the
+-- world, it never leaves it dark.
 local function dimSky()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
-		atmosphere.Density = 0.5
-		atmosphere.Color = Color3.fromRGB(255, 120, 60)
+		atmosphere.Density = 0.65
+		atmosphere.Color = Color3.fromRGB(200, 90, 80)
 	end
-	Lighting.ClockTime = 16.8
-	Lighting.Brightness = 2.4
+	Lighting.ClockTime = 15.8
+	Lighting.Brightness = 1.3
+	Lighting.Ambient = Color3.new(0.22, 0.18, 0.32)
+	Lighting.OutdoorAmbient = Color3.new(0.4, 0.32, 0.5)
 end
 
 local function restoreSky()
@@ -70,6 +75,8 @@ local function restoreSky()
 	end
 	Lighting.ClockTime = 17.0
 	Lighting.Brightness = 3
+	Lighting.Ambient = Color3.new(0.55, 0.45, 0.7)
+	Lighting.OutdoorAmbient = Color3.new(0.8, 0.65, 0.9)
 end
 
 local function playAlarm()
@@ -82,6 +89,34 @@ local function playAlarm()
 	task.delay(2, function()
 		sound:Destroy()
 	end)
+end
+
+-- Thunder: the built-in ping pitched right down, a distant boom.
+local function playThunder()
+	local sound = Instance.new("Sound")
+	sound.SoundId = ALARM_SOUND
+	sound.Volume = 0.9
+	sound.PlaybackSpeed = 0.25
+	sound.Parent = workspace
+	sound:Play()
+	task.delay(2, function()
+		sound:Destroy()
+	end)
+end
+
+-- One lightning flash: the sky whites out for a blink, then falls back
+-- to the storm dark. Guarded by stormActive so a flash racing the end
+-- of the storm can never leave the brightness stuck dark.
+local function lightningFlash()
+	if not stormActive then
+		return
+	end
+	Lighting.Brightness = 6
+	playThunder()
+	task.wait(0.12)
+	if stormActive then
+		Lighting.Brightness = 1.3
+	end
 end
 
 -- A free Rotling near an impact may survive it as Starstruck.
@@ -188,13 +223,25 @@ function StarfallService.start()
 			while time() < phaseEndsAt do
 				task.wait(0.5)
 			end
-			-- Storm: meteors rain on the crater.
+			-- Storm: meteors rain on the crater, lightning flashes, the
+			-- wind blows. The lightning loop runs beside the meteor loop
+			-- and stops the moment the storm ends.
 			setPhase("storm", Config.STORM_DURATION)
+			stormActive = true
+			WorldBuilder.setWind(true)
+			task.spawn(function()
+				while stormActive do
+					task.wait(1.5 + math.random() * 2)
+					lightningFlash()
+				end
+			end)
 			Remotes.bannerEvent():FireAllClients("METEOR STORM! Stay out of the crater!", 8)
 			while time() < phaseEndsAt do
 				spawnMeteor()
 				task.wait(Config.STORM_METEOR_INTERVAL)
 			end
+			stormActive = false
+			WorldBuilder.setWind(false)
 			restoreSky()
 			setPhase("calm", Config.STORM_PERIOD - Config.STORM_WARN - Config.STORM_DURATION)
 		end

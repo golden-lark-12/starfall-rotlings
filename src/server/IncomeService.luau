@@ -18,6 +18,7 @@ local CarryService = require(script.Parent.CarryService)
 local DataService = require(script.Parent.DataService)
 local StarfallService = require(script.Parent.StarfallService)
 local State = require(script.Parent.State)
+local WorldBuilder = require(script.Parent.WorldBuilder)
 
 local IncomeService = {}
 
@@ -53,6 +54,10 @@ function IncomeService.broadcastHud()
 			local profile = DataService.getProfile(player)
 			if profile then
 				local baseId = BaseService.getPlayerBase(player.UserId)
+				-- The floating cash counter above the owner's base.
+				if baseId then
+					WorldBuilder.setBaseCoins(baseId, profile.coins)
+				end
 				local found = 0
 				for _ in pairs(profile.index) do
 					found += 1

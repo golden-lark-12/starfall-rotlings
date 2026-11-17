@@ -8,12 +8,105 @@
 -- it and welds it to the player, placing re-anchors it.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local MutationConfig = require(ReplicatedStorage.Shared.MutationConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.RarityConfig)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 
 local RotlingFactory = {}
+
+-- Idle motion: one shared loop bobs and sways every free/placed Rotling
+-- around a stored rest pose. Carried Rotlings are skipped (they ride the
+-- player's weld). The pop tween marks a model so the loop never fights it.
+local restPose: { [Model]: CFrame } = {}
+local bobSeed: { [Model]: number } = {}
+local popping: { [Model]: number } = {}
+local idleStarted = false
+
+-- Remember where a Rotling rests, so the idle loop can bob around it.
+-- Called when a Rotling is built, placed or scattered back to the crater.
+function RotlingFactory.setRestPose(model: Model)
+	local body = model.PrimaryPart
+	if body then
+		restPose[model] = body.CFrame
+		if not bobSeed[model] then
+			bobSeed[model] = math.random() * 10
+		end
+	end
+end
+
+local function startIdleMotion()
+	if idleStarted then
+		return
+	end
+	idleStarted = true
+	task.spawn(function()
+		while true do
+			task.wait(0.12)
+			local now = time()
+			for model, base in pairs(restPose) do
+				if model.Parent == nil then
+					restPose[model] = nil
+					bobSeed[model] = nil
+					popping[model] = nil
+				elseif popping[model] and now < (popping[model] :: number) then
+					-- A place pop is tweening this one; leave it alone.
+					continue
+				else
+					local body = model.PrimaryPart
+					local state = model:GetAttribute("State")
+					if body and (state == "free" or state == "placed") then
+						local seed = bobSeed[model] or 0
+						local bob = math.sin(now * 1.6 + seed) * 0.22
+						-- Placed Rotlings slowly spin on display; free ones
+						-- sway so their face stays toward the player.
+						local angle = if state == "placed"
+							then (now * 0.5 + seed) % (math.pi * 2)
+							else math.sin(now * 0.6 + seed) * 0.25
+						body.CFrame = base * CFrame.new(0, bob, 0) * CFrame.Angles(0, angle, 0)
+					end
+				end
+			end
+		end
+	end)
+end
+
+-- A pop + coin burst when a Rotling lands on a pad: a little hop, a
+-- spray of gold particles and a coin ding. The idle loop is paused for
+-- this model while the hop tween runs.
+function RotlingFactory.placePop(model: Model)
+	local body = model.PrimaryPart
+	if not body then
+		return
+	end
+	local burst = body:FindFirstChild("CoinBurst")
+	if burst and burst:IsA("ParticleEmitter") then
+		burst:Emit(18)
+	end
+	-- Coin ding: the built-in ping, pitched up bright.
+	local ding = Instance.new("Sound")
+	ding.SoundId = "rbxasset://sounds/electronicpingshort.wav"
+	ding.Volume = 0.6
+	ding.PlaybackSpeed = 1.8
+	ding.Parent = body
+	ding:Play()
+	task.delay(1, function()
+		ding:Destroy()
+	end)
+	local base = restPose[model] or body.CFrame
+	popping[model] = time() + 0.45
+	local up = TweenService:Create(body, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		CFrame = base * CFrame.new(0, 1.2, 0),
+	})
+	up:Play()
+	up.Completed:Connect(function()
+		local down = TweenService:Create(body, TweenInfo.new(0.22, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {
+			CFrame = base,
+		})
+		down:Play()
+	end)
+end
 
 local function makePart(name: string, shape: Enum.PartType, size: Vector3, color: Color3, material: Enum.Material?): Part
 	local part = Instance.new("Part")
@@ -78,7 +171,153 @@ local function addFeet(model: Model, body: Part, size: number)
 	end
 end
 
+local function addArms(model: Model, body: Part, size: number)
+	-- Little limbs, angled out, in a darker shade of the body colour.
+	local armColor = Color3.new(body.Color.R * 0.7, body.Color.G * 0.7, body.Color.B * 0.7)
+	for _, side in ipairs({ -1, 1 }) do
+		local arm = makePart("Arm", Enum.PartType.Block, Vector3.new(size * 0.14, size * 0.36, size * 0.14), armColor)
+		arm.CFrame = body.CFrame * CFrame.new(side * (body.Size.X / 2 + size * 0.08), -size * 0.05, 0) * CFrame.Angles(0, 0, side * -0.35)
+		arm.Parent = model
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = body
+		weld.Part1 = arm
+		weld.Parent = arm
+	end
+end
+
+-- A small prop that fits the Rotling's NAME, 2-3 parts each. This runs
+-- after the generic accessory; for noodle, crumb and toaster it IS the
+-- accessory (addAccessory skips the generic one for those three).
+local function addNameProp(model: Model, body: Part, def: RotlingCatalog.RotlingDef)
+	local size = def.size
+	local top = body.CFrame * CFrame.new(0, size * 0.55, 0)
+	local function weldIt(p: Part)
+		p.Parent = model
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = body
+		weld.Part1 = p
+		weld.Parent = p
+	end
+	if def.id == "wombat" then
+		-- Wombat ears: two small rounded ears on top.
+		for _, side in ipairs({ -1, 1 }) do
+			local ear = makePart("Ear", Enum.PartType.Ball, Vector3.new(size * 0.2, size * 0.2, size * 0.2), Color3.fromRGB(110, 80, 50))
+			ear.CFrame = top * CFrame.new(side * size * 0.22, size * 0.04, 0)
+			weldIt(ear)
+		end
+	elseif def.id == "puddles" then
+		-- A tiny knight's helmet with a blue plume.
+		local helmet = makePart("Helmet", Enum.PartType.Ball, Vector3.new(size * 0.5, size * 0.26, size * 0.5), Color3.fromRGB(180, 185, 200))
+		helmet.Material = Enum.Material.Metal
+		helmet.CFrame = top * CFrame.new(0, size * 0.02, 0)
+		weldIt(helmet)
+		local plume = makePart("Plume", Enum.PartType.Ball, Vector3.new(size * 0.12, size * 0.12, size * 0.12), Color3.fromRGB(80, 140, 255))
+		plume.Material = Enum.Material.Neon
+		plume.CFrame = top * CFrame.new(0, size * 0.2, 0)
+		weldIt(plume)
+	elseif def.id == "noodle" then
+		-- A chef's hat: white brim and puffy crown.
+		local brim = makePart("ChefBrim", Enum.PartType.Cylinder, Vector3.new(size * 0.12, size * 0.55, size * 0.55), Color3.fromRGB(245, 245, 245))
+		brim.CFrame = top * CFrame.Angles(0, 0, math.rad(90))
+		weldIt(brim)
+		local crown = makePart("ChefTop", Enum.PartType.Ball, Vector3.new(size * 0.42, size * 0.36, size * 0.42), Color3.fromRGB(250, 250, 250))
+		crown.CFrame = top * CFrame.new(0, size * 0.2, 0)
+		weldIt(crown)
+	elseif def.id == "crumb" then
+		-- A captain's hat: dark blue cap with a white front band.
+		local cap = makePart("CaptainHat", Enum.PartType.Cylinder, Vector3.new(size * 0.14, size * 0.55, size * 0.55), Color3.fromRGB(30, 60, 130))
+		cap.CFrame = top * CFrame.Angles(0, 0, math.rad(90))
+		weldIt(cap)
+		local band = makePart("CaptainBand", Enum.PartType.Block, Vector3.new(size * 0.5, size * 0.08, size * 0.06), Color3.fromRGB(250, 250, 250))
+		band.CFrame = top * CFrame.new(0, size * 0.02, size * 0.26)
+		weldIt(band)
+	elseif def.id == "pickle" then
+		-- A tiny disco ball on a stem, above the headphones.
+		local stem = makePart("DiscoStem", Enum.PartType.Cylinder, Vector3.new(size * 0.3, size * 0.06, size * 0.06), Color3.fromRGB(90, 90, 100))
+		stem.CFrame = top * CFrame.new(0, size * 0.14, 0) * CFrame.Angles(0, 0, math.rad(90))
+		weldIt(stem)
+		local ball = makePart("DiscoBall", Enum.PartType.Ball, Vector3.new(size * 0.28, size * 0.28, size * 0.28), Color3.fromRGB(210, 210, 220))
+		ball.Material = Enum.Material.Metal
+		ball.CFrame = top * CFrame.new(0, size * 0.36, 0)
+		weldIt(ball)
+	elseif def.id == "toaster" then
+		-- A slice of toast popping out of the ghost.
+		local toast = makePart("Toast", Enum.PartType.Block, Vector3.new(size * 0.36, size * 0.5, size * 0.12), Color3.fromRGB(235, 190, 120))
+		toast.CFrame = top * CFrame.new(0, size * 0.2, 0)
+		weldIt(toast)
+		local butter = makePart("Butter", Enum.PartType.Block, Vector3.new(size * 0.16, size * 0.1, size * 0.14), Color3.fromRGB(255, 230, 80))
+		butter.CFrame = top * CFrame.new(0, size * 0.48, 0)
+		weldIt(butter)
+	elseif def.id == "socks" then
+		-- A gold monocle lens over the right eye, with a chain. The lens
+		-- is translucent glass so the eye shows through it.
+		local ring = makePart("Monocle", Enum.PartType.Cylinder, Vector3.new(size * 0.05, size * 0.26, size * 0.26), Color3.fromRGB(255, 215, 0))
+		ring.Material = Enum.Material.Glass
+		ring.Transparency = 0.3
+		ring.CFrame = body.CFrame * CFrame.new(size * 0.22, size * 0.18, body.Size.Z / 2 + size * 0.06) * CFrame.Angles(0, math.rad(90), 0)
+		weldIt(ring)
+		local chain = makePart("MonocleChain", Enum.PartType.Cylinder, Vector3.new(size * 0.3, size * 0.04, size * 0.04), Color3.fromRGB(255, 215, 0))
+		chain.CFrame = body.CFrame * CFrame.new(size * 0.34, -size * 0.05, body.Size.Z / 2 + size * 0.04) * CFrame.Angles(0, 0, math.rad(90))
+		weldIt(chain)
+	elseif def.id == "quokka" then
+		-- A quantum orbit ring around the body, with a tiny planet on it.
+		-- The ring is a thin translucent disc so the body shows through
+		-- from above and the glowing edge reads from the side.
+		local orbit = makePart("OrbitRing", Enum.PartType.Cylinder, Vector3.new(size * 0.06, size * 1.35, size * 1.35), Color3.fromRGB(80, 220, 255))
+		orbit.Material = Enum.Material.Neon
+		orbit.Transparency = 0.5
+		orbit.CFrame = body.CFrame * CFrame.Angles(0, 0, math.rad(90))
+		weldIt(orbit)
+		local planet = makePart("OrbitPlanet", Enum.PartType.Ball, Vector3.new(size * 0.16, size * 0.16, size * 0.16), Color3.fromRGB(255, 150, 80))
+		planet.CFrame = body.CFrame * CFrame.new(size * 0.62, size * 0.1, 0)
+		weldIt(planet)
+	elseif def.id == "turnip" then
+		-- Turnip leaves sprouting from the top.
+		for i = 1, 3 do
+			local leaf = makePart("Leaf", Enum.PartType.Wedge, Vector3.new(size * 0.12, size * 0.4, size * 0.2), Color3.fromRGB(60, 180, 80))
+			leaf.CFrame = top * CFrame.new((i - 2) * size * 0.14, size * 0.14, 0) * CFrame.Angles(0, 0, (i - 2) * -0.4)
+			weldIt(leaf)
+		end
+	elseif def.id == "bloop" then
+		-- A bow tie at the neck.
+		for _, side in ipairs({ -1, 1 }) do
+			local wing = makePart("BowTie", Enum.PartType.Wedge, Vector3.new(size * 0.08, size * 0.18, size * 0.2), Color3.fromRGB(160, 20, 60))
+			wing.CFrame = body.CFrame * CFrame.new(side * size * 0.14, -size * 0.28, body.Size.Z / 2 + size * 0.02) * CFrame.Angles(0, math.rad(180), 0)
+			weldIt(wing)
+		end
+		local knot = makePart("BowKnot", Enum.PartType.Ball, Vector3.new(size * 0.1, size * 0.1, size * 0.1), Color3.fromRGB(160, 20, 60))
+		knot.CFrame = body.CFrame * CFrame.new(0, -size * 0.28, body.Size.Z / 2 + size * 0.04)
+		weldIt(knot)
+	elseif def.id == "couch" then
+		-- A TV remote held at the side.
+		local remote = makePart("Remote", Enum.PartType.Block, Vector3.new(size * 0.22, size * 0.42, size * 0.1), Color3.fromRGB(35, 35, 45))
+		remote.CFrame = body.CFrame * CFrame.new(body.Size.X / 2 + size * 0.14, -size * 0.1, size * 0.1)
+		weldIt(remote)
+		local btn = makePart("RemoteButton", Enum.PartType.Ball, Vector3.new(size * 0.07, size * 0.07, size * 0.07), Color3.fromRGB(255, 60, 60))
+		btn.Material = Enum.Material.Neon
+		btn.CFrame = body.CFrame * CFrame.new(body.Size.X / 2 + size * 0.14, size * 0.02, size * 0.16)
+		weldIt(btn)
+	elseif def.id == "gummy" then
+		-- A wrapped candy on top.
+		local candy = makePart("Candy", Enum.PartType.Ball, Vector3.new(size * 0.26, size * 0.26, size * 0.26), Color3.fromRGB(255, 120, 180))
+		candy.CFrame = top * CFrame.new(0, size * 0.14, 0)
+		weldIt(candy)
+		for _, side in ipairs({ -1, 1 }) do
+			local wrap = makePart("CandyWrap", Enum.PartType.Wedge, Vector3.new(size * 0.08, size * 0.16, size * 0.16), Color3.fromRGB(255, 120, 180))
+			wrap.CFrame = top * CFrame.new(side * size * 0.2, size * 0.14, 0) * CFrame.Angles(0, 0, side * 0.6)
+			weldIt(wrap)
+		end
+	end
+end
+
 local function addAccessory(model: Model, body: Part, def: RotlingCatalog.RotlingDef, rarityColor: Color3)
+	-- Noodle, Crumb and Toaster get a name-specific prop instead of the
+	-- generic one (see addNameProp): a chef hat, a captain's hat and a
+	-- slice of toast read as those names far better than a bowler or an
+	-- antenna.
+	if def.id == "noodle" or def.id == "crumb" or def.id == "toaster" then
+		return
+	end
 	local size = def.size
 	local top = body.CFrame * CFrame.new(0, size * 0.55, 0)
 	if def.accessory == "horns" then
@@ -172,10 +411,13 @@ local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef
 	local cps = RotlingCatalog.baseCps(def, mutation)
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "RotlingLabel"
-	billboard.Size = UDim2.fromOffset(160, 72)
+	billboard.Size = UDim2.fromOffset(150, 64)
 	billboard.StudsOffsetWorldSpace = Vector3.new(0, def.size * 0.85, 0)
 	billboard.AlwaysOnTop = true
 	billboard.LightInfluence = 0
+	-- One small name tag, visible only near the player: the always-on
+	-- labels cluttered the whole crater from across the map.
+	billboard.MaxDistance = 40
 	billboard.Parent = body
 
 	local nameLabel = Instance.new("TextLabel")
@@ -245,6 +487,76 @@ local function addRarityHighlight(model: Model, rarityColor: Color3)
 	highlight.OutlineColor = rarityColor
 	highlight.OutlineTransparency = 0.25
 	highlight.Parent = model
+end
+
+-- Rarity aura, on top of the highlight: Common has none, Rare sparkles,
+-- Epic glows (a soft neon shell), Legendary trails a rainbow, and
+-- Mythic/Cosmic get the strongest glow plus sparkles.
+local function addRarityAura(model: Model, body: Part, def: RotlingCatalog.RotlingDef, rarityColor: Color3)
+	local tier = RarityConfig.rarityTier(def.rarity)
+	local size = def.size
+	if tier < 2 then
+		return
+	end
+	local function sparkles(rate: number)
+		local emitter = Instance.new("ParticleEmitter")
+		emitter.Name = "RaritySparkle"
+		emitter.Color = ColorSequence.new(rarityColor)
+		emitter.Size = NumberSequence.new(0.35)
+		emitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 0.9) })
+		emitter.Lifetime = NumberRange.new(0.6, 1.2)
+		emitter.Rate = rate
+		emitter.Speed = NumberRange.new(1, 2.5)
+		emitter.SpreadAngle = Vector2.new(360, 360)
+		emitter.Parent = body
+	end
+	local function glowShell()
+		local shell = makePart("GlowShell", Enum.PartType.Ball, Vector3.new(body.Size.X * 1.18, body.Size.Y * 1.18, body.Size.Z * 1.18), rarityColor, Enum.Material.Neon)
+		shell.Transparency = 0.78
+		shell.CFrame = body.CFrame
+		shell.Parent = model
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = body
+		weld.Part1 = shell
+		weld.Parent = shell
+	end
+	if tier == 2 then
+		sparkles(4)
+	elseif tier == 3 then
+		glowShell()
+	elseif tier == 4 then
+		glowShell()
+		sparkles(4)
+		-- Rainbow trail: two attachments, one rainbow colour sequence.
+		local a0 = Instance.new("Attachment")
+		a0.Name = "TrailA0"
+		a0.Position = Vector3.new(-size * 0.3, size * 0.3, 0)
+		a0.Parent = body
+		local a1 = Instance.new("Attachment")
+		a1.Name = "TrailA1"
+		a1.Position = Vector3.new(size * 0.3, -size * 0.3, 0)
+		a1.Parent = body
+		local trail = Instance.new("Trail")
+		trail.Name = "RainbowTrail"
+		trail.Attachment0 = a0
+		trail.Attachment1 = a1
+		trail.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 60, 60)),
+			ColorSequenceKeypoint.new(0.2, Color3.fromRGB(255, 160, 40)),
+			ColorSequenceKeypoint.new(0.4, Color3.fromRGB(255, 230, 60)),
+			ColorSequenceKeypoint.new(0.6, Color3.fromRGB(80, 220, 100)),
+			ColorSequenceKeypoint.new(0.8, Color3.fromRGB(80, 160, 255)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 90, 255)),
+		})
+		trail.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 0.85) })
+		trail.Lifetime = 0.5
+		trail.MinLength = 0.2
+		trail.Parent = body
+	else
+		-- Mythic and Cosmic: strongest glow plus sparkles.
+		glowShell()
+		sparkles(8)
+	end
 end
 
 -- Repaint a live Rotling when its mutation changes (Starstruck at runtime).
@@ -353,18 +665,39 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	addEyes(model, body, size)
 	addMouth(model, body, size)
 	addFeet(model, body, size)
+	addArms(model, body, size)
 	addAccessory(model, body, def, rarity.color)
+	addNameProp(model, body, def)
 	addLabel(model, body, def, mutation)
 	addMutationSparkle(model, body, mutation)
 	addRarityHighlight(model, rarity.color)
+	addRarityAura(model, body, def, rarity.color)
 
-	-- Rarity glow.
+	-- Rarity glow: brighter and wider the higher the tier.
 	local mut = MutationConfig.mutationByName(mutation)
+	local tier = RarityConfig.rarityTier(def.rarity)
 	local light = Instance.new("PointLight")
 	light.Color = if mut then mut.glow else rarity.color
-	light.Brightness = 2
-	light.Range = 12
+	light.Brightness = 1.5 + tier * 0.5
+	light.Range = 8 + tier * 2
 	light.Parent = body
+
+	-- Coin burst, fired once when the Rotling lands on a pad (placePop).
+	local burst = Instance.new("ParticleEmitter")
+	burst.Name = "CoinBurst"
+	burst.Color = ColorSequence.new(Color3.fromRGB(255, 215, 0))
+	burst.Size = NumberSequence.new(0.5)
+	burst.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) })
+	burst.Lifetime = NumberRange.new(0.5, 0.9)
+	burst.Rate = 0
+	burst.Speed = NumberRange.new(8, 13)
+	burst.SpreadAngle = Vector2.new(360, 360)
+	burst.Enabled = false
+	burst.Parent = body
+
+	-- Remember the rest pose so the idle loop can bob around it.
+	RotlingFactory.setRestPose(model)
+	startIdleMotion()
 
 	-- State the rest of the server reads and writes.
 	model:SetAttribute("DefId", defId)

@@ -22,12 +22,12 @@ local SHOP_ORDER = { "Speed", "Carry", "Income", "Pads", "Lock" }
 
 local gui = GuiKit.getGui()
 
-local shopButton = GuiKit.makeButton(gui, "ShopButton", "🛒 Shop (B)", UDim2.new(0, 170, 0, 48), UDim2.new(1, -185, 0, 172), Color3.fromRGB(90, 160, 255))
+local shopButton = GuiKit.makeButton(gui, "ShopButton", "🛒 Shop (B)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -172, 0, 172), GuiKit.COLORS.Blue)
 
 local shopPanel = GuiKit.makePanel(gui, "ShopPanel", UDim2.new(0, 420, 0, 560), UDim2.new(0.5, -210, 0.5, -280))
 shopPanel.Visible = false
-GuiKit.makeLabel(shopPanel, "Title", "🛒 SHOP", UDim2.new(1, 0, 0, 44), UDim2.new(0, 0, 0, 8), 30, Color3.fromRGB(255, 255, 255))
-local shopClose = GuiKit.makeButton(shopPanel, "Close", "X", UDim2.new(0, 40, 0, 40), UDim2.new(1, -48, 0, 8), Color3.fromRGB(200, 60, 60))
+GuiKit.makeLabel(shopPanel, "Title", "🛒 SHOP", UDim2.new(1, 0, 0, 44), UDim2.new(0, 0, 0, 8), 30, GuiKit.COLORS.White)
+local shopClose = GuiKit.makeButton(shopPanel, "Close", "X", UDim2.new(0, 40, 0, 40), UDim2.new(1, -48, 0, 8), GuiKit.COLORS.Close)
 
 local tiers = { Speed = 0, Carry = 0, Income = 0, Pads = 0, Lock = 0 }
 
@@ -41,7 +41,7 @@ for i, key in ipairs(SHOP_ORDER) do
 	GuiKit.makeLabel(row, "Name", item.label, UDim2.new(1, -130, 0, 28), UDim2.new(0, 10, 0, 6), 22, Color3.fromRGB(255, 255, 255))
 	GuiKit.makeLabel(row, "Desc", item.desc, UDim2.new(1, -130, 0, 22), UDim2.new(0, 10, 0, 34), 16, Color3.fromRGB(200, 200, 220))
 	local tierLabel = GuiKit.makeLabel(row, "Tier", "Tier 0/" .. tostring(#item.tiers), UDim2.new(1, -130, 0, 22), UDim2.new(0, 10, 0, 58), 16, Color3.fromRGB(160, 255, 170))
-	local buyButton = GuiKit.makeButton(row, "Buy", Formatting.formatMoney(item.tiers[1]), UDim2.new(0, 104, 0, 44), UDim2.new(1, -114, 0, 22), Color3.fromRGB(80, 200, 100))
+	local buyButton = GuiKit.makeButton(row, "Buy", Formatting.formatMoney(item.tiers[1]), UDim2.new(0, 104, 0, 44), UDim2.new(1, -114, 0, 22), GuiKit.COLORS.Buy)
 	shopRows[key] = { tierLabel = tierLabel, buyButton = buyButton }
 	buyButton.MouseButton1Click:Connect(function()
 		local ok, message = Remotes.buyFunction():InvokeServer(key)
@@ -64,7 +64,7 @@ function refreshShop()
 			row.buyButton.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
 		else
 			row.buyButton.Text = Formatting.formatMoney(item.tiers[tier + 1])
-			row.buyButton.BackgroundColor3 = Color3.fromRGB(80, 200, 100)
+			row.buyButton.BackgroundColor3 = GuiKit.COLORS.Buy
 		end
 	end
 end

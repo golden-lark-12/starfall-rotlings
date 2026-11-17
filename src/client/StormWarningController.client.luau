@@ -13,8 +13,9 @@ local gui = GuiKit.getGui()
 
 local warnBar = Instance.new("Frame")
 warnBar.Name = "StormWarning"
-warnBar.Size = UDim2.new(0, 560, 0, 52)
-warnBar.Position = UDim2.new(0.5, -280, 0, 100)
+warnBar.Size = UDim2.new(0, 520, 0, 52)
+warnBar.Position = UDim2.new(0.5, 0, 0, 100)
+warnBar.AnchorPoint = Vector2.new(0.5, 0)
 warnBar.BackgroundColor3 = Color3.fromRGB(180, 20, 20)
 warnBar.BackgroundTransparency = 0.25
 warnBar.BorderSizePixel = 0

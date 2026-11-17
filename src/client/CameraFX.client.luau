@@ -14,10 +14,18 @@ local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 local trauma = 0
+local stormPhase = "calm"
 
 local function addTrauma(amount: number)
 	trauma = math.min(1, trauma + amount)
 end
+
+-- The storm phase rides the HUD feed: during a storm the camera shakes
+-- gently the whole time, with random bigger jolts (lightning); during
+-- the warning it trembles faintly.
+Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
+	stormPhase = data.stormPhase
+end)
 
 Remotes.meteorImpactEvent().OnClientEvent:Connect(function(impact: Vector3)
 	local character = player.Character
@@ -34,6 +42,15 @@ Remotes.meteorImpactEvent().OnClientEvent:Connect(function(impact: Vector3)
 end)
 
 RunService.RenderStepped:Connect(function()
+	if stormPhase == "storm" then
+		-- A steady low rumble, plus the odd lightning jolt.
+		trauma = math.min(1, trauma + 0.008)
+		if math.random() < 0.03 then
+			addTrauma(0.25)
+		end
+	elseif stormPhase == "warn" then
+		trauma = math.max(trauma, 0.06)
+	end
 	if trauma <= 0 then
 		return
 	end

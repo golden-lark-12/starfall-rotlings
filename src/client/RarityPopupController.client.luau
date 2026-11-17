@@ -14,7 +14,8 @@ local GuiKit = require(script.Parent:WaitForChild("GuiKit"))
 
 local gui = GuiKit.getGui()
 
-local popup = GuiKit.makeLabel(gui, "RarityPopup", "", UDim2.new(0, 640, 0, 130), UDim2.new(0.5, -320, 0, 210), 44, Color3.fromRGB(255, 255, 255))
+local popup = GuiKit.makeLabel(gui, "RarityPopup", "", UDim2.new(0, 600, 0, 130), UDim2.new(0.5, 0, 0, 210), 44, Color3.fromRGB(255, 255, 255))
+popup.AnchorPoint = Vector2.new(0.5, 0)
 popup.Visible = false
 popup.TextWrapped = true
 
