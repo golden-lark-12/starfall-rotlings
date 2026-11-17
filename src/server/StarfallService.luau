@@ -40,12 +40,23 @@ local stormActive = false -- true only while meteors fall; guards the lightning 
 local rumbleSound: Sound? = nil -- the low storm rumble, looping while the storm runs
 
 function StarfallService.getStatus()
+	-- "Meteor Danger" (cheap win 8): 0 when the next storm is far away,
+	-- filling to 1 as it approaches, full during warn and storm.
+	local danger = 0
+	if phase == "warn" or phase == "storm" then
+		danger = 1
+	elseif phase == "calm" then
+		local total = calmDuration()
+		local left = math.max(0, phaseEndsAt - time())
+		danger = if total > 0 then math.clamp(1 - left / total, 0, 1) else 0
+	end
 	return {
 		phase = phase,
 		-- time() is wall-clock seconds since the server started. os.clock()
 		-- is CPU time: in a quiet Studio session it barely advances, so a
 		-- countdown built on it never moves and the storm never fires.
 		secondsLeft = math.max(0, math.ceil(phaseEndsAt - time())),
+		danger = danger,
 	}
 end
 
@@ -170,6 +181,21 @@ local function lightningFlash()
 	end
 end
 
+-- Is a position on a base platform (a safe zone)? Bases are never
+-- targeted and never hurt: a player standing on their base is safe.
+local function onBase(position: Vector3): boolean
+	for baseId = 1, Config.BASE_COUNT do
+		local cf = WorldBuilder.baseCFrame(baseId)
+		if cf then
+			local flat = Vector3.new(position.X - cf.Position.X, 0, position.Z - cf.Position.Z)
+			if flat.Magnitude <= Config.STORM_BASE_SAFE_RADIUS then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 -- A free Rotling near an impact may survive it as Starstruck.
 local function maybeStarstruck(impact: Vector3)
 	for _, descendant in ipairs(workspace:GetDescendants()) do
@@ -195,8 +221,10 @@ end
 -- What happens when a meteor lands: the log, the camera shake for
 -- every client, a rare Rotling at the impact point (always for a hero
 -- meteor, a quarter of the time for a rain meteor), a Starstruck roll
--- for nearby free Rotlings, and damage + dropped carries for anyone
--- standing in the crater.
+-- for nearby free Rotlings, and damage + knockback + dropped carries
+-- for anyone caught close to the blast. Bases are safe zones: a player
+-- standing on a base platform is never hurt, and a shielded player
+-- (BoostService) is immune too.
 local function onMeteorLanded(target: Vector3, isHero: boolean)
 	print("[Starfall] METEOR LANDED at (" .. tostring(math.floor(target.X)) .. ", " .. tostring(math.floor(target.Y)) .. ", " .. tostring(math.floor(target.Z)) .. ")")
 	Remotes.meteorImpactEvent():FireAllClients(target)
@@ -204,85 +232,150 @@ local function onMeteorLanded(target: Vector3, isHero: boolean)
 	if isHero or math.random() < 0.25 then
 		SpawnService.spawnRareAt(target)
 	end
-	-- Anyone standing in the crater is hit.
+	-- Anyone close to the blast is hit: knocked back, hurt, and drops
+	-- everything they carry (a rival can grab the drop). Anyone on a
+	-- base platform is safe — the storm must force a dash home, not
+	-- punish players who already made it there.
+	local BoostService = require(script.Parent.BoostService)
 	for _, player in ipairs(Players:GetPlayers()) do
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-		if root and humanoid and humanoid.Health > 0 then
-			local flat = Vector3.new(root.Position.X, 0, root.Position.Z)
-			if flat.Magnitude <= Config.CRATER_RADIUS + 4 then
-				humanoid:TakeDamage(Config.STORM_DAMAGE)
-				CarryService.dropAllCarried(player)
+		if root and humanoid and humanoid.Health > 0 and not onBase(root.Position) then
+			local flat = Vector3.new(root.Position.X - target.X, 0, root.Position.Z - target.Z)
+			if flat.Magnitude <= Config.STORM_HIT_RADIUS then
+				if not BoostService.hasBoost(player, "shield") then
+					humanoid:TakeDamage(Config.STORM_DAMAGE)
+					-- Knockback: shove the player away from the blast.
+					local away = if flat.Magnitude > 0.5 then flat.Unit else Vector3.new(0, 0, 1)
+					root.AssemblyLinearVelocity = away * Config.STORM_KNOCKBACK + Vector3.new(0, 18, 0)
+					CarryService.dropAllCarried(player)
+					local MeteorEggService = require(script.Parent.MeteorEggService)
+					MeteorEggService.dropEgg(player)
+				end
 			end
 		end
 	end
 end
 
--- Pick a meteor target. Half the time, aim near a player who is in or
--- near the crater, so 6-10 meteors per storm crash close enough to
--- shake that player's camera; otherwise a random spot in the crater.
+-- A red warning circle on the ground, 2s before the meteor lands, so
+-- the impact is always dodgeable: the storm is a threat you outrun,
+-- not a random punishment. Returns immediately; the fall runs in its
+-- own thread so the rain loop keeps its pace.
+local function showWarningCircle(target: Vector3): Part
+	local circle = Instance.new("Part")
+	circle.Name = "MeteorWarning"
+	circle.Shape = Enum.PartType.Cylinder
+	circle.Size = Vector3.new(0.3, Config.STORM_HIT_RADIUS * 2 + 2, Config.STORM_HIT_RADIUS * 2 + 2)
+	circle.Color = Color3.fromRGB(255, 50, 40)
+	circle.Material = Enum.Material.Neon
+	circle.Transparency = 0.45
+	circle.Anchored = true
+	circle.CanCollide = false
+	circle.CanQuery = false
+	circle.CastShadow = false
+	circle.CFrame = CFrame.new(target + Vector3.new(0, 0.35, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	circle.Parent = workspace
+	task.delay(Config.STORM_WARNING_TIME + 1.2, function()
+		circle:Destroy()
+	end)
+	return circle
+end
+
+-- Pick a meteor target. Impacts spread across the WHOLE map now, not
+-- just the crater centre: near a player anywhere (paths, fields), near
+-- a base (just outside its safe ring, so the dash home stays scary),
+-- or anywhere in the open field. A base platform is never targeted.
 local function pickTarget(): Vector3
-	local nearPlayers: { Player } = {}
-	for _, player in ipairs(Players:GetPlayers()) do
-		local character = player.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart")
-		if root then
-			local flat = Vector3.new(root.Position.X, 0, root.Position.Z)
-			if flat.Magnitude <= Config.CRATER_RADIUS + 17 then
-				table.insert(nearPlayers, player)
+	for _ = 1, 12 do
+		local roll = math.random()
+		local candidate: Vector3
+		if roll < 0.3 then
+			-- Near a random player, anywhere on the map.
+			local players = Players:GetPlayers()
+			if #players == 0 then
+				candidate = Vector3.new(0, Config.CRATER_FLOOR_Y, 0)
+			else
+				local player = players[math.random(1, #players)]
+				local character = player.Character
+				local root = character and character:FindFirstChild("HumanoidRootPart")
+				if root then
+					local offset = Vector3.new((math.random() * 2 - 1) * Config.STORM_NEAR_PLAYER_RADIUS, 0, (math.random() * 2 - 1) * Config.STORM_NEAR_PLAYER_RADIUS)
+					local pos = root.Position + offset
+					candidate = Vector3.new(pos.X, Config.CRATER_FLOOR_Y, pos.Z)
+				else
+					candidate = Vector3.new(0, Config.CRATER_FLOOR_Y, 0)
+				end
 			end
+		elseif roll < 0.55 then
+			-- Near a random base: just outside the safe ring.
+			local baseId = math.random(1, Config.BASE_COUNT)
+			local cf = WorldBuilder.baseCFrame(baseId)
+			if cf then
+				local angle = math.random() * math.pi * 2
+				local dist = Config.STORM_BASE_SAFE_RADIUS + math.random(4, 14)
+				candidate = Vector3.new(
+					cf.Position.X + math.cos(angle) * dist,
+					Config.CRATER_FLOOR_Y,
+					cf.Position.Z + math.sin(angle) * dist
+				)
+			else
+				candidate = Vector3.new(0, Config.CRATER_FLOOR_Y, 0)
+			end
+		else
+			-- Anywhere in the open field.
+			local angle = math.random() * math.pi * 2
+			local radius = math.random() * Config.STORM_SPREAD_RADIUS
+			candidate = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
+		end
+		if not onBase(candidate) then
+			return candidate
 		end
 	end
-	if #nearPlayers > 0 and math.random() < Config.STORM_NEAR_PLAYER_CHANCE then
-		local player = nearPlayers[math.random(1, #nearPlayers)]
-		local character = player.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart")
-		if root then
-			local offset = Vector3.new((math.random() * 2 - 1) * Config.STORM_NEAR_PLAYER_RADIUS, 0, (math.random() * 2 - 1) * Config.STORM_NEAR_PLAYER_RADIUS)
-			local pos = root.Position + offset
-			return Vector3.new(pos.X, Config.CRATER_FLOOR_Y, pos.Z)
-		end
-	end
-	local angle = math.random() * math.pi * 2
-	local radius = math.random() * Config.CRATER_RADIUS
-	return Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
+	-- Fallback: the crater centre is never on a base.
+	return Vector3.new(0, Config.CRATER_FLOOR_Y, 0)
 end
 
 local function spawnMeteor()
 	local target = pickTarget()
-	local start = target + Vector3.new(0, 120, 0)
+	showWarningCircle(target)
+	-- The fall starts after the 2s warning: the circle is the telegraph,
+	-- the meteor is the payoff. Runs in its own thread so the rain loop
+	-- keeps spawning on its 0.45s pace.
+	task.delay(Config.STORM_WARNING_TIME, function()
+		local start = target + Vector3.new(0, 120, 0)
 
-	local meteor = Instance.new("Part")
-	meteor.Name = "Meteor"
-	meteor.Shape = Enum.PartType.Ball
-	meteor.Size = Vector3.new(4, 4, 4)
-	meteor.Color = Color3.fromRGB(255, 110, 40)
-	meteor.Material = Enum.Material.Neon
-	meteor.Anchored = true
-	meteor.CanCollide = false
-	meteor.CanQuery = false
-	meteor.CFrame = CFrame.new(start)
-	meteor.Parent = workspace
+		local meteor = Instance.new("Part")
+		meteor.Name = "Meteor"
+		meteor.Shape = Enum.PartType.Ball
+		meteor.Size = Vector3.new(4, 4, 4)
+		meteor.Color = Color3.fromRGB(255, 110, 40)
+		meteor.Material = Enum.Material.Neon
+		meteor.Anchored = true
+		meteor.CanCollide = false
+		meteor.CanQuery = false
+		meteor.CFrame = CFrame.new(start)
+		meteor.Parent = workspace
 
-	local fire = Instance.new("PointLight")
-	fire.Color = Color3.fromRGB(255, 140, 50)
-	fire.Brightness = 3
-	fire.Range = 18
-	fire.Parent = meteor
+		local fire = Instance.new("PointLight")
+		fire.Color = Color3.fromRGB(255, 140, 50)
+		fire.Brightness = 3
+		fire.Range = 18
+		fire.Parent = meteor
 
-	local tween = TweenService:Create(meteor, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-		CFrame = CFrame.new(target + Vector3.new(0, 2, 0)),
-	})
-	tween:Play()
-	tween.Completed:Connect(function()
-		-- Impact flash, then the meteor is gone.
-		meteor.Size = Vector3.new(8, 8, 8)
-		meteor.Color = Color3.fromRGB(255, 220, 120)
-		fire.Brightness = 5
-		onMeteorLanded(target, false)
-		task.delay(0.25, function()
-			meteor:Destroy()
+		local tween = TweenService:Create(meteor, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			CFrame = CFrame.new(target + Vector3.new(0, 2, 0)),
+		})
+		tween:Play()
+		tween.Completed:Connect(function()
+			-- Impact flash, then the meteor is gone.
+			meteor.Size = Vector3.new(8, 8, 8)
+			meteor.Color = Color3.fromRGB(255, 220, 120)
+			fire.Brightness = 5
+			onMeteorLanded(target, false)
+			task.delay(0.25, function()
+				meteor:Destroy()
+			end)
 		end)
 	end)
 end
@@ -296,39 +389,43 @@ end
 -- at its impact point for 30 seconds.
 local function spawnHeroMeteor()
 	local target = pickTarget()
+	showWarningCircle(target)
 	-- Start high and off to one side so the fall is a long diagonal
-	-- streak across the sky, not a straight drop.
-	local start = target + Vector3.new(math.random(-60, 60), 130, math.random(-60, 60))
+	-- streak across the sky, not a straight drop. The fall starts after
+	-- the 2s warning, in its own thread.
+	task.delay(Config.STORM_WARNING_TIME, function()
+		local start = target + Vector3.new(math.random(-60, 60), 130, math.random(-60, 60))
 
-	local meteor = Instance.new("Part")
-	meteor.Name = "HeroMeteor"
-	meteor.Shape = Enum.PartType.Ball
-	meteor.Size = Vector3.new(10, 10, 10)
-	meteor.Color = Color3.fromRGB(255, 140, 30)
-	meteor.Material = Enum.Material.Neon
-	meteor.Anchored = true
-	meteor.CanCollide = false
-	meteor.CanQuery = false
-	meteor.CFrame = CFrame.new(start)
-	meteor.Parent = workspace
+		local meteor = Instance.new("Part")
+		meteor.Name = "HeroMeteor"
+		meteor.Shape = Enum.PartType.Ball
+		meteor.Size = Vector3.new(10, 10, 10)
+		meteor.Color = Color3.fromRGB(255, 140, 30)
+		meteor.Material = Enum.Material.Neon
+		meteor.Anchored = true
+		meteor.CanCollide = false
+		meteor.CanQuery = false
+		meteor.CFrame = CFrame.new(start)
+		meteor.Parent = workspace
 
-	local fire = Instance.new("PointLight")
-	fire.Color = Color3.fromRGB(255, 160, 60)
-	fire.Brightness = 5
-	fire.Range = 30
-	fire.Parent = meteor
+		local fire = Instance.new("PointLight")
+		fire.Color = Color3.fromRGB(255, 160, 60)
+		fire.Brightness = 5
+		fire.Range = 30
+		fire.Parent = meteor
 
-	local tween = TweenService:Create(meteor, TweenInfo.new(1.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-		CFrame = CFrame.new(target + Vector3.new(0, 4, 0)),
-	})
-	tween:Play()
-	tween.Completed:Connect(function()
-		meteor.Size = Vector3.new(16, 16, 16)
-		meteor.Color = Color3.fromRGB(255, 220, 120)
-		fire.Brightness = 8
-		onMeteorLanded(target, true)
-		task.delay(0.3, function()
-			meteor:Destroy()
+		local tween = TweenService:Create(meteor, TweenInfo.new(1.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			CFrame = CFrame.new(target + Vector3.new(0, 4, 0)),
+		})
+		tween:Play()
+		tween.Completed:Connect(function()
+			meteor.Size = Vector3.new(16, 16, 16)
+			meteor.Color = Color3.fromRGB(255, 220, 120)
+			fire.Brightness = 8
+			onMeteorLanded(target, true)
+			task.delay(0.3, function()
+				meteor:Destroy()
+			end)
 		end)
 	end)
 end
@@ -364,15 +461,21 @@ function StarfallService.start()
 				setPhase("warn", Config.STORM_WARN)
 				dimSky()
 				playAlarm()
-				Remotes.bannerEvent():FireAllClients("METEOR STORM IN 10 SECONDS! Get home or drop your catch!", 10)
+				Remotes.bannerEvent():FireAllClients("METEOR STORM IN 10 SECONDS! " .. Config.STORM_HAZARD_LABEL .. " — get home or dodge the red circles!", 10)
 				waitPhase()
-				-- Storm: meteors rain on the crater, lightning flashes, the
+				-- Storm: meteors rain across the WHOLE map, lightning flashes, the
 				-- wind blows, the rumble drones. The lightning loop runs
 				-- beside the meteor loop and stops the moment the storm ends.
 				setPhase("storm", Config.STORM_DURATION)
 				stormActive = true
 				WorldBuilder.setWind(true)
 				startRumble()
+				-- Bounty: earnings during this storm decide the bonus.
+				local IncomeService = require(script.Parent.IncomeService)
+				IncomeService.resetStormEarnings()
+				-- Meteor eggs crash with the storm (1-2 of them).
+				local MeteorEggService = require(script.Parent.MeteorEggService)
+				MeteorEggService.spawnEggsForStorm()
 				-- Three hero meteors at storm start: big, slow, bright —
 				-- the threat shot needs a giant hazard visible in a still.
 				-- They spawn immediately (no wait before the first), so a
@@ -388,7 +491,7 @@ function StarfallService.start()
 						lightningFlash()
 					end
 				end)
-				Remotes.bannerEvent():FireAllClients("METEOR STORM! Stay out of the crater!", 8)
+				Remotes.bannerEvent():FireAllClients("METEOR STORM! " .. Config.STORM_HAZARD_LABEL .. " — dodge the red circles!", 8)
 				-- The rain loop spawns the first meteor immediately
 				-- (no wait before the first call), so a meteor is
 				-- falling within a second of the storm starting.
@@ -400,6 +503,9 @@ function StarfallService.start()
 				WorldBuilder.setWind(false)
 				stopRumble()
 				restoreSky()
+				-- Bounty: the storm's top earner wins the bonus.
+				local IncomeService2 = require(script.Parent.IncomeService)
+				IncomeService2.awardStormBounty()
 			end)
 			if not ok then
 				warn("[Starfall] storm cycle failed: " .. tostring(err) .. " — resetting to calm.")

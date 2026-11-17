@@ -9,8 +9,14 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 export type HudData = {
 	coins: number,
+	stardust: number,
+	xp: number,
+	level: number,
+	xpProgress: number, -- 0..1 toward the next level
 	cps: number,
 	rebirths: number,
+	rebirthCost: number,
+	rebirthProgress: number, -- 0..1 toward the next rebirth
 	speedTier: number,
 	carryTier: number,
 	incomeTier: number,
@@ -22,8 +28,10 @@ export type HudData = {
 	lockCooldown: number,
 	stormPhase: string,
 	stormSeconds: number,
+	danger: number, -- 0..1 "Meteor Danger" meter: fills as the next storm approaches
 	index: { [string]: boolean },
 	indexCount: number,
+	indexTotal: number,
 	top3: { { name: string, coins: number } },
 	firstTime: boolean,
 	missionText: string,
@@ -31,6 +39,11 @@ export type HudData = {
 	missionTarget: number,
 	missionReward: number,
 	dailyReady: boolean,
+	boosts: { { kind: string, seconds: number } },
+	belt: { { name: string, cps: number } },
+	eventName: string,
+	eventSeconds: number,
+	buddyName: string?,
 }
 
 local Remotes = {}
@@ -82,6 +95,34 @@ end
 
 function Remotes.meteorImpactEvent(): RemoteEvent
 	return Remotes.getFolder():WaitForChild("MeteorImpact") :: RemoteEvent
+end
+
+function Remotes.slapEvent(): RemoteEvent
+	return Remotes.getFolder():WaitForChild("SlapSwing") :: RemoteEvent
+end
+
+function Remotes.slapEffectEvent(): RemoteEvent
+	return Remotes.getFolder():WaitForChild("SlapEffect") :: RemoteEvent
+end
+
+function Remotes.openShopEvent(): RemoteEvent
+	return Remotes.getFolder():WaitForChild("OpenShop") :: RemoteEvent
+end
+
+function Remotes.openRebirthEvent(): RemoteEvent
+	return Remotes.getFolder():WaitForChild("OpenRebirth") :: RemoteEvent
+end
+
+function Remotes.setBuddyFunction(): RemoteFunction
+	return Remotes.getFolder():WaitForChild("SetBuddy") :: RemoteFunction
+end
+
+function Remotes.buyBoostFunction(): RemoteFunction
+	return Remotes.getFolder():WaitForChild("BuyBoost") :: RemoteFunction
+end
+
+function Remotes.rerollFunction(): RemoteFunction
+	return Remotes.getFolder():WaitForChild("RerollMutation") :: RemoteFunction
 end
 
 return Remotes

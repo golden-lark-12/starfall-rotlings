@@ -25,27 +25,27 @@ ShopService.SHOP = {
 	Speed = {
 		label = "Speed Boots",
 		desc = "+2 WalkSpeed per tier",
-		tiers = { 250, 1000, 5000 },
+		tiers = { 200, 800, 4000 },
 	},
 	Carry = {
 		label = "Extra Arms",
 		desc = "+1 Rotling carried per tier",
-		tiers = { 500, 3000 },
+		tiers = { 400, 2500 },
 	},
 	Income = {
 		label = "Golden Trough",
 		desc = "+25% base income per tier",
-		tiers = { 750, 2500, 10000 },
+		tiers = { 600, 2000, 8000 },
 	},
 	Pads = {
 		label = "Extra Pad",
 		desc = "+1 base pad per tier (max 8)",
-		tiers = { 2000, 8000 },
+		tiers = { 1500, 6000 },
 	},
 	Lock = {
 		label = "Longer Lock",
 		desc = "+30s base lock per tier",
-		tiers = { 1000, 4000 },
+		tiers = { 800, 3000 },
 	},
 } :: { [string]: ShopItem }
 
@@ -106,10 +106,66 @@ function ShopService.applyWalkSpeed(player: Player)
 	end
 end
 
+-- Reroll the mutation of your best placed Rotling for Stardust.
+-- A new mutation is rolled (Gold / Diamond / Frozen / Rainbow); a plain
+-- Rotling can come back mutated, and a mutated one can come back plain
+-- or with a different mutation. Returns (ok, message).
+function ShopService.rerollMutation(player: Player): (boolean, string)
+	local profile = DataService.getProfile(player)
+	if not profile then
+		return false, "Profile not loaded yet."
+	end
+	if profile.stardust < Config.REROLL_STARDUST_COST then
+		return false, "Mutation reroll costs 30 Stardust — earn more from meteor eggs and daily rewards."
+	end
+	local BaseService = require(script.Parent.BaseService)
+	local placed = BaseService.getPlacedForPlayer(player)
+	if #placed == 0 then
+		return false, "Place a Rotling on your base first, then reroll its mutation."
+	end
+	-- Best = highest base income.
+	local RotlingCatalog = require(game:GetService("ReplicatedStorage").Shared.RotlingCatalog)
+	local MutationConfig = require(game:GetService("ReplicatedStorage").Shared.MutationConfig)
+	local RotlingFactory = require(script.Parent.RotlingFactory)
+	local best: Model? = nil
+	local bestCps = -1
+	for _, model in ipairs(placed) do
+		local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
+		if def then
+			local cps = RotlingCatalog.baseCps(def, nil)
+			if cps > bestCps then
+				bestCps = cps
+				best = model
+			end
+		end
+	end
+	if not best then
+		return false, "No Rotling to reroll."
+	end
+	local mutation = MutationConfig.rollMutation()
+	profile.stardust -= Config.REROLL_STARDUST_COST
+	best:SetAttribute("Mutation", mutation or "")
+	RotlingFactory.applyMutationVisual(best, mutation)
+	DataService.saveProfile(player)
+	FeedbackService.celebrate(player)
+	local def = RotlingCatalog.getDef(best:GetAttribute("DefId") :: string)
+	local name = if def then def.name else "Your Rotling"
+	if mutation then
+		local mut = MutationConfig.mutationByName(mutation)
+		local mult = if mut then mut.mult else 1
+		return true, "✦ " .. name .. " is now " .. mutation .. " x" .. tostring(mult) .. "!"
+	end
+	return true, name .. " came back plain — reroll again for another shot."
+end
+
 -- Wire the BuyItem remote function.
 function ShopService.init()
 	Remotes.buyFunction().OnServerInvoke = function(player: Player, itemName: string)
 		local ok, message = ShopService.buyItem(player, itemName)
+		return ok, message
+	end
+	Remotes.rerollFunction().OnServerInvoke = function(player: Player)
+		local ok, message = ShopService.rerollMutation(player)
 		return ok, message
 	end
 end

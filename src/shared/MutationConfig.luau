@@ -16,9 +16,11 @@ local MutationConfig = {}
 
 MutationConfig.MUTATIONS = {
 	{ name = "Gold", mult = 2, chance = 0.08, color = Color3.fromRGB(255, 215, 0), glow = Color3.fromRGB(255, 210, 60) },
+	{ name = "Diamond", mult = 3.5, chance = 0.04, color = Color3.fromRGB(190, 240, 255), glow = Color3.fromRGB(160, 225, 255) },
 	{ name = "Frozen", mult = 3, chance = 0.05, color = Color3.fromRGB(150, 220, 255), glow = Color3.fromRGB(120, 200, 255) },
 	{ name = "Rainbow", mult = 5, chance = 0.02, color = Color3.fromRGB(255, 120, 220), glow = Color3.fromRGB(255, 100, 220) },
 	{ name = "Starstruck", mult = 4, chance = 0, color = Color3.fromRGB(255, 240, 170), glow = Color3.fromRGB(255, 245, 200) },
+	{ name = "Scorched", mult = 2.5, chance = 0, color = Color3.fromRGB(255, 110, 40), glow = Color3.fromRGB(255, 130, 50) },
 } :: { Mutation }
 
 function MutationConfig.mutationByName(name: string?): Mutation?

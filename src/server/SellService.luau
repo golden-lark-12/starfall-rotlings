@@ -2,9 +2,11 @@
 -- Starfall Rotlings: selling.
 -- The gold SELL pad sits on the path between spawn and the crater. Carry
 -- a Rotling onto it and press E: the server takes the first Rotling you
--- carry, pays one minute of its income (baseCps x Config.SELL_MULT),
--- and destroys the model. The client never decides the price: the
--- server computes it from the Rotling's own definition and mutation.
+-- carry, pays ~25 seconds of its income (baseCps x Config.SELL_MULT),
+-- and destroys the model. Selling is for clearing a pad to make room
+-- for a better Rotling — placing always pays more in the long run. The
+-- client never decides the price: the server computes it from the
+-- Rotling's own definition and mutation.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -19,7 +21,7 @@ local MissionService = require(script.Parent.MissionService)
 
 local SellService = {}
 
--- What one Rotling sells for: a minute of its own income.
+-- What one Rotling sells for: ~25 seconds of its own income.
 function SellService.sellValue(def: RotlingCatalog.RotlingDef, mutation: string?): number
 	return math.floor(RotlingCatalog.baseCps(def, mutation) * Config.SELL_MULT)
 end

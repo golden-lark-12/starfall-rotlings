@@ -143,13 +143,64 @@ function CarryService.setPromptState(model: Model)
 	if state == "carried" then
 		prompt.Enabled = false
 	elseif state == "placed" then
-		local baseId = model:GetAttribute("BaseId")
-		prompt.ActionText = "Steal " .. name
+		-- One prompt for everyone: "Take" covers both the owner
+		-- picking their own Rotling back up and a rival stealing it.
+		-- tryGrab routes owners to pickupOwn and everyone else to
+		-- StealService.trySteal.
+		prompt.ActionText = "Take " .. name
 		prompt.Enabled = not BaseService.isLocked(baseId)
 	else
 		prompt.ActionText = "Grab " .. name
 		prompt.Enabled = true
 	end
+end
+
+-- XP: grabbing pays 10, placing pays 15; one level per 100 XP.
+local function addXp(player: Player, amount: number)
+	local profile = DataService.getProfile(player)
+	if not profile then
+		return
+	end
+	profile.xp += amount
+	profile.level = 1 + math.floor(profile.xp / Config.XP_PER_LEVEL)
+end
+
+-- Pick up your OWN placed Rotling: lift it off its pad and carry it
+-- again, so you can move it to another pad or sell it at the SELL pad.
+-- The old code routed every placed grab to StealService, which refused
+-- your own Rotlings ("That one is already yours") — a placed Rotling
+-- was stuck on its pad forever and could never be sold or moved.
+function CarryService.pickupOwn(player: Player, model: Model)
+	if #CarryService.getCarried(player) >= CarryService.getCarrySlots(player) then
+		Remotes.bannerEvent():FireClient(player, "Your arms are full! Buy Extra Arms in the shop.", 3)
+		return
+	end
+	local baseId = model:GetAttribute("BaseId") :: number
+	local padIndex = model:GetAttribute("PadIndex") :: number
+	BaseService.removePlaced(baseId, padIndex)
+	RotlingFactory.setCarriedVisual(model, true)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local body = model.PrimaryPart
+	if not root or not body then
+		return
+	end
+	for _, part in ipairs(model:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.Anchored = false
+		end
+	end
+	local weld = Instance.new("Weld")
+	weld.Name = "CarryWeld"
+	weld.Part0 = root
+	weld.Part1 = body
+	weld.C0 = CFrame.new(0, Config.CARRY_Y, Config.CARRY_Z)
+	weld.Parent = body
+	model:SetAttribute("State", "carried")
+	model:SetAttribute("BaseId", 0)
+	model:SetAttribute("PadIndex", 0)
+	CarryService.carryRotling(player, model)
+	Remotes.bannerEvent():FireClient(player, "Picked it back up — place it on another pad or sell it.", 3)
 end
 
 -- The one entry point for every grab prompt trigger.
@@ -162,6 +213,13 @@ function CarryService.tryGrab(player: Player, model: Model)
 		return
 	end
 	if state == "placed" then
+		-- Your own Rotling: pick it back up (move it or sell it).
+		-- Anyone else's: the steal path (lock and arms checked there).
+		local ownerId = model:GetAttribute("OwnerUserId") :: number
+		if ownerId == player.UserId then
+			CarryService.pickupOwn(player, model)
+			return
+		end
 		-- Deferred require: StealService carries what it lifts via this module.
 		local StealService = require(script.Parent.StealService)
 		StealService.trySteal(player, model)
@@ -189,6 +247,7 @@ function CarryService.tryGrab(player: Player, model: Model)
 	end
 	CarryService.carryRotling(player, model)
 	MissionService.addProgress(player, "grab", 1)
+	addXp(player, Config.XP_GRAB)
 	playPickupSound(player)
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
 	if def then
@@ -289,6 +348,7 @@ function CarryService.placeOnPad(player: Player, model: Model, baseId: number, p
 	-- The idle loop bobs around this new rest pose.
 	RotlingFactory.setRestPose(model)
 	MissionService.addProgress(player, "place", 1)
+	addXp(player, Config.XP_PLACE)
 	Remotes.bannerEvent():FireClient(player, "Placed! It now earns coins every second.", 3)
 end
 

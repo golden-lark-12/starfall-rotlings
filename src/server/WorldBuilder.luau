@@ -23,6 +23,8 @@
 
 local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 local Formatting = require(game:GetService("ReplicatedStorage").Shared.Formatting)
+local RotlingCatalog = require(game:GetService("ReplicatedStorage").Shared.RotlingCatalog)
+local RotlingFactory = require(script.Parent.RotlingFactory)
 
 local WorldBuilder = {}
 
@@ -64,6 +66,11 @@ local basePlinths: { [number]: { Part } } = {}
 local cashLabels: { [number]: TextLabel } = {}
 local baseColors: { [number]: Color3 } = {}
 local windEmitters: { ParticleEmitter } = {}
+local incubatorCFrames: { [number]: CFrame } = {}
+local shieldDomes: { [number]: Part } = {}
+local shieldLabels: { [number]: TextLabel } = {}
+local shopCenterCf: CFrame? = nil
+local bountyLabel: TextLabel? = nil
 
 -- Parts that float (floating islands, crater rocks): base pose + seed,
 -- bobbed by one shared loop so nothing needs its own heartbeat.
@@ -81,6 +88,47 @@ end
 
 function WorldBuilder.baseCFrame(baseId: number): CFrame?
 	return baseCFrames[baseId]
+end
+
+-- The incubator on a base: where a carried meteor egg is placed to
+-- hatch (MeteorEggService.placeEgg). One per base, at a back corner.
+function WorldBuilder.incubatorCFrame(baseId: number): CFrame?
+	return incubatorCFrames[baseId]
+end
+
+-- Centre of the Star Shop floor (boost pickups spawn inside the shop).
+function WorldBuilder.shopCenter(): Vector3?
+	if shopCenterCf then
+		return shopCenterCf.Position
+	end
+	return nil
+end
+
+-- Bounty board text ("Top earner this storm: ...").
+function WorldBuilder.setBountyText(text: string)
+	if bountyLabel then
+		bountyLabel.Text = text
+	end
+end
+
+-- Shield dome: the visible force-field shown while a base is locked.
+function WorldBuilder.setShieldVisible(baseId: number, visible: boolean)
+	local dome = shieldDomes[baseId]
+	if dome then
+		dome.Transparency = if visible then 0.82 else 1
+	end
+end
+
+-- Shield label: "SAFE (45s)" while locked, hidden when the lock ends.
+function WorldBuilder.setShieldLabel(baseId: number, seconds: number)
+	local label = shieldLabels[baseId]
+	if label then
+		if seconds > 0 then
+			label.Text = "🛡️ SAFE (" .. tostring(math.ceil(seconds)) .. "s)"
+		else
+			label.Text = ""
+		end
+	end
 end
 
 function WorldBuilder.setBaseSign(baseId: number, text: string)
@@ -391,6 +439,61 @@ local function buildBase(baseId: number)
 	gate.Transparency = 1
 	gate.CanCollide = false
 	gate.CanQuery = false
+
+	-- Incubator: a stone ring with a warm glow at the back-right corner
+	-- of the platform. Carry a meteor egg here and press E to place it;
+	-- it hatches after 60s (MeteorEggService.placeEgg). The prompt is
+	-- wired by MeteorEggService.init, which looks for the part named
+	-- "Incubator".
+	local incubatorCf = cf * CFrame.new(9.5, 1.2, 8)
+	local ring = part("Incubator", Enum.PartType.Cylinder, Vector3.new(1, 5.5, 5.5), Color3.fromRGB(120, 100, 140), incubatorCf * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate)
+	ring.CanCollide = false
+	local glow = part("IncubatorGlow", Enum.PartType.Ball, Vector3.new(4, 1, 4), Color3.fromRGB(255, 160, 60), incubatorCf * CFrame.new(0, 0.6, 0), Enum.Material.Neon)
+	glow.CanCollide = false
+	glow.Transparency = 0.4
+	local glowLight = Instance.new("PointLight")
+	glowLight.Color = Color3.fromRGB(255, 160, 60)
+	glowLight.Brightness = 1
+	glowLight.Range = 10
+	glowLight.Parent = glow
+	incubatorCFrames[baseId] = incubatorCf
+	local eggPrompt = Instance.new("ProximityPrompt")
+	eggPrompt.ActionText = "Place Egg"
+	eggPrompt.ObjectText = "Incubator — hatches in 60s"
+	eggPrompt.HoldDuration = 0
+	eggPrompt.MaxActivationDistance = 10
+	eggPrompt.RequiresLineOfSight = false
+	eggPrompt.Parent = ring
+
+	-- Shield dome: a transparent force-field sphere over the whole
+	-- base, hidden until the base is locked. While locked it shows,
+	-- with a "SAFE (45s)" label counting down (cheap win 5) — a
+	-- rival, a raider and a storm meteor all stop at it.
+	local dome = part("ShieldDome", Enum.PartType.Ball, Vector3.new(34, 22, 30), Color3.fromRGB(120, 200, 255), cf * CFrame.new(0, 9, 0), Enum.Material.ForceField)
+	dome.Transparency = 1
+	dome.CanCollide = false
+	dome.CanQuery = false
+	dome.CastShadow = false
+	shieldDomes[baseId] = dome
+	local shieldGui = Instance.new("BillboardGui")
+	shieldGui.Name = "ShieldLabelGui"
+	shieldGui.Size = UDim2.fromOffset(200, 44)
+	shieldGui.StudsOffsetWorldSpace = Vector3.new(0, 20, 0)
+	shieldGui.AlwaysOnTop = true
+	shieldGui.LightInfluence = 0
+	shieldGui.MaxDistance = 80
+	shieldGui.Parent = dome
+	local shieldLabel = Instance.new("TextLabel")
+	shieldLabel.Name = "ShieldLabel"
+	shieldLabel.Size = UDim2.new(1, 0, 1, 0)
+	shieldLabel.BackgroundTransparency = 1
+	shieldLabel.Text = ""
+	shieldLabel.Font = Enum.Font.FredokaOne
+	shieldLabel.TextScaled = true
+	shieldLabel.TextColor3 = Color3.fromRGB(140, 220, 255)
+	shieldLabel.TextStrokeTransparency = 0.3
+	shieldLabel.Parent = shieldGui
+	shieldLabels[baseId] = shieldLabel
 end
 
 local function buildCrater()
@@ -419,18 +522,22 @@ local function buildCrater()
 	beacon.Name = "StormBeacon"
 	beacon.CanCollide = false
 	beacon.CastShadow = false
-	-- Beacon beam: a tall glowing column at the crater centre, so the
-	-- crater reads as a landmark from every base and from spawn.
-	local beam = part("CraterBeam", Enum.PartType.Cylinder, Vector3.new(180, 4, 4), Color3.fromRGB(255, 110, 70), CFrame.new(0, 90, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Neon)
+	-- Beacon beam: a THIN, semi-transparent glowing column at the crater
+	-- centre, so the crater reads as a landmark from every base and from
+	-- spawn — without blocking the camera. The old beam was a giant
+	-- solid 4-stud pillar filling the middle of the screen (Malek's
+	-- item 2). Now 1.5 studs, Transparency 0.6, soft glow.
+	local beam = part("CraterBeam", Enum.PartType.Cylinder, Vector3.new(180, 1.5, 1.5), Color3.fromRGB(255, 110, 70), CFrame.new(0, 90, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Neon)
 	beam.CanCollide = false
 	beam.CastShadow = false
+	beam.Transparency = 0.6
 	beam.Name = "CraterBeam"
-	-- The beam's own light: dim (Brightness 1), not a second sun — the
+	-- The beam's own light: dim (Brightness 0.5), not a second sun — the
 	-- bloom cut in Phase 1 keeps the crater readable, and a bright beam
 	-- light would wash it white again.
 	local beamLight = Instance.new("PointLight")
 	beamLight.Color = Color3.fromRGB(255, 110, 70)
-	beamLight.Brightness = 1
+	beamLight.Brightness = 0.5
 	beamLight.Range = 30
 	beamLight.Parent = beam
 	-- Rim steps: three concentric rings of stacked steps, wide and open
@@ -486,15 +593,18 @@ local function buildSpawnArea()
 		tile.CastShadow = false
 	end
 	-- Two warm lanterns flanking the spawn path, so the start is lit.
+	-- Small, dim bulbs: the old 2-stud bulbs at Brightness 1 blew out
+	-- into white glow spheres (Malek's item 4). Now 1.4 studs,
+	-- Brightness 0.6, Range 12.
 	for _, side in ipairs({ -1, 1 }) do
 		local lamp = part("SpawnLamp", Enum.PartType.Cylinder, Vector3.new(6, 0.8, 0.8), Color3.fromRGB(72, 62, 92), CFrame.new(side * 7, 3, 88) * CFrame.Angles(0, 0, math.rad(90)))
 		lamp.CanCollide = false
-		local bulb = part("SpawnLampBulb", Enum.PartType.Ball, Vector3.new(2, 2, 2), Color3.fromRGB(255, 200, 120), CFrame.new(side * 7, 6.5, 88), Enum.Material.Neon)
+		local bulb = part("SpawnLampBulb", Enum.PartType.Ball, Vector3.new(1.4, 1.4, 1.4), Color3.fromRGB(255, 200, 120), CFrame.new(side * 7, 6.5, 88), Enum.Material.Neon)
 		bulb.CanCollide = false
 		local light = Instance.new("PointLight")
 		light.Color = Color3.fromRGB(255, 200, 120)
-		light.Brightness = 1
-		light.Range = 16
+		light.Brightness = 0.6
+		light.Range = 12
 		light.Parent = bulb
 	end
 end
@@ -605,12 +715,12 @@ local function buildPlazaDecor()
 	for _, side in ipairs({ -1, 1 }) do
 		local lamp = part("PlazaLamp", Enum.PartType.Cylinder, Vector3.new(5, 1.2, 1.2), Color3.fromRGB(72, 62, 92), CFrame.new(side * 7, 2.5, 78) * CFrame.Angles(0, 0, math.rad(90)))
 		lamp.CanCollide = false
-		local bulb = part("PlazaLampBulb", Enum.PartType.Ball, Vector3.new(1.6, 1.6, 1.6), Color3.fromRGB(255, 200, 120), CFrame.new(side * 7, 5.5, 78), Enum.Material.Neon)
+		local bulb = part("PlazaLampBulb", Enum.PartType.Ball, Vector3.new(1.0, 1.0, 1.0), Color3.fromRGB(255, 200, 120), CFrame.new(side * 7, 5.5, 78), Enum.Material.Neon)
 		bulb.CanCollide = false
 		local light = Instance.new("PointLight")
 		light.Color = Color3.fromRGB(255, 200, 120)
-		light.Brightness = 0.4
-		light.Range = 10
+		light.Brightness = 0.25
+		light.Range = 8
 		light.Parent = bulb
 	end
 end
@@ -701,11 +811,11 @@ local function buildGroundDetail()
 	-- inside the sand ring are skipped (the ring covers them).
 	local tileColors = {
 		Color3.fromRGB(205, 180, 135), -- sand
-		Color3.fromRGB(190, 160, 130), -- dusty rose
+		Color3.fromRGB(200, 180, 220), -- soft lilac
+		Color3.fromRGB(140, 200, 130), -- grass green
 		Color3.fromRGB(180, 158, 140), -- warm stone
-		Color3.fromRGB(165, 148, 190), -- muted purple
 		Color3.fromRGB(220, 200, 160), -- light sand
-		Color3.fromRGB(175, 150, 125), -- tan
+		Color3.fromRGB(150, 205, 150), -- pale grass
 	}
 	local tileMaterials = {
 		Enum.Material.Sand,
@@ -869,6 +979,498 @@ local function fixTerrain()
 	end
 end
 
+-- The Star Shop: a walk-in shop at (-45, 0, 45) — floor, three walls
+-- open toward the crater, a counter, shelves with Rotling eggs and
+-- crates, a neon "STAR SHOP" sign, and a quirky alien shopkeeper
+-- behind the counter. Walking in opens the Shop UI (the prompt is
+-- wired by ShopService.init, which looks for the part named
+-- "ShopPrompt"). Boost pickups spawn inside the shop too
+-- (WorldBuilder.shopCenter).
+local function buildStarShop()
+	local shopCf = CFrame.new(-45, 0, 45) * CFrame.Angles(0, math.rad(45), 0)
+	shopCenterCf = shopCf
+	-- Floor.
+	local floor = part("ShopFloor", Enum.PartType.Block, Vector3.new(24, 1, 20), Color3.fromRGB(90, 70, 120), shopCf * CFrame.new(0, 0.5, 0))
+	floor.CanCollide = false
+	-- Three walls (open toward the crater, +Z in shop space).
+	for _, wall in ipairs({
+		{ Vector3.new(0, 4, -10), Vector3.new(24, 8, 1) },
+		{ Vector3.new(-12, 4, 0), Vector3.new(1, 8, 20) },
+		{ Vector3.new(12, 4, 0), Vector3.new(1, 8, 20) },
+	}) do
+		local wallPart = part("ShopWall", Enum.PartType.Block, wall[2], Color3.fromRGB(140, 110, 180), shopCf * CFrame.new(wall[1]))
+		wallPart.CanCollide = false
+	end
+	-- Counter across the back.
+	local counter = part("ShopCounter", Enum.PartType.Block, Vector3.new(16, 3, 3), Color3.fromRGB(60, 45, 90), shopCf * CFrame.new(0, 1.5, -7))
+	counter.CanCollide = false
+	-- Shelves with eggs and crates along the side walls.
+	for _, side in ipairs({ -1, 1 }) do
+		for i = 1, 3 do
+			local shelf = part("ShopShelf", Enum.PartType.Block, Vector3.new(1, 0.5, 5), Color3.fromRGB(150, 100, 50), shopCf * CFrame.new(side * 10.5, 2 + i * 1.6, -4 + i * 3))
+			shelf.CanCollide = false
+			local egg = part("ShopEgg", Enum.PartType.Ball, Vector3.new(1.4, 1.8, 1.4), Color3.fromRGB(255, 140, 50), shopCf * CFrame.new(side * 10.5, 3 + i * 1.6, -4 + i * 3), Enum.Material.Neon)
+			egg.CanCollide = false
+			local crate = part("ShopCrate", Enum.PartType.Block, Vector3.new(1.6, 1.6, 1.6), Color3.fromRGB(180, 130, 60), shopCf * CFrame.new(side * 10.5, 3 + i * 1.6, -2 + i * 3), Enum.Material.Wood)
+			crate.CanCollide = false
+		end
+	end
+	-- Neon sign above the open front.
+	local signBoard = part("ShopSignBoard", Enum.PartType.Block, Vector3.new(18, 3, 0.5), Color3.fromRGB(20, 15, 40), shopCf * CFrame.new(0, 9, 10))
+	signBoard.CanCollide = false
+	local signGui = Instance.new("BillboardGui")
+	signGui.Name = "ShopSign"
+	signGui.Size = UDim2.fromOffset(360, 60)
+	signGui.AlwaysOnTop = true
+	signGui.LightInfluence = 0
+	signGui.MaxDistance = 120
+	signGui.Parent = signBoard
+	local signLabel = Instance.new("TextLabel")
+	signLabel.Size = UDim2.new(1, 0, 1, 0)
+	signLabel.BackgroundTransparency = 1
+	signLabel.Text = "★ STAR SHOP ★"
+	signLabel.Font = Enum.Font.FredokaOne
+	signLabel.TextScaled = true
+	signLabel.TextColor3 = Color3.fromRGB(255, 220, 90)
+	signLabel.TextStrokeTransparency = 0.3
+	signLabel.Parent = signGui
+	-- The shopkeeper: a little green alien behind the counter, three
+	-- eyes, antenna, waving arm (the wave is a slow CFrame loop).
+	local keeper = Instance.new("Model")
+	keeper.Name = "Shopkeeper"
+	local keeperBody = part("KeeperBody", Enum.PartType.Ball, Vector3.new(3, 3.6, 3), Color3.fromRGB(120, 220, 120), shopCf * CFrame.new(0, 3.4, -8.5))
+	keeperBody.CanCollide = false
+	keeperBody.Parent = keeper
+	local antenna = part("KeeperAntenna", Enum.PartType.Cylinder, Vector3.new(1.6, 0.3, 0.3), Color3.fromRGB(120, 220, 120), shopCf * CFrame.new(0, 5.6, -8.5))
+	antenna.CanCollide = false
+	antenna.Parent = keeper
+	local antennaTip = part("KeeperAntennaTip", Enum.PartType.Ball, Vector3.new(0.7, 0.7, 0.7), Color3.fromRGB(255, 220, 60), shopCf * CFrame.new(0, 6.5, -8.5), Enum.Material.Neon)
+	antennaTip.CanCollide = false
+	antennaTip.Parent = keeper
+	for _, eyeX in ipairs({ -0.7, 0, 0.7 }) do
+		local eye = part("KeeperEye", Enum.PartType.Ball, Vector3.new(0.5, 0.5, 0.5), Color3.fromRGB(20, 20, 30), shopCf * CFrame.new(eyeX, 4, -7))
+		eye.CanCollide = false
+		eye.Parent = keeper
+	end
+	keeper.Parent = workspace
+	-- Enter prompt: walking in opens the Shop UI.
+	local promptPart = part("ShopPrompt", Enum.PartType.Block, Vector3.new(6, 1, 6), Color3.fromRGB(255, 220, 90), shopCf * CFrame.new(0, 0.5, 4), Enum.Material.Neon)
+	promptPart.Transparency = 0.7
+	promptPart.CanCollide = false
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Enter Star Shop"
+	prompt.ObjectText = "Upgrades, boosts & more"
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = promptPart
+end
+
+-- Upgrade machines: one big glowing machine beside each base. Stand
+-- on its pad to open the Upgrade panel (wired by ShopService.init,
+-- which looks for parts named "UpgradePrompt").
+local function buildUpgradeMachines()
+	for baseId = 1, Config.BASE_COUNT do
+		local cf = baseCFrames[baseId]
+		if not cf then
+			continue
+		end
+		local machineCf = cf * CFrame.new(16, 0, -2)
+		local body = part("UpgradeMachine", Enum.PartType.Block, Vector3.new(4, 7, 3), Color3.fromRGB(60, 50, 100), machineCf * CFrame.new(0, 3.5, 0), Enum.Material.Metal)
+		body.CanCollide = false
+		local screen = part("UpgradeScreen", Enum.PartType.Block, Vector3.new(3, 2.5, 0.3), Color3.fromRGB(120, 255, 200), machineCf * CFrame.new(0, 5, -1.6), Enum.Material.Neon)
+		screen.CanCollide = false
+		local pad = part("UpgradePrompt", Enum.PartType.Block, Vector3.new(5, 0.5, 5), Color3.fromRGB(120, 255, 200), machineCf * CFrame.new(0, 0.25, 3), Enum.Material.Neon)
+		pad.Transparency = 0.5
+		pad.CanCollide = false
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.ActionText = "Open Upgrades"
+		prompt.ObjectText = "Speed, carry, income & pads"
+		prompt.HoldDuration = 0
+		prompt.MaxActivationDistance = 8
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = pad
+	end
+end
+
+-- Rebirth altar: a meteor-stone shrine with a portal ring at
+-- (0, 0, -70), on the far side of the crater. Stand on it to Rebirth
+-- (wired by RebirthService.init, which looks for the part named
+-- "RebirthPrompt").
+local function buildRebirthAltar()
+	local altarCf = CFrame.new(0, 0, -70)
+	local stone = part("AltarStone", Enum.PartType.Block, Vector3.new(14, 1, 14), Color3.fromRGB(80, 60, 110), altarCf * CFrame.new(0, 0.5, 0), Enum.Material.Slate)
+	stone.CanCollide = false
+	for _, side in ipairs({ -1, 1 }) do
+		local pillar = part("AltarPillar", Enum.PartType.Cylinder, Vector3.new(8, 1.6, 1.6), Color3.fromRGB(120, 90, 160), altarCf * CFrame.new(side * 5, 4, -4))
+		pillar.CanCollide = false
+	end
+	local ring = part("AltarRing", Enum.PartType.Cylinder, Vector3.new(0.8, 8, 8), Color3.fromRGB(200, 140, 255), altarCf * CFrame.new(0, 5, -4) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Neon)
+	ring.CanCollide = false
+	ring.Transparency = 0.3
+	local meteor = part("AltarMeteor", Enum.PartType.Ball, Vector3.new(4, 4, 4), Color3.fromRGB(255, 140, 50), altarCf * CFrame.new(0, 9, -4), Enum.Material.Neon)
+	meteor.CanCollide = false
+	local pad = part("RebirthPrompt", Enum.PartType.Block, Vector3.new(6, 0.5, 6), Color3.fromRGB(200, 140, 255), altarCf * CFrame.new(0, 1.2, 2), Enum.Material.Neon)
+	pad.Transparency = 0.5
+	pad.CanCollide = false
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Rebirth"
+	prompt.ObjectText = "Reset coins for a permanent income boost"
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 8
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = pad
+end
+
+-- Index wall: a gallery wall near spawn (28, 0, 80) with one panel
+-- per Rotling. Panels start dark; the client (IndexWallController)
+-- lights a panel in its rarity colour once the Rotling is found.
+local function buildIndexWall()
+	local wallCf = CFrame.lookAt(Vector3.new(28, 0, 80), Vector3.new(0, 0, 96))
+	local board = part("IndexWallBoard", Enum.PartType.Block, Vector3.new(26, 9, 0.6), Color3.fromRGB(40, 30, 70), wallCf * CFrame.new(0, 4.5, 0))
+	board.CanCollide = false
+	local titleGui = Instance.new("BillboardGui")
+	titleGui.Name = "IndexWallTitle"
+	titleGui.Size = UDim2.fromOffset(400, 50)
+	titleGui.StudsOffsetWorldSpace = Vector3.new(0, 5.4, 0)
+	titleGui.AlwaysOnTop = true
+	titleGui.LightInfluence = 0
+	titleGui.MaxDistance = 80
+	titleGui.Parent = board
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Size = UDim2.new(1, 0, 1, 0)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = "📖 ROTLING INDEX"
+	titleLabel.Font = Enum.Font.FredokaOne
+	titleLabel.TextScaled = true
+	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	titleLabel.TextStrokeTransparency = 0.3
+	titleLabel.Parent = titleGui
+	for i, def in ipairs(RotlingCatalog.DEFS) do
+		local col = (i - 1) % 10
+		local row = math.floor((i - 1) / 10)
+		local panelCf = wallCf * CFrame.new(-11.5 + col * 2.55, 6.2 - row * 3.6, -0.5)
+		local panel = part("IndexWall_" .. def.id, Enum.PartType.Block, Vector3.new(2.3, 3.2, 0.4), Color3.fromRGB(30, 25, 50), panelCf)
+		panel.CanCollide = false
+		local gui = Instance.new("SurfaceGui")
+		gui.Name = "IndexPanelGui"
+		gui.Face = Enum.NormalId.Front
+		gui.AlwaysOnTop = true
+		gui.Parent = panel
+		local frame = Instance.new("Frame")
+		frame.Name = "PanelFrame"
+		frame.Size = UDim2.new(1, 0, 1, 0)
+		frame.BackgroundColor3 = Color3.fromRGB(30, 25, 50)
+		frame.BorderSizePixel = 0
+		frame.Parent = gui
+		local nameLabel = Instance.new("TextLabel")
+		nameLabel.Name = "PanelName"
+		nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+		nameLabel.Position = UDim2.new(0, 0, 0.5, 0)
+		nameLabel.BackgroundTransparency = 1
+		nameLabel.Text = def.name
+		nameLabel.Font = Enum.Font.FredokaOne
+		nameLabel.TextScaled = true
+		nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		nameLabel.TextStrokeTransparency = 0.3
+		nameLabel.Parent = frame
+		local rarityLabel = Instance.new("TextLabel")
+		rarityLabel.Name = "PanelRarity"
+		rarityLabel.Size = UDim2.new(1, 0, 0.3, 0)
+		rarityLabel.Position = UDim2.new(0, 0, 0.2, 0)
+		rarityLabel.BackgroundTransparency = 1
+		rarityLabel.Text = def.rarity
+		rarityLabel.Font = Enum.Font.FredokaOne
+		rarityLabel.TextScaled = true
+		rarityLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+		rarityLabel.TextStrokeTransparency = 0.3
+		rarityLabel.Parent = frame
+	end
+end
+
+-- Crashed spaceship: half-buried at the map edge (170, 0, -120), a
+-- tilted saucer with a dome, smoke, and a blinking red light — a
+-- landmark you can see from anywhere, so no horizon is ever empty.
+local function buildSpaceship()
+	local shipCf = CFrame.new(170, 0, -120) * CFrame.Angles(math.rad(8), math.rad(30), math.rad(18))
+	local saucer = part("SpaceshipSaucer", Enum.PartType.Cylinder, Vector3.new(8, 44, 44), Color3.fromRGB(160, 160, 180), shipCf * CFrame.new(0, -1, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Metal)
+	saucer.CanCollide = false
+	local dome = part("SpaceshipDome", Enum.PartType.Ball, Vector3.new(16, 8, 16), Color3.fromRGB(120, 200, 255), shipCf * CFrame.new(0, 4, 0), Enum.Material.Glass)
+	dome.CanCollide = false
+	dome.Transparency = 0.3
+	local beacon = part("SpaceshipBeacon", Enum.PartType.Ball, Vector3.new(2, 2, 2), Color3.fromRGB(255, 60, 60), shipCf * CFrame.new(0, 9, 0), Enum.Material.Neon)
+	beacon.CanCollide = false
+	local beaconLight = Instance.new("PointLight")
+	beaconLight.Color = Color3.fromRGB(255, 60, 60)
+	beaconLight.Brightness = 2
+	beaconLight.Range = 24
+	beaconLight.Parent = beacon
+	local smoke = Instance.new("ParticleEmitter")
+	smoke.Color = ColorSequence.new(Color3.fromRGB(120, 120, 130))
+	smoke.Size = NumberSequence.new(3)
+	smoke.Lifetime = NumberRange.new(2, 3)
+	smoke.Rate = 8
+	smoke.Speed = NumberRange.new(2, 4)
+	smoke.Parent = saucer
+	-- Blink the beacon: on/off every second, forever.
+	task.spawn(function()
+		while beacon.Parent do
+			beacon.Transparency = 0
+			beaconLight.Enabled = true
+			task.wait(1)
+			beacon.Transparency = 0.7
+			beaconLight.Enabled = false
+			task.wait(1)
+		end
+	end)
+end
+
+-- Background: a second sky ball (the moon) and five distant mountain
+-- wedges at the map edge, so no shot ever has an empty horizon.
+local function buildBackground()
+	local moon = part("Moon", Enum.PartType.Ball, Vector3.new(40, 40, 40), Color3.fromRGB(220, 220, 235), CFrame.new(-200, 150, 180), Enum.Material.SmoothPlastic)
+	moon.CanCollide = false
+	moon.CastShadow = false
+	moon.Anchored = true
+	local rng = Random.new(777)
+	for i = 1, 5 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local x = math.cos(angle) * 225
+		local z = math.sin(angle) * 225
+		if math.abs(x) < 30 and z > 180 then
+			continue -- keep the spawn sightline clear
+		end
+		local mountain = part("Mountain", Enum.PartType.Wedge, Vector3.new(60, 80, 30), Color3.fromRGB(90, 70, 130), CFrame.new(x, 40, z) * CFrame.Angles(0, -angle + math.rad(90), 0), Enum.Material.Slate)
+		mountain.CanCollide = false
+		mountain.CastShadow = false
+	end
+end
+
+-- Signposts, fences and paths: the world reads as a place, not a
+-- field. Signposts point "Crater" and "Shop" at the junctions;
+-- fences line the spawn path and the crater-to-shop walk; stone
+-- paths connect the crater to the shop and to the altar.
+local function fenceLine(from: Vector3, to: Vector3)
+	local dir = to - from
+	local length = dir.Magnitude
+	if length < 2 then
+		return
+	end
+	local step = dir.Unit * 4
+	local count = math.floor(length / 4)
+	for i = 0, count do
+		local post = part("FencePost", Enum.PartType.Block, Vector3.new(0.6, 2, 0.6), Color3.fromRGB(120, 85, 50), CFrame.new(from + step * i + Vector3.new(0, 1, 0)))
+		post.CanCollide = false
+	end
+	local mid = from + dir * 0.5
+	local rail = part("FenceRail", Enum.PartType.Block, Vector3.new(0.4, 0.4, length), Color3.fromRGB(150, 105, 60), CFrame.new(mid + Vector3.new(0, 1.8, 0), to + Vector3.new(0, 1.8, 0)))
+	rail.CanCollide = false
+end
+
+local function signpost(position: Vector3, lines: { string })
+	local post = part("Signpost", Enum.PartType.Cylinder, Vector3.new(6, 0.8, 0.8), Color3.fromRGB(120, 85, 50), CFrame.new(position + Vector3.new(0, 3, 0)) * CFrame.Angles(0, 0, math.rad(90)))
+	post.CanCollide = false
+	for i, line in ipairs(lines) do
+		local board = part("SignpostBoard", Enum.PartType.Block, Vector3.new(7, 1.6, 0.4), Color3.fromRGB(60, 45, 90), CFrame.new(position + Vector3.new(0, 5 + (i - 1) * 1.8, 0)))
+		board.CanCollide = false
+		local gui = Instance.new("BillboardGui")
+		gui.Name = "SignpostLabel"
+		gui.Size = UDim2.fromOffset(180, 40)
+		gui.AlwaysOnTop = true
+		gui.LightInfluence = 0
+		gui.MaxDistance = 60
+		gui.Parent = board
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.new(1, 0, 1, 0)
+		label.BackgroundTransparency = 1
+		label.Text = line
+		label.Font = Enum.Font.FredokaOne
+		label.TextScaled = true
+		label.TextColor3 = Color3.fromRGB(255, 255, 255)
+		label.TextStrokeTransparency = 0.3
+		label.Parent = gui
+	end
+end
+
+local function buildSignpostsAndFences()
+	signpost(Vector3.new(6, 0, 58), { "← Crater", "Shop →" })
+	signpost(Vector3.new(-22, 0, 28), { "Shop →", "← Crater" })
+	signpost(Vector3.new(6, 0, -48), { "Altar ↑", "← Crater" })
+	fenceLine(Vector3.new(-5, 0, 78), Vector3.new(-5, 0, 46))
+	fenceLine(Vector3.new(5, 0, 78), Vector3.new(5, 0, 46))
+	fenceLine(Vector3.new(-6, 0, 42), Vector3.new(-40, 0, 44))
+	-- Stone paths: crater rim to the shop, and crater to the altar.
+	local function path(from: Vector3, to: Vector3)
+		local dir = to - from
+		local length = dir.Magnitude
+		local count = math.floor(length / 3.5)
+		for i = 0, count do
+			local tile = part("StonePath", Enum.PartType.Block, Vector3.new(6, 0.4, 3.5), Color3.fromRGB(150, 130, 100), CFrame.new(from + dir.Unit * (i * 3.5) + Vector3.new(0, 0.2, 0), to))
+			tile.CanCollide = false
+			tile.CastShadow = false
+		end
+	end
+	path(Vector3.new(0, 0, 40), Vector3.new(-40, 0, 44))
+	path(Vector3.new(0, 0, -40), Vector3.new(0, 0, -66))
+end
+
+-- Small ambient critters: tiny hopping balls that wander the plaza,
+-- so the world feels alive between storms. One shared loop, no
+-- per-critter heartbeat.
+local function buildCritters()
+	local TweenService = game:GetService("TweenService")
+	local critterColors = {
+		Color3.fromRGB(255, 180, 120),
+		Color3.fromRGB(150, 220, 255),
+		Color3.fromRGB(200, 255, 150),
+	}
+	for i = 1, 6 do
+		local home = Vector3.new((i - 3.5) * 8, 0, 70 + (i % 2) * 6)
+		local model = Instance.new("Model")
+		model.Name = "Critter"
+		local body = part("CritterBody", Enum.PartType.Ball, Vector3.new(1.4, 1.4, 1.4), critterColors[(i % 3) + 1], CFrame.new(home + Vector3.new(0, 0.8, 0)))
+		body.CanCollide = false
+		body.Parent = model
+		model.PrimaryPart = body
+		for _, side in ipairs({ -1, 1 }) do
+			local eye = part("CritterEye", Enum.PartType.Ball, Vector3.new(0.3, 0.3, 0.3), Color3.fromRGB(20, 20, 30), CFrame.new(home + Vector3.new(side * 0.4, 1.1, 0.6)))
+			eye.CanCollide = false
+			eye.Parent = model
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = body
+			weld.Part1 = eye
+			weld.Parent = eye
+		end
+		model.Parent = workspace
+		task.spawn(function()
+			while model.Parent do
+				local target = home + Vector3.new((math.random() * 2 - 1) * 12, 0, (math.random() * 2 - 1) * 8)
+				local tween = TweenService:Create(body, TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
+					CFrame = CFrame.new(target + Vector3.new(0, 0.8, 0)),
+				})
+				tween:Play()
+				tween.Completed:Wait()
+				task.wait(math.random(1, 3))
+			end
+		end)
+	end
+end
+
+-- Giant title billboard over the crater (cheap win 4): "STARFALL
+-- ROTLINGS" plus a one-line pitch in our own words, on two tall
+-- posts at the crater's north edge, facing spawn — visible in the
+-- hero and isometric shots.
+local function buildTitleBillboard()
+	for _, x in ipairs({ -14, 14 }) do
+		local post = part("TitlePost", Enum.PartType.Cylinder, Vector3.new(22, 1.2, 1.2), Color3.fromRGB(72, 62, 92), CFrame.new(x, 11, -48) * CFrame.Angles(0, 0, math.rad(90)))
+		post.CanCollide = false
+	end
+	local board = part("TitleBoard", Enum.PartType.Block, Vector3.new(32, 9, 0.8), Color3.fromRGB(20, 15, 40), CFrame.new(0, 22, -48))
+	board.CanCollide = false
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "TitleBillboard"
+	gui.Size = UDim2.fromOffset(1200, 340)
+	gui.AlwaysOnTop = true
+	gui.LightInfluence = 0
+	gui.MaxDistance = 400
+	gui.Parent = board
+	local title = Instance.new("TextLabel")
+	title.Name = "TitleText"
+	title.Size = UDim2.new(1, 0, 0.6, 0)
+	title.BackgroundTransparency = 1
+	title.Text = "⭐ STARFALL ROTLINGS ⭐"
+	title.Font = Enum.Font.FredokaOne
+	title.TextScaled = true
+	title.TextColor3 = Color3.fromRGB(255, 220, 90)
+	title.TextStrokeTransparency = 0.2
+	title.Parent = gui
+	local pitch = Instance.new("TextLabel")
+	pitch.Name = "TitlePitch"
+	pitch.Size = UDim2.new(1, 0, 0.4, 0)
+	pitch.Position = UDim2.new(0, 0, 0.6, 0)
+	pitch.BackgroundTransparency = 1
+	pitch.Text = "Grab them. Grow them. Guard your base."
+	pitch.Font = Enum.Font.FredokaOne
+	pitch.TextScaled = true
+	pitch.TextColor3 = Color3.fromRGB(255, 255, 255)
+	pitch.TextStrokeTransparency = 0.3
+	pitch.Parent = gui
+end
+
+-- Logo stage near spawn: three hero Rotlings (Galactic Gummy Bear,
+-- Emperor Couch Potato, Baron von Bloop) on a small stage with a
+-- meteor prop — the in-game render of the logo, bright and readable
+-- at 150px for the Roblox icon (item 13). Display models only: their
+-- State is "display", so rivals, the belt list and grabs ignore them.
+local function buildLogoStage()
+	local stageCf = CFrame.new(-25, 0, 88)
+	local stage = part("LogoStage", Enum.PartType.Block, Vector3.new(16, 1, 10), Color3.fromRGB(60, 45, 90), stageCf * CFrame.new(0, 0.5, 0))
+	stage.CanCollide = false
+	local heroIds = { "gummy", "couch", "bloop" }
+	for i, defId in ipairs(heroIds) do
+		local def = RotlingCatalog.getDef(defId)
+		if def then
+			local pos = stageCf.Position + Vector3.new((i - 2) * 4.5, 2.5, 0)
+			local model = RotlingFactory.build(defId, nil, pos, 1.5)
+			if model then
+				model.Parent = workspace
+				model:SetAttribute("State", "display")
+				model:SetAttribute("BaseId", 0)
+				model:SetAttribute("PadIndex", 0)
+				model:PivotTo(CFrame.new(pos))
+			end
+		end
+	end
+	local meteor = part("LogoMeteor", Enum.PartType.Ball, Vector3.new(4, 4, 4), Color3.fromRGB(255, 140, 50), stageCf * CFrame.new(0, 8, -2), Enum.Material.Neon)
+	meteor.CanCollide = false
+	local meteorLight = Instance.new("PointLight")
+	meteorLight.Color = Color3.fromRGB(255, 140, 50)
+	meteorLight.Brightness = 2
+	meteorLight.Range = 16
+	meteorLight.Parent = meteor
+end
+
+-- Bounty board near spawn (15, 0, 85): "Top earner this storm wins
+-- a bonus." The income broadcast updates its text (item 7d).
+local function buildBountyBoard()
+	local boardCf = CFrame.lookAt(Vector3.new(15, 0, 85), Vector3.new(0, 0, 96))
+	for _, x in ipairs({ -4, 4 }) do
+		local post = part("BountyPost", Enum.PartType.Cylinder, Vector3.new(7, 0.8, 0.8), Color3.fromRGB(120, 85, 50), boardCf * CFrame.new(x, 3.5, 0) * CFrame.Angles(0, 0, math.rad(90)))
+		post.CanCollide = false
+	end
+	local board = part("BountyBoard", Enum.PartType.Block, Vector3.new(10, 6, 0.6), Color3.fromRGB(60, 45, 90), boardCf * CFrame.new(0, 6, 0))
+	board.CanCollide = false
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "BountyBoardGui"
+	gui.Size = UDim2.fromOffset(500, 300)
+	gui.AlwaysOnTop = true
+	gui.LightInfluence = 0
+	gui.MaxDistance = 80
+	gui.Parent = board
+	local title = Instance.new("TextLabel")
+	title.Name = "BountyTitle"
+	title.Size = UDim2.new(1, 0, 0.3, 0)
+	title.BackgroundTransparency = 1
+	title.Text = "🏆 BOUNTY BOARD"
+	title.Font = Enum.Font.FredokaOne
+	title.TextScaled = true
+	title.TextColor3 = Color3.fromRGB(255, 220, 90)
+	title.TextStrokeTransparency = 0.3
+	title.Parent = gui
+	local text = Instance.new("TextLabel")
+	text.Name = "BountyText"
+	text.Size = UDim2.new(1, 0, 0.7, 0)
+	text.Position = UDim2.new(0, 0, 0.3, 0)
+	text.BackgroundTransparency = 1
+	text.Text = "Top earner this storm wins a bonus!"
+	text.Font = Enum.Font.FredokaOne
+	text.TextScaled = true
+	text.TextColor3 = Color3.fromRGB(255, 255, 255)
+	text.TextStrokeTransparency = 0.3
+	text.Parent = gui
+	bountyLabel = text
+end
+
 function WorldBuilder.build()
 	fixTerrain()
 	for baseId = 1, Config.BASE_COUNT do
@@ -887,7 +1489,18 @@ function WorldBuilder.build()
 	buildFloatingIslands()
 	buildSkyDecor()
 	buildWind()
-	print("[WorldBuilder] world built: " .. tostring(Config.BASE_COUNT) .. " bases, crater, conveyor, sell area, plaza, trees, rocks, hills, ground detail, crystals, islands, sky, wind.")
+	buildStarShop()
+	buildUpgradeMachines()
+	buildRebirthAltar()
+	buildIndexWall()
+	buildSpaceship()
+	buildBackground()
+	buildSignpostsAndFences()
+	buildCritters()
+	buildTitleBillboard()
+	buildLogoStage()
+	buildBountyBoard()
+	print("[WorldBuilder] world built: " .. tostring(Config.BASE_COUNT) .. " bases, crater, conveyor, sell area, plaza, trees, rocks, hills, ground detail, crystals, islands, sky, wind, star shop, upgrade machines, rebirth altar, index wall, spaceship, background, signposts, fences, paths, critters, title billboard, logo stage, bounty board.")
 end
 
 return WorldBuilder

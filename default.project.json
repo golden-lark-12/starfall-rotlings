@@ -121,6 +121,27 @@
     },
     "ClaimDaily": {
      "$className": "RemoteFunction"
+    },
+    "SlapSwing": {
+     "$className": "RemoteEvent"
+    },
+    "SlapEffect": {
+     "$className": "RemoteEvent"
+    },
+    "OpenShop": {
+     "$className": "RemoteEvent"
+    },
+    "OpenRebirth": {
+     "$className": "RemoteEvent"
+    },
+    "SetBuddy": {
+     "$className": "RemoteFunction"
+    },
+    "BuyBoost": {
+     "$className": "RemoteFunction"
+    },
+    "RerollMutation": {
+     "$className": "RemoteFunction"
     }
    }
   },

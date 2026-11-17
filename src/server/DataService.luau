@@ -32,6 +32,10 @@ function DataService.defaultProfile(): State.Profile
 	return {
 		version = Config.SAVE_VERSION,
 		coins = 0,
+		stardust = 0,
+		xp = 0,
+		level = 1,
+		buddyDefId = nil,
 		rebirths = 0,
 		speedTier = 0,
 		carryTier = 0,
@@ -71,6 +75,16 @@ local function reconcile(data: any): State.Profile
 	end
 	if profile.lockTier == nil then
 		profile.lockTier = 0
+	end
+	-- v4 fields (stardust / xp / level / buddy): old saves get defaults.
+	if profile.stardust == nil then
+		profile.stardust = 0
+	end
+	if profile.xp == nil then
+		profile.xp = 0
+	end
+	if profile.level == nil then
+		profile.level = 1
 	end
 	return profile
 end

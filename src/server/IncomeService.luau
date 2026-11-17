@@ -14,6 +14,8 @@ local Formatting = require(ReplicatedStorage.Shared.Formatting)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local BaseService = require(script.Parent.BaseService)
+local BoostService = require(script.Parent.BoostService)
+local BuddyService = require(script.Parent.BuddyService)
 local CarryService = require(script.Parent.CarryService)
 local DailyService = require(script.Parent.DailyService)
 local DataService = require(script.Parent.DataService)
@@ -24,14 +26,55 @@ local WorldBuilder = require(script.Parent.WorldBuilder)
 
 local IncomeService = {}
 
--- Player income multiplier: rebirths and shop income tiers stack.
+-- Player income multiplier: rebirths and shop income tiers stack, and
+-- on top of those: a 2x Cash boost or global event, and the Buddy's +5%.
 function IncomeService.incomeMult(player: Player): number
 	local profile = DataService.getProfile(player)
 	if not profile then
 		return 1
 	end
-	return (1 + Config.REBIRTH_MULT_PER * profile.rebirths)
+	local mult = (1 + Config.REBIRTH_MULT_PER * profile.rebirths)
 		* (1 + Config.INCOME_TIER_MULT * profile.incomeTier)
+	if BoostService.hasBoost(player, "cash") then
+		mult *= Config.BOOST_CASH_MULT
+	end
+	if State.globalEvent.name == "cash" and time() < State.globalEvent.endsAt then
+		mult *= Config.BOOST_CASH_MULT
+	end
+	if BuddyService.hasBuddy(player) then
+		mult *= (1 + Config.BUDDY_CASH_BONUS)
+	end
+	return mult
+end
+
+-- Storm bounty: earnings since the current storm started.
+function IncomeService.resetStormEarnings()
+	State.stormEarnings = {}
+end
+
+function IncomeService.awardStormBounty()
+	local bestPlayer: Player? = nil
+	local bestEarned = 0
+	for _, player in ipairs(Players:GetPlayers()) do
+		local earned = State.stormEarnings[player.UserId] or 0
+		if earned > bestEarned then
+			bestEarned = earned
+			bestPlayer = player
+		end
+	end
+	if bestPlayer and bestEarned > 0 then
+		local profile = DataService.getProfile(bestPlayer)
+		if profile then
+			profile.coins += Config.BOUNTY_BONUS
+			Remotes.bannerEvent():FireAllClients("🏆 STORM BOUNTY: " .. bestPlayer.DisplayName .. " earned the most this storm and wins " .. Formatting.formatMoney(Config.BOUNTY_BONUS) .. "!", 6)
+			State.stormBountyText = bestPlayer.DisplayName .. " won the last storm bounty (" .. Formatting.formatMoney(Config.BOUNTY_BONUS) .. ")!"
+			WorldBuilder.setBountyText(State.stormBountyText)
+		end
+	else
+		State.stormBountyText = "Top earner this storm wins a bonus!"
+		WorldBuilder.setBountyText(State.stormBountyText)
+	end
+	State.stormEarnings = {}
 end
 
 -- Coins per second from one player's placed Rotlings, after multipliers.
@@ -52,7 +95,8 @@ end
 function IncomeService.broadcastHud()
 	local storm = StarfallService.getStatus()
 	-- Leaderboard top 3 by coins, computed once per broadcast (cheap:
-	-- a handful of players) so every client's HUD can show it.
+	-- a handful of players) so every client's HUD can show it. Rivals
+	-- compete too: their coins count alongside real players.
 	local top3: { { name: string, coins: number } } = {}
 	for _, other in ipairs(Players:GetPlayers()) do
 		local otherProfile = DataService.getProfile(other)
@@ -60,11 +104,37 @@ function IncomeService.broadcastHud()
 			table.insert(top3, { name = other.Name, coins = otherProfile.coins })
 		end
 	end
+	local RivalService = require(script.Parent.RivalService)
+	for _, rival in pairs(State.rivals) do
+		table.insert(top3, { name = rival.name .. " (Rival)", coins = math.floor(rival.coins) })
+	end
 	table.sort(top3, function(a, b)
 		return a.coins > b.coins
 	end)
 	while #top3 > 3 do
 		table.remove(top3)
+	end
+	-- The belt list: what is on the conveyor right now (name + $/s).
+	local belt: { { name: string, cps: number } } = {}
+	for _, descendant in ipairs(workspace:GetDescendants()) do
+		if descendant:IsA("Model") and descendant:GetAttribute("State") == "free" then
+			local def = RotlingCatalog.getDef(descendant:GetAttribute("DefId") :: string)
+			if def then
+				table.insert(belt, { name = def.name, cps = math.floor(RotlingCatalog.baseCps(def, descendant:GetAttribute("Mutation") :: string?)) })
+			end
+		end
+	end
+	table.sort(belt, function(a, b)
+		return a.cps > b.cps
+	end)
+	while #belt > 5 do
+		table.remove(belt)
+	end
+	local eventName = State.globalEvent.name
+	local eventSeconds = math.max(0, math.ceil(State.globalEvent.endsAt - time()))
+	if eventName == "" or eventSeconds <= 0 then
+		eventName = ""
+		eventSeconds = 0
 	end
 	for _, player in ipairs(Players:GetPlayers()) do
 		local ok, err = pcall(function()
@@ -76,16 +146,32 @@ function IncomeService.broadcastHud()
 					WorldBuilder.setBaseCoins(baseId, profile.coins)
 					-- The base level sign: 1 + Rotlings placed here.
 					WorldBuilder.setBaseLevel(baseId, 1 + #BaseService.getPlacedForPlayer(player))
+					-- The shield label: "SAFE (Ns)" while locked.
+					WorldBuilder.setShieldLabel(baseId, BaseService.lockRemaining(baseId))
 				end
 				local found = 0
 				for _ in pairs(profile.index) do
 					found += 1
 				end
 				local mission = MissionService.currentMission(player)
+				local rebirthCost = Config.REBIRTH_BASE_COST * (profile.rebirths + 1) * (profile.rebirths + 1)
+				local boosts: { { kind: string, seconds: number } } = {}
+				for kind, boost in pairs(State.boosts[player.UserId] or {}) do
+					local left = math.ceil(boost.expiresAt - time())
+					if left > 0 then
+						table.insert(boosts, { kind = kind, seconds = left })
+					end
+				end
 				Remotes.hudEvent():FireClient(player, {
 					coins = profile.coins,
+					stardust = profile.stardust,
+					xp = profile.xp,
+					level = profile.level,
+					xpProgress = (profile.xp % Config.XP_PER_LEVEL) / Config.XP_PER_LEVEL,
 					cps = IncomeService.coinsPerSecond(player),
 					rebirths = profile.rebirths,
+					rebirthCost = rebirthCost,
+					rebirthProgress = math.clamp(profile.coins / rebirthCost, 0, 1),
 					speedTier = profile.speedTier,
 					carryTier = profile.carryTier,
 					incomeTier = profile.incomeTier,
@@ -97,8 +183,10 @@ function IncomeService.broadcastHud()
 					lockCooldown = if baseId then BaseService.lockCooldownRemaining(baseId) else 0,
 					stormPhase = storm.phase,
 					stormSeconds = storm.secondsLeft,
+					danger = storm.danger,
 					index = profile.index,
 					indexCount = found,
+					indexTotal = #RotlingCatalog.DEFS,
 					top3 = top3,
 					firstTime = profile.coins == 0 and profile.rebirths == 0 and found == 0,
 					missionText = mission.text,
@@ -106,6 +194,11 @@ function IncomeService.broadcastHud()
 					missionTarget = mission.target,
 					missionReward = mission.reward,
 					dailyReady = DailyService.isReady(player),
+					boosts = boosts,
+					belt = belt,
+					eventName = eventName,
+					eventSeconds = eventSeconds,
+					buddyName = BuddyService.buddyName(player),
 				})
 			end
 		end)
@@ -190,6 +283,8 @@ function IncomeService.start()
 					if profile then
 						local gained = IncomeService.coinsPerSecond(player)
 						profile.coins += gained
+						-- Bounty ledger: earnings during this storm.
+						State.stormEarnings[player.UserId] = (State.stormEarnings[player.UserId] or 0) + gained
 						MissionService.addProgress(player, "earn", gained)
 						local LeaderstatsService = require(script.Parent.LeaderstatsService)
 						LeaderstatsService.refresh(player)

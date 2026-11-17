@@ -13,6 +13,10 @@ export type PlacedEntry = {
 export type Profile = {
 	version: number,
 	coins: number,
+	stardust: number, -- second currency: eggs + daily rewards; spent on mutations and boosts
+	xp: number, -- player XP: +10 per grab, +15 per place
+	level: number, -- 1 + floor(xp / XP_PER_LEVEL)
+	buddyDefId: string?, -- the Rotling picked as Buddy in the Index (nil = best placed)
 	rebirths: number,
 	speedTier: number,
 	carryTier: number,
@@ -34,6 +38,33 @@ export type Raider = {
 	targetBase: number,
 	targetPad: number,
 	stolen: Model?,
+	bornAt: number,
+}
+
+export type Rival = {
+	model: Model,
+	name: string,
+	baseId: number,
+	phase: string, -- "toCrater" | "grab" | "toBase" | "steal" | "chase" | "flee" | "idle"
+	carried: Model?,
+	coins: number,
+	slapReadyAt: number,
+	targetUserId: number?, -- the player this rival is stealing from or chasing
+	targetBase: number?,
+	bornAt: number,
+}
+
+export type Boost = {
+	kind: string, -- "speed" | "magnet" | "cash" | "shield"
+	expiresAt: number,
+}
+
+export type Egg = {
+	model: Model,
+	phase: string, -- "falling" | "ground" | "carried" | "incubating" | "hatched"
+	carrier: number?, -- UserId carrying it
+	baseId: number?, -- base whose incubator holds it
+	hatchAt: number?,
 	bornAt: number,
 }
 
@@ -63,6 +94,28 @@ State.baseColors = {} :: { [number]: Color3 }
 
 -- Live Rot Raiders, keyed by their Model.
 State.raiders = {} :: { [Model]: Raider }
+
+-- Rival bots, keyed by their Model.
+State.rivals = {} :: { [Model]: Rival }
+
+-- Active boosts per player: [userId] = { [kind] = Boost }.
+State.boosts = {} :: { [number]: { [string]: Boost } }
+
+-- Live meteor eggs, keyed by their Model.
+State.eggs = {} :: { [Model]: Egg }
+
+-- The egg a player is carrying: [userId] = Model.
+State.eggCarriedByUser = {} :: { [number]: Model }
+
+-- Global event state: { name = "cash" | "shower" | "", endsAt = number }.
+State.globalEvent = { name = "", endsAt = 0 } :: { name: string, endsAt: number }
+
+-- Coins earned per player since the current storm started (bounty).
+State.stormEarnings = {} :: { [number]: number }
+State.stormBountyText = "Top earner this storm wins a bonus!"
+
+-- Buddy models: [userId] = Model following the player.
+State.buddies = {} :: { [number]: Model }
 
 -- DataStore health per player: [userId] = true when a load/save worked.
 State.datastoreOk = {} :: { [number]: boolean }

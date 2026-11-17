@@ -36,8 +36,12 @@ Config.DAILY_REWARD = 1000
 Config.DAILY_COOLDOWN = 20 * 3600 -- 20 hours between claims
 
 -- Selling: carry a Rotling to the gold SELL pad by spawn and press E.
--- A Rotling sells for one minute of its own income (baseCps x 60).
-Config.SELL_MULT = 60
+-- A Rotling sells for ~25 seconds of its own income (baseCps x 25):
+-- selling is for clearing a pad to make room for a better Rotling, and
+-- placing must ALWAYS be the better long-term choice (25s of income
+-- beats the sale price, then it keeps earning forever). The auto-check
+-- (al) proves SELL_MULT stays at or under 30.
+Config.SELL_MULT = 25
 
 -- Meteor storm: a full cycle is calm + warning + storm.
 Config.STORM_PERIOD = 90
@@ -46,6 +50,19 @@ Config.STORM_DURATION = 8
 Config.STORM_METEOR_INTERVAL = 0.45
 Config.STORM_DAMAGE = 15 -- health lost per meteor hit while in the crater
 Config.STARSTRUCK_CHANCE = 0.4 -- a free Rotling near an impact survives as Starstruck
+-- Storm spread (item 6): impacts cover the WHOLE map, not just the
+-- crater centre. Meteors pick a zone — near a player anywhere, near a
+-- base, or anywhere in the open field — and every impact is telegraphed
+-- by a red warning circle on the ground STORM_WARNING_TIME seconds
+-- before it lands. Bases are safe zones: a meteor never targets a base
+-- platform and never hurts a player standing on one. A hit within
+-- STORM_HIT_RADIUS knocks the player back and drops what they carry.
+Config.STORM_SPREAD_RADIUS = 150 -- impacts anywhere inside this radius of the origin
+Config.STORM_WARNING_TIME = 2 -- seconds the warning circle shows before impact
+Config.STORM_BASE_SAFE_RADIUS = 17 -- no impact target this close to a base centre
+Config.STORM_HIT_RADIUS = 6 -- a player this close to an impact is knocked back
+Config.STORM_KNOCKBACK = 42 -- studs/sec of knockback velocity on a hit
+Config.STORM_HAZARD_LABEL = "DANGER: CRATER-WIDE METEOR RAIN" -- hazard label on the storm banner
 -- Storm extras: meteors that land near a player, and rare Rotlings at
 -- impact points. Half the storm's meteors aim near a random player so
 -- 6-10 crash close enough to shake the camera; hero meteors always
@@ -74,10 +91,15 @@ Config.LOCK_DURATION_PER_TIER = 30 -- +30s lock per shop lock tier
 -- Carrying: the Rotling rides IN FRONT OF THE CHEST at arm height,
 -- never above the head and never over the face. Forward is -Z off the
 -- HumanoidRootPart, so a negative Z puts it in front of the player.
-Config.CARRY_Y = -0.3 -- studs below the root centre: chest/arm height
-Config.CARRY_Z = -2.2 -- studs in front of the chest
+-- CARRY_Z is -3.2, not -2.2: at -2.2 the Rotling sat just past the
+-- chest and the player's own torso hid it from the camera behind them
+-- (Malek: "HUD says Carrying 1/1 but nothing is visible"). At -3.2 it
+-- reads clearly in front of the body, and the bigger carried size
+-- (CARRY_MAX_HEIGHT 3.6) keeps the face and colours readable.
+Config.CARRY_Y = 0.0 -- studs below the root centre: chest/arm height
+Config.CARRY_Z = -3.2 -- studs in front of the chest: clear of the torso, visible from behind
 -- Carried size: the real model at a readable scale, never a tiny box.
-Config.CARRY_MAX_HEIGHT = 3.0 -- a carried Rotling is at most 3 studs tall
+Config.CARRY_MAX_HEIGHT = 3.6 -- a carried Rotling is at most 3.6 studs tall
 Config.PLACE_RANGE = 14 -- how close to a free pad the carrier must stand
 
 -- Name tags: only the nearest few, only up close, so they never stack
@@ -108,10 +130,79 @@ Config.RAIDER_INTERVAL = 75 -- seconds between raids
 Config.RAIDER_LIFETIME = 90 -- seconds before a raider gives up and leaves
 Config.RAIDER_WALK_SPEED = 14
 
+-- Rival bots (item 7): 3-4 named rivals that own the other bases,
+-- run to the crater, grab Rotlings, carry them home and earn. They show
+-- on the leaderboard and compete for the storm bounty.
+Config.RIVAL_COUNT = 4
+Config.RIVAL_NAMES = { "Ziggy", "Nova", "Pip", "Comet" }
+Config.RIVAL_WALK_SPEED = 13
+Config.RIVAL_GRAB_RADIUS = 12 -- a rival grabs the nearest free Rotling this close
+Config.RIVAL_STEAL_CHANCE = 0.35 -- per rival trip, chance it targets a player's base instead
+Config.RIVAL_CHASE_RADIUS = 30 -- a rival chases an egg carrier this close
+Config.RIVAL_SLAP_COOLDOWN = 3 -- seconds between a rival's slap-backs
+
+-- Slap bat (item 10): swing knocks a rival or player back and drops
+-- what they carry. Cooldown 2s, fun sound + stars effect.
+Config.SLAP_COOLDOWN = 2
+Config.SLAP_RANGE = 9 -- studs in front of the swinger
+Config.SLAP_KNOCKBACK = 38
+
+-- Meteor eggs (item 12): 1-2 glowing eggs crash somewhere on the map
+-- during each storm. Heavy to carry (walk slower); rivals chase you
+-- for one. Bring it to the incubator on your base: it hatches after
+-- 60s into a random Rotling, with a chance of Epic, Legendary or a
+-- mutation. Eggs also pay Stardust on hatch.
+Config.EGGS_PER_STORM = 2
+Config.EGG_HATCH_TIME = 60 -- seconds on the incubator before hatching
+Config.EGG_SLOW = 6 -- WalkSpeed lost while carrying an egg
+Config.EGG_STARDUST = 25 -- Stardust paid when an egg hatches
+Config.EGG_SCORCHED_CHANCE = 0.15 -- hatch comes out Meteor-scorched
+
+-- Boosts (item 11): pickups around the map and in the Star Shop.
+Config.BOOST_SPEED_MULT = 1.4 -- Speed Coil: +40% speed
+Config.BOOST_SPEED_DURATION = 30
+Config.BOOST_MAGNET_RADIUS = 15 -- Magnet: auto-grab nearest Rotling this close
+Config.BOOST_MAGNET_DURATION = 30
+Config.BOOST_CASH_MULT = 2 -- 2x Cash: double income
+Config.BOOST_CASH_DURATION = 60
+Config.BOOST_SHIELD_DURATION = 20 -- Shield: immune to slaps and meteors
+Config.BOOST_SPAWN_INTERVAL = 25 -- seconds between boost pickup spawns
+Config.BOOST_MAX_ON_MAP = 6
+
+-- Global events (cheap win 7): one every 60-90s between storms.
+Config.EVENT_INTERVAL_MIN = 60
+Config.EVENT_INTERVAL_MAX = 90
+Config.EVENT_CASH_DURATION = 60 -- "2x Cash Hour" lasts 60s
+Config.EVENT_SHOWER_COUNT = 12 -- Stardust Shower drops this many gems
+Config.EVENT_SHOWER_STARDUST = 5 -- Stardust per gem collected
+
+-- Stardust (item 13): second currency, earned from meteor eggs and
+-- daily rewards, spent on mutations and boosts. Shown in the HUD next
+-- to cash.
+Config.DAILY_STARDUST = 50 -- Stardust in the daily reward
+Config.REROLL_STARDUST_COST = 30 -- mutation reroll of your best placed Rotling
+Config.BOOST_STARDUST_COST = 20 -- one boost from the Star Shop
+
+-- Player level and XP (item 13): XP from grabbing (+10) and placing
+-- (+15). One level per 100 XP.
+Config.XP_GRAB = 10
+Config.XP_PLACE = 15
+Config.XP_PER_LEVEL = 100
+
+-- Buddy Rotling: your highest-income placed Rotling (or the one you
+-- pick in the Index), shrunk to half size, floating beside you with a
+-- small tag. +5% cash while it follows you.
+Config.BUDDY_SCALE = 0.5
+Config.BUDDY_CASH_BONUS = 0.05
+Config.BUDDY_OFFSET = Vector3.new(2.6, 0.6, 0.4) -- beside you, never in front of the camera
+
+-- Storm bounty (item 7d): top earner during a storm wins a bonus.
+Config.BOUNTY_BONUS = 500 -- coins to the storm's top earner
+
 -- Saving.
 Config.SAVE_INTERVAL = 60 -- seconds between autosaves
 Config.DATASTORE_NAME = "StarfallRotlings_PlayerData"
-Config.SAVE_VERSION = 3 -- v3 adds missionIndex/missionProgress/lastDailyClaim
+Config.SAVE_VERSION = 4 -- v4 adds stardust / xp / level / buddyDefId
 
 -- Index completion rewards.
 Config.INDEX_RARITY_REWARD = 500 -- coins for completing one rarity's set
