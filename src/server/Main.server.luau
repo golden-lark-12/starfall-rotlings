@@ -111,7 +111,7 @@ local function onPlayerAdded(player: Player)
 		onCharacterAdded(player, character)
 	end)
 	if player.Character then
-		onCharacterAdded(player, player.Character)
+		onPlayerAdded(player, player.Character)
 	end
 	task.delay(2, function()
 		IncomeService.broadcastHud()

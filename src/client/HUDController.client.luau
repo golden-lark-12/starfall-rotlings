@@ -5,6 +5,13 @@
 -- button, the hint line and the banner. It also owns the Rebirth panel.
 -- The client never decides a number: every value here comes from the
 -- server's UpdateHud feed.
+--
+-- UI placement: NOTHING sits under Roblox's own top-left menu or the
+-- top-right player list. Every custom button and label starts at y=60
+-- or lower (Roblox's top bar ends around y=48 on desktop and phones),
+-- so no custom button is ever covered by Roblox's own chrome. A
+-- UIScale shrinks the whole HUD on small screens (phones) so it still
+-- fits at 1080p and below.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -21,6 +28,29 @@ gui.Name = "StarfallGui"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.Parent = player:WaitForChild("PlayerGui")
+
+-- UIScale for 1080p and phones: the whole HUD scales down on small
+-- viewports so buttons never clip off-screen. Full size at 1600x900
+-- and above, down to 0.65x on a small phone screen.
+local hudScale = Instance.new("UIScale")
+hudScale.Name = "HudScale"
+hudScale.Parent = gui
+local function updateHudScale()
+	local camera = workspace.CurrentCamera
+	local viewport = if camera then camera.ViewportSize else Vector2.new(1920, 1080)
+	local scale = math.clamp(math.min(viewport.X / 1600, viewport.Y / 900), 0.65, 1)
+	hudScale.Scale = scale
+end
+updateHudScale()
+task.spawn(function()
+	local camera = workspace.CurrentCamera
+	while not camera do
+		task.wait(0.5)
+		camera = workspace.CurrentCamera
+	end
+	camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateHudScale)
+	updateHudScale()
+end)
 
 -- Dark top bar behind the coins, income and storm timer: the HUD must
 -- stay readable over any bright 3D background (bloom, beam, crystals),
@@ -51,10 +81,11 @@ coinsLabel.AnchorPoint = Vector2.new(0.5, 0)
 local cpsLabel = GuiKit.makeLabel(gui, "Cps", "+$0/s", UDim2.new(0, 340, 0, 26), UDim2.new(0.5, 0, 0, 88), 20, GuiKit.COLORS.Green)
 cpsLabel.AnchorPoint = Vector2.new(0.5, 0)
 
--- Top-left buttons: Upgrade opens the shop on the upgrade rows, Daily
--- claims the daily reward. Shop lives in ShopController (same row).
-local upgradeButton = GuiKit.makeButton(gui, "UpgradeButton", "⬆️ Upgrade", UDim2.new(0, 120, 0, 44), UDim2.new(0, 140, 0, 30), GuiKit.COLORS.Pink)
-local dailyButton = GuiKit.makeButton(gui, "DailyButton", "🎁 Daily", UDim2.new(0, 120, 0, 44), UDim2.new(0, 268, 0, 30), GuiKit.COLORS.Buy)
+-- Top-left buttons at y=60: below Roblox's own top-left menu (which
+-- ends around y=48), so they are never covered by it. Shop lives in
+-- ShopController (same row, same y).
+local upgradeButton = GuiKit.makeButton(gui, "UpgradeButton", "⬆️ Upgrade", UDim2.new(0, 120, 0, 44), UDim2.new(0, 140, 0, 60), GuiKit.COLORS.Pink)
+local dailyButton = GuiKit.makeButton(gui, "DailyButton", "🎁 Daily", UDim2.new(0, 120, 0, 44), UDim2.new(0, 268, 0, 60), GuiKit.COLORS.Buy)
 
 -- Mission bar: one thin strip under the top bar with the active
 -- mission, its progress and its reward. The fill grows left to right.
@@ -75,13 +106,15 @@ missionFill.BorderSizePixel = 0
 missionFill.Parent = missionBar
 local missionLabel = GuiKit.makeLabel(missionBar, "MissionLabel", "🎯 Grab 3 Rotlings — 0/3 • $300", UDim2.new(1, -16, 1, 0), UDim2.new(0, 8, 0, 0), 18, GuiKit.COLORS.White)
 
--- Storm timer, top-right, 12px clear of the screen edge.
-local stormLabel = GuiKit.makeLabel(gui, "Storm", "Next storm: --", UDim2.new(0, 230, 0, 36), UDim2.new(1, -242, 0, 10), 22, GuiKit.COLORS.White)
+-- Storm timer, top-right at y=60: below the player list (which ends
+-- around y=48), 12px clear of the screen edge.
+local stormLabel = GuiKit.makeLabel(gui, "Storm", "Next storm: --", UDim2.new(0, 230, 0, 36), UDim2.new(1, -242, 0, 60), 22, GuiKit.COLORS.White)
 stormLabel.TextXAlignment = Enum.TextXAlignment.Right
 
--- Right-side buttons, 12px clear of the screen edge.
-local rebirthButton = GuiKit.makeButton(gui, "RebirthButton", "✨ Rebirth (R)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -172, 0, 60), GuiKit.COLORS.Pink)
-local lockButton = GuiKit.makeButton(gui, "LockButton", "🔓 Lock Base (L)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -172, 0, 116), GuiKit.COLORS.Red)
+-- Right-side buttons, stacked below the storm timer, 12px clear of
+-- the screen edge.
+local rebirthButton = GuiKit.makeButton(gui, "RebirthButton", "✨ Rebirth (R)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -172, 0, 104), GuiKit.COLORS.Pink)
+local lockButton = GuiKit.makeButton(gui, "LockButton", "🔓 Lock Base (L)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -172, 0, 160), GuiKit.COLORS.Red)
 
 -- Hint line, bottom-centre, anchored so it never clips at the sides.
 local hintLabel = GuiKit.makeLabel(gui, "Hint", "Grab a Rotling in the crater!", UDim2.new(0, 620, 0, 30), UDim2.new(0.5, 0, 1, -44), 22, GuiKit.COLORS.White)
@@ -96,7 +129,7 @@ bannerLabel.Visible = false
 -- Leaderboard panel, top-right under the Lock button: the top 3 players
 -- by coins, always visible, so every shot shows the competition (like the
 -- top entries' leaderboard panels). Fed by the HUD broadcast's top3.
-local leaderboardPanel = GuiKit.makePanel(gui, "LeaderboardPanel", UDim2.new(0, 220, 0, 104), UDim2.new(1, -232, 0, 172))
+local leaderboardPanel = GuiKit.makePanel(gui, "LeaderboardPanel", UDim2.new(0, 220, 0, 104), UDim2.new(1, -232, 0, 216))
 local leaderboardTitle = GuiKit.makeLabel(leaderboardPanel, "LeaderboardTitle", "🏆 LEADERBOARD", UDim2.new(1, 0, 0, 24), UDim2.new(0, 0, 0, 4), 18, GuiKit.COLORS.Gold)
 local leaderboardRows = {}
 for i = 1, 3 do

@@ -6,6 +6,14 @@
 -- Get home before it hits, or drop your catch. A free Rotling near an
 -- impact may survive it and come back Starstruck, worth four times as
 -- much — the only way that mutation is ever earned.
+--
+-- The storm is also a hunt: three giant hero meteors arc across the
+-- sky at storm start, half the rain meteors aim near a player in the
+-- crater (so 6-10 crash close enough to shake the camera), and every
+-- hero impact — plus a quarter of the rain impacts — leaves a rare
+-- Rotling at the impact point for 30 seconds. STORM START and
+-- METEOR LANDED are logged to Output so a playtest can prove the storm
+-- actually fired.
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -17,6 +25,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local CarryService = require(script.Parent.CarryService)
 local RotlingFactory = require(script.Parent.RotlingFactory)
+local SpawnService = require(script.Parent.SpawnService)
 local WorldBuilder = require(script.Parent.WorldBuilder)
 
 local StarfallService = {}
@@ -28,6 +37,7 @@ local phaseEndsAt = 0
 local lastPhaseChangeAt = 0 -- wall-clock time of the last setPhase
 local running = false
 local stormActive = false -- true only while meteors fall; guards the lightning flash from racing restoreSky
+local rumbleSound: Sound? = nil -- the low storm rumble, looping while the storm runs
 
 function StarfallService.getStatus()
 	return {
@@ -52,7 +62,7 @@ local function setPhase(newPhase: string, duration: number)
 	elseif newPhase == "warn" then
 		print("[Starfall] Warning: storm in " .. tostring(duration) .. "s.")
 	elseif newPhase == "storm" then
-		print("[Starfall] METEOR STORM for " .. tostring(duration) .. "s.")
+		print("[Starfall] STORM START")
 	end
 end
 
@@ -64,33 +74,34 @@ local function waitPhase()
 	end
 end
 
--- Storm palette: the sky goes properly dark, not just a little dim.
--- These must restore to the bright base lighting in
--- default.project.json (Brightness 3, ClockTime 17.0, Ambient
--- 0.55/0.45/0.7, OutdoorAmbient 0.8/0.65/0.9): a storm darkens the
--- world, it never leaves it dark.
+-- Storm palette: a dark RED sky, not just dim. The storm darkens the
+-- world and turns it red, so the threat reads even before a meteor
+-- falls. These must restore to the bright base lighting in
+-- default.project.json (Brightness 3, ClockTime 12.5, Ambient
+-- 0.9/0.88/0.95, OutdoorAmbient 1/1/1, Atmosphere Density 0.12):
+-- a storm darkens the world, it never leaves it dark.
 local function dimSky()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
-		atmosphere.Density = 0.65
-		atmosphere.Color = Color3.fromRGB(200, 90, 80)
+		atmosphere.Density = 0.7
+		atmosphere.Color = Color3.fromRGB(200, 60, 50)
 	end
-	Lighting.ClockTime = 15.8
-	Lighting.Brightness = 1.3
-	Lighting.Ambient = Color3.new(0.22, 0.18, 0.32)
-	Lighting.OutdoorAmbient = Color3.new(0.4, 0.32, 0.5)
+	Lighting.ClockTime = 14.0
+	Lighting.Brightness = 0.9
+	Lighting.Ambient = Color3.new(0.3, 0.12, 0.15)
+	Lighting.OutdoorAmbient = Color3.new(0.5, 0.25, 0.3)
 end
 
 local function restoreSky()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
-		atmosphere.Density = 0.35
-		atmosphere.Color = Color3.fromRGB(218, 140, 242)
+		atmosphere.Density = 0.12
+		atmosphere.Color = Color3.fromRGB(166, 191, 255)
 	end
-	Lighting.ClockTime = 17.0
+	Lighting.ClockTime = 12.5
 	Lighting.Brightness = 3
-	Lighting.Ambient = Color3.new(0.55, 0.45, 0.7)
-	Lighting.OutdoorAmbient = Color3.new(0.8, 0.65, 0.9)
+	Lighting.Ambient = Color3.new(0.9, 0.88, 0.95)
+	Lighting.OutdoorAmbient = Color3.new(1.0, 1.0, 1.0)
 end
 
 local function playAlarm()
@@ -118,6 +129,32 @@ local function playThunder()
 	end)
 end
 
+-- The storm rumble: the built-in ping pitched right down and looped,
+-- a low drone under the whole storm. Starts when the storm starts,
+-- stops when it ends. One sound only; a second start is a no-op.
+local function startRumble()
+	if rumbleSound then
+		return
+	end
+	local sound = Instance.new("Sound")
+	sound.Name = "StormRumble"
+	sound.SoundId = ALARM_SOUND
+	sound.Volume = 0.4
+	sound.PlaybackSpeed = 0.2
+	sound.Looped = true
+	sound.Parent = workspace
+	sound:Play()
+	rumbleSound = sound
+end
+
+local function stopRumble()
+	if rumbleSound then
+		rumbleSound:Stop()
+		rumbleSound:Destroy()
+		rumbleSound = nil
+	end
+end
+
 -- One lightning flash: the sky whites out for a blink, then falls back
 -- to the storm dark. Guarded by stormActive so a flash racing the end
 -- of the storm can never leave the brightness stuck dark.
@@ -129,7 +166,7 @@ local function lightningFlash()
 	playThunder()
 	task.wait(0.12)
 	if stormActive then
-		Lighting.Brightness = 1.3
+		Lighting.Brightness = 0.9
 	end
 end
 
@@ -155,10 +192,65 @@ local function maybeStarstruck(impact: Vector3)
 	end
 end
 
-local function spawnMeteor()
+-- What happens when a meteor lands: the log, the camera shake for
+-- every client, a rare Rotling at the impact point (always for a hero
+-- meteor, a quarter of the time for a rain meteor), a Starstruck roll
+-- for nearby free Rotlings, and damage + dropped carries for anyone
+-- standing in the crater.
+local function onMeteorLanded(target: Vector3, isHero: boolean)
+	print("[Starfall] METEOR LANDED at (" .. tostring(math.floor(target.X)) .. ", " .. tostring(math.floor(target.Y)) .. ", " .. tostring(math.floor(target.Z)) .. ")")
+	Remotes.meteorImpactEvent():FireAllClients(target)
+	maybeStarstruck(target)
+	if isHero or math.random() < 0.25 then
+		SpawnService.spawnRareAt(target)
+	end
+	-- Anyone standing in the crater is hit.
+	for _, player in ipairs(Players:GetPlayers()) do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if root and humanoid and humanoid.Health > 0 then
+			local flat = Vector3.new(root.Position.X, 0, root.Position.Z)
+			if flat.Magnitude <= Config.CRATER_RADIUS + 4 then
+				humanoid:TakeDamage(Config.STORM_DAMAGE)
+				CarryService.dropAllCarried(player)
+			end
+		end
+	end
+end
+
+-- Pick a meteor target. Half the time, aim near a player who is in or
+-- near the crater, so 6-10 meteors per storm crash close enough to
+-- shake that player's camera; otherwise a random spot in the crater.
+local function pickTarget(): Vector3
+	local nearPlayers: { Player } = {}
+	for _, player in ipairs(Players:GetPlayers()) do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root then
+			local flat = Vector3.new(root.Position.X, 0, root.Position.Z)
+			if flat.Magnitude <= Config.CRATER_RADIUS + 17 then
+				table.insert(nearPlayers, player)
+			end
+		end
+	end
+	if #nearPlayers > 0 and math.random() < Config.STORM_NEAR_PLAYER_CHANCE then
+		local player = nearPlayers[math.random(1, #nearPlayers)]
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root then
+			local offset = Vector3.new((math.random() * 2 - 1) * Config.STORM_NEAR_PLAYER_RADIUS, 0, (math.random() * 2 - 1) * Config.STORM_NEAR_PLAYER_RADIUS)
+			local pos = root.Position + offset
+			return Vector3.new(pos.X, Config.CRATER_FLOOR_Y, pos.Z)
+		end
+	end
 	local angle = math.random() * math.pi * 2
 	local radius = math.random() * Config.CRATER_RADIUS
-	local target = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
+	return Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
+end
+
+local function spawnMeteor()
+	local target = pickTarget()
 	local start = target + Vector3.new(0, 120, 0)
 
 	local meteor = Instance.new("Part")
@@ -188,24 +280,10 @@ local function spawnMeteor()
 		meteor.Size = Vector3.new(8, 8, 8)
 		meteor.Color = Color3.fromRGB(255, 220, 120)
 		fire.Brightness = 5
-		Remotes.meteorImpactEvent():FireAllClients(target)
-		maybeStarstruck(target)
+		onMeteorLanded(target, false)
 		task.delay(0.25, function()
 			meteor:Destroy()
 		end)
-		-- Anyone standing in the crater is hit.
-		for _, player in ipairs(Players:GetPlayers()) do
-			local character = player.Character
-			local root = character and character:FindFirstChild("HumanoidRootPart")
-			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-			if root and humanoid and humanoid.Health > 0 then
-				local flat = Vector3.new(root.Position.X, 0, root.Position.Z)
-				if flat.Magnitude <= Config.CRATER_RADIUS + 4 then
-					humanoid:TakeDamage(Config.STORM_DAMAGE)
-					CarryService.dropAllCarried(player)
-				end
-			end
-		end
 	end)
 end
 
@@ -214,11 +292,10 @@ end
 -- rain meteors are too fast and too small to see in one frame). Bigger,
 -- slower, brighter, with a long diagonal fall — the sky's exclamation
 -- mark. They land in the crater like the small ones (same damage and
--- Starstruck rules), just louder.
+-- Starstruck rules), just louder, and each one leaves a rare Rotling
+-- at its impact point for 30 seconds.
 local function spawnHeroMeteor()
-	local angle = math.random() * math.pi * 2
-	local radius = math.random() * Config.CRATER_RADIUS * 0.6
-	local target = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
+	local target = pickTarget()
 	-- Start high and off to one side so the fall is a long diagonal
 	-- streak across the sky, not a straight drop.
 	local start = target + Vector3.new(math.random(-60, 60), 130, math.random(-60, 60))
@@ -249,23 +326,10 @@ local function spawnHeroMeteor()
 		meteor.Size = Vector3.new(16, 16, 16)
 		meteor.Color = Color3.fromRGB(255, 220, 120)
 		fire.Brightness = 8
-		Remotes.meteorImpactEvent():FireAllClients(target)
-		maybeStarstruck(target)
+		onMeteorLanded(target, true)
 		task.delay(0.3, function()
 			meteor:Destroy()
 		end)
-		for _, player in ipairs(Players:GetPlayers()) do
-			local character = player.Character
-			local root = character and character:FindFirstChild("HumanoidRootPart")
-			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-			if root and humanoid and humanoid.Health > 0 then
-				local flat = Vector3.new(root.Position.X, 0, root.Position.Z)
-				if flat.Magnitude <= Config.CRATER_RADIUS + 4 then
-					humanoid:TakeDamage(Config.STORM_DAMAGE)
-					CarryService.dropAllCarried(player)
-				end
-			end
-		end
 	end)
 end
 
@@ -303,13 +367,17 @@ function StarfallService.start()
 				Remotes.bannerEvent():FireAllClients("METEOR STORM IN 10 SECONDS! Get home or drop your catch!", 10)
 				waitPhase()
 				-- Storm: meteors rain on the crater, lightning flashes, the
-				-- wind blows. The lightning loop runs beside the meteor loop
-				-- and stops the moment the storm ends.
+				-- wind blows, the rumble drones. The lightning loop runs
+				-- beside the meteor loop and stops the moment the storm ends.
 				setPhase("storm", Config.STORM_DURATION)
 				stormActive = true
 				WorldBuilder.setWind(true)
+				startRumble()
 				-- Three hero meteors at storm start: big, slow, bright —
 				-- the threat shot needs a giant hazard visible in a still.
+				-- They spawn immediately (no wait before the first), so a
+				-- meteor is always in the air within a second of the storm
+				-- starting and lands within 10s.
 				for _ = 1, 3 do
 					task.spawn(spawnHeroMeteor)
 					task.wait(0.4)
@@ -321,12 +389,16 @@ function StarfallService.start()
 					end
 				end)
 				Remotes.bannerEvent():FireAllClients("METEOR STORM! Stay out of the crater!", 8)
+				-- The rain loop spawns the first meteor immediately
+				-- (no wait before the first call), so a meteor is
+				-- falling within a second of the storm starting.
 				while time() < phaseEndsAt do
 					spawnMeteor()
 					task.wait(Config.STORM_METEOR_INTERVAL)
 				end
 				stormActive = false
 				WorldBuilder.setWind(false)
+				stopRumble()
 				restoreSky()
 			end)
 			if not ok then
@@ -335,6 +407,7 @@ function StarfallService.start()
 				pcall(function()
 					WorldBuilder.setWind(false)
 				end)
+				pcall(stopRumble)
 				pcall(restoreSky)
 			end
 			setPhase("calm", calmDuration())
@@ -356,6 +429,7 @@ function StarfallService.ensureRunning()
 		pcall(function()
 			WorldBuilder.setWind(false)
 		end)
+		pcall(stopRumble)
 		pcall(restoreSky)
 		running = false
 		StarfallService.start()

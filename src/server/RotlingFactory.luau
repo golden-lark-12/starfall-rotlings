@@ -6,6 +6,9 @@
 -- anywhere. The body starts Anchored so a free Rotling rests on the
 -- crater floor instead of falling through the world; carrying un-anchors
 -- it and welds it to the player, placing re-anchors it.
+-- SOLID, not ghost: every part is built with Transparency 0, so the
+-- Rotlings read as solid characters with clear faces and colours per
+-- rarity — never flat semi-transparent boxes.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")

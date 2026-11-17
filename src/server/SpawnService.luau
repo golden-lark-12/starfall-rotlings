@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local MutationConfig = require(ReplicatedStorage.Shared.MutationConfig)
+local RarityConfig = require(ReplicatedStorage.Shared.RarityConfig)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local CarryService = require(script.Parent.CarryService)
 local RotlingFactory = require(script.Parent.RotlingFactory)
@@ -151,6 +152,47 @@ function SpawnService.spawnOne(): Model?
 	model.Parent = workspace
 	SpawnService.connectPrompt(model)
 	SpawnService.registerFree(model)
+	return model
+end
+
+-- Spawn a RARE Rotling at an exact spot (a meteor impact point) and
+-- leave it grabbable for STORM_RARE_LIFETIME seconds. If nobody grabs
+-- it in that time it fades back into the crater (destroyed). Used by
+-- the storm: every hero meteor leaves one behind, so the storm is a
+-- hunt, not just a hazard. Rarity is rolled from Rare upward.
+function SpawnService.spawnRareAt(position: Vector3): Model?
+	-- Roll a rarity of Rare (tier 2) or better, weighted like the
+	-- normal roll but with Common removed.
+	local rarityName = RarityConfig.rollRarity()
+	local tries = 0
+	while RarityConfig.rarityTier(rarityName) < 2 and tries < 10 do
+		rarityName = RarityConfig.rollRarity()
+		tries += 1
+	end
+	if RarityConfig.rarityTier(rarityName) < 2 then
+		rarityName = "Rare"
+	end
+	local defs = RotlingCatalog.defsOfRarity(rarityName)
+	if #defs == 0 then
+		return nil
+	end
+	local def = defs[math.random(1, #defs)]
+	local mutation = MutationConfig.rollMutation()
+	local model = RotlingFactory.build(def.id, mutation, position, 1.5)
+	if not model then
+		return nil
+	end
+	model.Parent = workspace
+	SpawnService.connectPrompt(model)
+	SpawnService.registerFree(model)
+	-- A storm rare only stays for its lifetime: after 30s it is gone
+	-- if it is still free (nobody grabbed it).
+	task.delay(Config.STORM_RARE_LIFETIME, function()
+		if model.Parent and model:GetAttribute("State") == "free" then
+			SpawnService.unregister(model)
+			model:Destroy()
+		end
+	end)
 	return model
 end
 

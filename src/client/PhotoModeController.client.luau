@@ -1,12 +1,13 @@
 --!strict
--- Starfall Rotlings: photo mode (debug).
--- Press P (or type /photo in chat) to step through 5 fixed camera
--- shots, the same views both sides judge: (1) spawn, (2) crater,
--- (3) my base with sign, (4) carrying a Rotling, (5) the HUD with
--- name tags. Each shot is a deterministic fixed CFrame — never a
--- free-fly — and the chat is hidden while a shot is framed, so the
--- capture is clean. A 6th press exits photo mode and hands the camera
--- back to the player.
+-- Starfall Rotlings: photo mode.
+-- Press P (or type /photo in chat) to step through FOUR fixed camera
+-- shots, the same views the judge sees: (1) hero — low and close down
+-- the conveyor belt; (2) isometric crater overview; (3) my base, close,
+-- with the "Lv N" sign and placed Rotlings; (4) storm — a wide crater
+-- and sky view with the red banner and the giant meteors. Each shot is
+-- a deterministic fixed CFrame — never a free-fly — and the chat is
+-- hidden while a shot is framed, so the capture is clean. A 5th press
+-- exits photo mode and hands the camera back to the player.
 --
 -- Roblox gives a LocalScript no screenshot-file API, so a shot is
 -- CAPTURED by the player: the bar at the bottom of each shot says so.
@@ -16,7 +17,9 @@
 --
 -- CameraFX shakes the camera during storms; it checks the camera's
 -- "PhotoMode" attribute and never shakes while a shot is framed, so
--- every shot is a fixed frame even mid-storm.
+-- every shot is a fixed frame even mid-storm. While photo mode is on,
+-- TagController shows every tag within 40 studs, so the screenshots
+-- have every label readable.
 
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
@@ -28,49 +31,47 @@ local GuiKit = require(script.Parent:WaitForChild("GuiKit"))
 
 local player = Players.LocalPlayer
 
--- The 5 shots, in order. Positions are fixed in world space (spawn,
--- crater and the HUD shot) or fixed relative to the player (base and
--- carrying). Tune a CFrame here and every capture of that shot moves.
+-- The 4 shots, in order. Positions are fixed in world space (hero,
+-- crater and storm) or fixed relative to the player (base). Tune a
+-- CFrame here and every capture of that shot moves.
 local SHOTS = {
 	{
 		-- HERO, and the first thumbnail: low and close behind the
 		-- belt's near end, looking down the conveyor at the crater and
 		-- the beacon. The belt's Rotlings are ~15 studs away — big, with
 		-- their rarity tags readable — instead of a distant landscape.
-		name = "1/5 — Hero",
-		detail = "The belt, Rotlings and the beacon",
+		name = "1/4 — Hero",
+		detail = "Down the conveyor belt, Rotlings and the beacon",
 		position = Vector3.new(42, 4.5, 9),
 		lookAt = Vector3.new(0, 2, 0),
 	},
 	{
-		name = "2/5 — Crater",
-		detail = "Free Rotlings, crystals and the beacon",
+		name = "2/4 — Crater",
+		detail = "Isometric overview: belt, crater and nearby bases",
 		-- Isometric overview, ~35 deg down: the whole belt, the crater
 		-- and the nearby bases in one frame, like a game diagram.
 		position = Vector3.new(24, 24, 24),
 		lookAt = Vector3.new(0, 0, 0),
 	},
 	{
-		name = "3/5 — My base",
-		detail = "Pads, sign and cash counter",
+		name = "3/4 — My base",
+		detail = "Pads, Lv sign and placed Rotlings",
 		position = nil, -- computed from the nearest base, below
 		lookAt = nil,
 	},
 	{
-		name = "4/5 — Carrying",
-		detail = "The Rotling in front of your chest",
-		position = nil, -- computed from the character, below
-		lookAt = nil,
-	},
-	{
-		name = "5/5 — HUD + tags",
-		detail = "Coins, storm, buttons and name tags",
-		position = Vector3.new(28, 5, 8),
-		lookAt = Vector3.new(0, 2, 0),
+		name = "4/4 — Storm",
+		detail = "Wide crater + sky: red banner and giant meteors",
+		-- Wide crater and sky view: the full-width red banner, the
+		-- dark red sky and the giant hero meteors arcing across it.
+		-- Best captured while a storm is running; otherwise the crater
+		-- at dusk.
+		position = Vector3.new(48, 10, 18),
+		lookAt = Vector3.new(0, 12, 0),
 	},
 }
 
-local shotIndex = 0 -- 0 = photo mode off; 1-5 = the shot showing
+local shotIndex = 0 -- 0 = photo mode off; 1-4 = the shot showing
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "PhotoModeGui"
@@ -108,20 +109,6 @@ local function nearestBaseCenter(): Vector3
 	return best
 end
 
--- Is the player carrying a Rotling right now? The server marks a
--- carried model State "carried" with the carrier's UserId on it.
-local function isCarrying(): boolean
-	for _, descendant in ipairs(workspace:GetDescendants()) do
-		if descendant:IsA("Model")
-			and descendant:GetAttribute("State") == "carried"
-			and descendant:GetAttribute("OwnerUserId") == player.UserId
-		then
-			return true
-		end
-	end
-	return false
-end
-
 local function shotCFrame(index: number): CFrame
 	local shot = SHOTS[index]
 	if index == 3 then
@@ -133,14 +120,6 @@ local function shotCFrame(index: number): CFrame
 		local towardCrater = (Vector3.new(0, 0, 0) - center).Unit
 		local position = center + Vector3.new(towardCrater.X, 0, towardCrater.Z) * 16 + Vector3.new(0, 7, 0)
 		return CFrame.lookAt(position, center + Vector3.new(0, 4, 0))
-	elseif index == 4 then
-		-- Carrying: close on the character from front-right-above,
-		-- looking at the chest where the Rotling rides (it is welded
-		-- in front of the chest at arm height, not above the head).
-		local character = player.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart")
-		local at = if root then root.Position else Vector3.new(0, 3, 0)
-		return CFrame.lookAt(at + Vector3.new(4, 2.5, 6), at + Vector3.new(0, 1.8, 0))
 	end
 	return CFrame.lookAt(shot.position :: Vector3, shot.lookAt :: Vector3)
 end
@@ -181,20 +160,16 @@ local function showShot(index: number)
 	camera:SetAttribute("PhotoMode", true)
 	camera.CFrame = shotCFrame(index)
 	hideChat()
-	local detail = shot.detail
-	if index == 4 and not isCarrying() then
-		detail ..= " — not carrying: grab a Rotling first, then press P"
-	end
-	titleLabel.Text = "📷 Photo " .. shot.name .. " — " .. detail
+	titleLabel.Text = "📷 Photo " .. shot.name .. " — " .. shot.detail
 	helpLabel.Text = "Capture it: ⋯ menu → Screenshot (saves to Photos). P = next shot."
-	nextButton.Text = if index == 5 then "Exit ✕" else "Next ▶"
+	nextButton.Text = if index == 4 then "Exit ✕" else "Next ▶"
 	bar.Visible = true
 end
 
 local function advanceShot()
 	if shotIndex == 0 then
 		showShot(1)
-	elseif shotIndex >= 5 then
+	elseif shotIndex >= 4 then
 		exitPhotoMode()
 	else
 		showShot(shotIndex + 1)

@@ -3,6 +3,9 @@
 -- The shop panel: five ladders (speed, extra arms, income, extra pads,
 -- longer locks) with tier dots and buy buttons. The client only asks to
 -- buy; the server checks the price and answers with the result.
+-- The Shop button sits in the top-left row at y=60, beside the HUD's
+-- Upgrade and Daily buttons — below Roblox's own top-left menu, so it
+-- is never covered by Roblox's own chrome.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -23,8 +26,8 @@ local SHOP_ORDER = { "Speed", "Carry", "Income", "Pads", "Lock" }
 
 local gui = GuiKit.getGui()
 
--- Top-left row, beside the HUD's Upgrade and Daily buttons.
-local shopButton = GuiKit.makeButton(gui, "ShopButton", "🛒 Shop (B)", UDim2.new(0, 120, 0, 44), UDim2.new(0, 12, 0, 30), GuiKit.COLORS.Blue)
+-- Top-left row, beside the HUD's Upgrade and Daily buttons, at y=60.
+local shopButton = GuiKit.makeButton(gui, "ShopButton", "🛒 Shop (B)", UDim2.new(0, 120, 0, 44), UDim2.new(0, 12, 0, 60), GuiKit.COLORS.Blue)
 
 local shopPanel = GuiKit.makePanel(gui, "ShopPanel", UDim2.new(0, 420, 0, 560), UDim2.new(0.5, -210, 0.5, -280))
 shopPanel.Visible = false

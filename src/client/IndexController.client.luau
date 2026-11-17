@@ -3,6 +3,9 @@
 -- The Index panel: one card per Rotling, greyed out until found, with
 -- its rarity colour and coins-per-second. Found cards light up. The
 -- server logs every grab and place; the client only shows the set.
+-- The Index button sits at y=328 on the right side, below the
+-- leaderboard panel (which ends at y=320), so it never overlaps the
+-- leaderboard, the storm timer or the top-right player list.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -15,7 +18,7 @@ local GuiKit = require(script.Parent:WaitForChild("GuiKit"))
 
 local gui = GuiKit.getGui()
 
-local indexButton = GuiKit.makeButton(gui, "IndexButton", "📖 Index (I)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -172, 0, 228), GuiKit.COLORS.Purple)
+local indexButton = GuiKit.makeButton(gui, "IndexButton", "📖 Index (I)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -172, 0, 328), GuiKit.COLORS.Purple)
 
 local indexPanel = GuiKit.makePanel(gui, "IndexPanel", UDim2.new(0, 520, 0, 420), UDim2.new(0.5, -260, 0.5, -210))
 indexPanel.Visible = false

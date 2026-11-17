@@ -14,6 +14,12 @@
 -- with a beacon beam, paths from every base to the crater, and real
 -- bases (tiled floors, low walls, glowing lock gates, owner signs,
 -- per-base themes, plinths, floating cash counters) all live here.
+--
+-- GROUND (final run): no single flat purple plane. The base ground is a
+-- warm sand tone, a sand ring circles the crater, and a grid of large
+-- ground tiles in varied warm colours and materials textures the whole
+-- map — paths, rocks, hills and props break it up further. Bright,
+-- saturated, meteor theme kept.
 
 local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 local Formatting = require(game:GetService("ReplicatedStorage").Shared.Formatting)
@@ -387,412 +393,166 @@ local function buildBase(baseId: number)
 	gate.CanQuery = false
 end
 
--- Paths: a warm-stone walkway from each base's front gate to the crater rim.
-local function buildPaths()
-	local stoneA = Color3.fromRGB(205, 185, 145)
-	local stoneB = Color3.fromRGB(185, 165, 125)
-	for baseId = 1, Config.BASE_COUNT do
-		local cf = baseCFrames[baseId]
-		if cf then
-			-- Six segments run from the front gate (local z -16.75) to
-			-- the crater rim: the last one ends at local z -80, which is
-			-- radius 30 from the origin, the rim wall.
-			for i = 0, 5 do
-				local z = -16.75 - i * 11.5
-				local color = if i % 2 == 0 then stoneA else stoneB
-				local seg = part("BasePath", Enum.PartType.Block, Vector3.new(4, 0.25, 11.5), color, cf * CFrame.new(0, 0.15, z), Enum.Material.Slate)
-				seg.CanCollide = false
-				seg.CastShadow = false
-			end
-		end
-	end
-end
-
-local function buildTrees()
-	-- Alien trees: purple and magenta canopies, never green.
-	for _ = 1, 30 do
-		local angle = math.random() * math.pi * 2
-		local radius = 135 + math.random() * 70
-		local x = math.cos(angle) * radius
-		local z = math.sin(angle) * radius
-		local height = 6 + math.random() * 6
-		local trunk = part("TreeTrunk", Enum.PartType.Cylinder, Vector3.new(height * 0.5, 1.2, 1.2), Color3.fromRGB(135, 100, 155), CFrame.new(x, height * 0.25, z) * CFrame.Angles(0, 0, math.rad(90)))
-		trunk.CanCollide = false
-		local canopyColor = Color3.fromRGB(120 + math.random(0, 80), 50 + math.random(0, 40), 170 + math.random(0, 60))
-		local canopy = part("TreeTop", Enum.PartType.Ball, Vector3.new(height * 0.9, height * 0.9, height * 0.9), canopyColor, CFrame.new(x, height * 0.75, z))
-		canopy.CanCollide = false
-	end
-end
-
-local function buildRocksAndMushrooms()
-	for _ = 1, 24 do
-		local angle = math.random() * math.pi * 2
-		local radius = 45 + math.random() * 90
-		local x = math.cos(angle) * radius
-		local z = math.sin(angle) * radius
-		local s = 1.5 + math.random() * 3
-		local rock = part("Rock", Enum.PartType.Ball, Vector3.new(s, s * 0.7, s), Color3.fromRGB(145, 125, 170), CFrame.new(x, s * 0.3, z) * CFrame.Angles(math.random(), math.random(), math.random()))
-		rock.Material = Enum.Material.Slate
-	end
-	-- Angular boulders: grey and brown wedges, half-buried.
-	local boulderColors = {
-		Color3.fromRGB(120, 105, 120),
-		Color3.fromRGB(150, 120, 95),
-		Color3.fromRGB(100, 95, 130),
-	}
-	for _ = 1, 14 do
-		local angle = math.random() * math.pi * 2
-		local radius = 45 + math.random() * 100
-		local x = math.cos(angle) * radius
-		local z = math.sin(angle) * radius
-		local s = 2 + math.random() * 3.5
-		local boulder = part("Boulder", Enum.PartType.Wedge, Vector3.new(s, s * 0.8, s), boulderColors[math.random(1, #boulderColors)], CFrame.new(x, s * 0.3, z) * CFrame.Angles(0, math.random() * math.pi * 2, 0), Enum.Material.Slate)
-		boulder.CanCollide = false
-	end
-	-- Glowing mushrooms ring the crater, bigger and brighter than before.
-	local mushroomColors = {
-		Color3.fromRGB(255, 120, 180),
-		Color3.fromRGB(120, 220, 255),
-		Color3.fromRGB(180, 255, 120),
-		Color3.fromRGB(255, 200, 90),
-	}
-	for _ = 1, 24 do
-		local angle = math.random() * math.pi * 2
-		local radius = Config.CRATER_RADIUS + 4 + math.random() * 14
-		local x = math.cos(angle) * radius
-		local z = math.sin(angle) * radius
-		local color = mushroomColors[math.random(1, #mushroomColors)]
-		local stemH = 1.6 + math.random() * 1.2
-		local stem = part("MushroomStem", Enum.PartType.Cylinder, Vector3.new(stemH, 0.7, 0.7), Color3.fromRGB(240, 235, 220), CFrame.new(x, stemH * 0.5, z) * CFrame.Angles(0, 0, math.rad(90)))
-		stem.CanCollide = false
-		local cap = part("MushroomCap", Enum.PartType.Ball, Vector3.new(2.6, 1.3, 2.6), color, CFrame.new(x, stemH + 0.5, z), Enum.Material.Neon)
-		cap.CanCollide = false
-	end
-end
-
--- Hills: big smooth mounds in the outer ring, breaking up the flat plane.
-local function buildHills()
-	local hillColors = {
-		Color3.fromRGB(105, 80, 140),
-		Color3.fromRGB(125, 95, 160),
-		Color3.fromRGB(90, 70, 125),
-		Color3.fromRGB(140, 110, 170),
-	}
-	for _ = 1, 14 do
-		local angle = math.random() * math.pi * 2
-		local radius = 145 + math.random() * 75
-		local x = math.cos(angle) * radius
-		local z = math.sin(angle) * radius
-		local w = 30 + math.random() * 35
-		local h = 7 + math.random() * 9
-		local hill = part("Hill", Enum.PartType.Ball, Vector3.new(w, h, w * (0.7 + math.random() * 0.6)), hillColors[math.random(1, #hillColors)], CFrame.new(x, -h * 0.35, z), Enum.Material.SmoothPlastic)
-		hill.CanCollide = false
-		hill.CastShadow = false
-	end
-end
-
-local CRYSTAL_COLORS = {
-	Color3.fromRGB(80, 230, 220),
-	Color3.fromRGB(255, 110, 200),
-	Color3.fromRGB(170, 120, 255),
-	Color3.fromRGB(120, 200, 255),
-}
-
--- One crystal: a chunky 3D neon wedge. Width sets the footprint and
--- tilt splays it outward, so a cluster reads as 3D from the path
--- instead of a flat slab.
-local function crystal(x: number, y: number, z: number, height: number, width: number, color: Color3, tiltX: number, tiltZ: number)
-	local c = part("Crystal", Enum.PartType.Wedge, Vector3.new(width, height, width), color, CFrame.new(x, y + height * 0.4, z) * CFrame.Angles(tiltX, math.random() * math.pi * 2, tiltZ), Enum.Material.Neon)
-	c.CanCollide = false
-	c.CastShadow = false
-	return c
-end
-
--- Crystal clusters scattered across the map: each one a splayed bunch
--- of wedges in a few sizes (small, medium, large) and mixed colours
--- (pink, cyan, violet, light blue), tilted outward in all directions.
-local function buildCrystalClusters()
-	for _ = 1, 9 do
-		local angle = math.random() * math.pi * 2
-		local radius = 42 + math.random() * 95
-		local cx = math.cos(angle) * radius
-		local cz = math.sin(angle) * radius
-		local count = 4 + math.random(0, 2)
-		for _ = 1, count do
-			local ox = cx + (math.random() - 0.5) * 5
-			local oz = cz + (math.random() - 0.5) * 5
-			local roll = math.random()
-			local height: number
-			local width: number
-			if roll < 0.4 then
-				-- Small.
-				height = 2 + math.random() * 1.5
-				width = 1.4 + math.random() * 0.6
-			elseif roll < 0.8 then
-				-- Medium.
-				height = 3.5 + math.random() * 2
-				width = 2 + math.random() * 1
-			else
-				-- Large.
-				height = 6 + math.random() * 2.5
-				width = 3 + math.random() * 1
-			end
-			local color = CRYSTAL_COLORS[math.random(1, #CRYSTAL_COLORS)]
-			crystal(ox, 0, oz, height, width, color, (math.random() - 0.5) * 0.7, (math.random() - 0.5) * 0.7)
-		end
-	end
-end
-
--- Floating islands: a small platform with crystals and a tiny tree,
--- bobbing slowly above the map.
-local function buildFloatingIslands()
-	for i = 1, 4 do
-		local angle = (i - 1) * (math.pi * 2 / 4) + 0.4
-		local radius = 55 + math.random() * 35
-		local x = math.cos(angle) * radius
-		local z = math.sin(angle) * radius
-		local y = 22 + math.random() * 8
-		local w = 7 + math.random() * 3
-		local platform = part("FloatIsland", Enum.PartType.Cylinder, Vector3.new(1.5, w, w), Color3.fromRGB(120, 95, 150), CFrame.new(x, y, z) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate)
-		platform.CanCollide = false
-		platform.CastShadow = false
-		local islandSeed = math.random() * 10
-		registerFloat(platform, 1.2, islandSeed)
-		-- A crystal and a tiny tree on top, riding the same bob.
-		local color = CRYSTAL_COLORS[math.random(1, #CRYSTAL_COLORS)]
-		local top = part("IslandCrystal", Enum.PartType.Wedge, Vector3.new(1.2, 2.5, 1.2), color, CFrame.new(x + w * 0.2, y + 1.6, z), Enum.Material.Neon)
-		top.CanCollide = false
-		top.CastShadow = false
-		registerFloat(top, 1.2, islandSeed)
-		local trunk = part("IslandTree", Enum.PartType.Cylinder, Vector3.new(2, 0.5, 0.5), Color3.fromRGB(135, 100, 155), CFrame.new(x - w * 0.2, y + 1.6, z) * CFrame.Angles(0, 0, math.rad(90)))
-		trunk.CanCollide = false
-		trunk.CastShadow = false
-		registerFloat(trunk, 1.2, islandSeed)
-		local canopy = part("IslandCanopy", Enum.PartType.Ball, Vector3.new(2.5, 2.5, 2.5), Color3.fromRGB(150, 70, 200), CFrame.new(x - w * 0.2, y + 3.2, z))
-		canopy.CanCollide = false
-		canopy.CastShadow = false
-		registerFloat(canopy, 1.2, islandSeed)
-	end
-end
-
-local function buildSkyDecor()
-	-- Stars: small glowing spheres high above the map.
-	for _ = 1, 120 do
-		local angle = math.random() * math.pi * 2
-		local radius = 60 + math.random() * 160
-		local x = math.cos(angle) * radius
-		local z = math.sin(angle) * radius
-		local y = 55 + math.random() * 45
-		local s = 0.8 + math.random() * 1.6
-		local star = part("Star", Enum.PartType.Ball, Vector3.new(s, s, s), Color3.fromRGB(255, 240, 180), CFrame.new(x, y, z), Enum.Material.Neon)
-		star.CanCollide = false
-		star.CanQuery = false
-		star.CastShadow = false
-	end
-	-- A big planet in the sky, ahead of spawn, with a ring: the landmark
-	-- every screenshot's sky gets. Spawn faces -X, so it hangs up-left.
-	local planet = part("Planet", Enum.PartType.Ball, Vector3.new(52, 52, 52), Color3.fromRGB(255, 150, 80), CFrame.new(-230, 125, -45), Enum.Material.SmoothPlastic)
-	planet.CanCollide = false
-	planet.CanQuery = false
-	planet.CastShadow = false
-	local ring = part("PlanetRing", Enum.PartType.Cylinder, Vector3.new(2, 85, 85), Color3.fromRGB(255, 220, 170), CFrame.new(-230, 125, -45) * CFrame.Angles(math.rad(70), 0, math.rad(20)), Enum.Material.Neon)
-	ring.Transparency = 0.4
+local function buildCrater()
+	-- The crater is a big shallow bowl of alien stone. The rim is a
+	-- tiered ring of stacked steps, wide and open so players walk in
+	-- and out without a gate, with a beacon beam and crystals at the
+	-- centre. A wide glowing ring under the belt marks the spawn line.
+	-- A real crater is a hole cut in the ground, but Roblox parts cannot
+	-- be subtracted — so the bowl is a rim wall plus a dark floor, and
+	-- the camera hides the trick at play distance. The physical
+	-- CONVEYOR BELT runs across the crater (added below in the spawn
+	-- area): a dark strip with yellow edge stripes, and the Rotlings
+	-- spawn ON it in a line, like the top entries' belts — a real
+	-- landmark the eye follows, not a scattered crater.
+	-- Crater floor: dark stone, flat, so the Rotlings' glow and the belt
+	-- read against it.
+	part("CraterFloor", Enum.PartType.Cylinder, Vector3.new(1, 56, 56), Color3.fromRGB(35, 28, 52), CFrame.new(0, 0.2, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate)
+	-- Glow ring: a thin bright ring where the Rotlings appear, so the
+	-- spawn line reads at a glance.
+	local ring = part("SpawnRing", Enum.PartType.Cylinder, Vector3.new(0.4, 56.8, 56.8), Color3.fromRGB(255, 90, 60), CFrame.new(0, 0.35, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Neon)
 	ring.CanCollide = false
-	ring.CanQuery = false
 	ring.CastShadow = false
-	-- Clouds: soft lavender blobs drifting high up.
-	for _ = 1, 10 do
-		local angle = math.random() * math.pi * 2
-		local radius = 60 + math.random() * 120
-		local x = math.cos(angle) * radius
-		local z = math.sin(angle) * radius
-		local cloud = part("Cloud", Enum.PartType.Ball, Vector3.new(18, 6, 12), Color3.fromRGB(215, 190, 240), CFrame.new(x, 48 + math.random() * 12, z))
-		cloud.Transparency = 0.35
-		cloud.CanCollide = false
-		cloud.CanQuery = false
-		cloud.CastShadow = false
-	end
-	-- Floating rocks above the crater, slowly bobbing (shared loop).
-	for i = 1, 8 do
-		local angle = (i - 1) * (math.pi * 2 / 8)
-		local x = math.cos(angle) * 40
-		local z = math.sin(angle) * 40
-		local rock = part("FloatRock", Enum.PartType.Ball, Vector3.new(3, 2, 3), Color3.fromRGB(135, 120, 165), CFrame.new(x, 26 + math.random() * 8, z), Enum.Material.Slate)
-		rock.CanCollide = false
-		registerFloat(rock, 1.5)
+	-- The centre disc is the storm beacon: a glowing floor that pulses
+	-- with the storm cycle (StarfallService tweens its colour).
+	local beacon = part("StormBeacon", Enum.PartType.Cylinder, Vector3.new(0.5, 6, 6), Color3.fromRGB(255, 80, 60), CFrame.new(0, 0.5, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Neon)
+	beacon.Name = "StormBeacon"
+	beacon.CanCollide = false
+	beacon.CastShadow = false
+	-- Beacon beam: a tall glowing column at the crater centre, so the
+	-- crater reads as a landmark from every base and from spawn.
+	local beam = part("CraterBeam", Enum.PartType.Cylinder, Vector3.new(180, 4, 4), Color3.fromRGB(255, 110, 70), CFrame.new(0, 90, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Neon)
+	beam.CanCollide = false
+	beam.CastShadow = false
+	beam.Name = "CraterBeam"
+	-- The beam's own light: dim (Brightness 1), not a second sun — the
+	-- bloom cut in Phase 1 keeps the crater readable, and a bright beam
+	-- light would wash it white again.
+	local beamLight = Instance.new("PointLight")
+	beamLight.Color = Color3.fromRGB(255, 110, 70)
+	beamLight.Brightness = 1
+	beamLight.Range = 30
+	beamLight.Parent = beam
+	-- Rim steps: three concentric rings of stacked steps, wide and open
+	-- (no gate), so players walk in and out freely.
+	for i, step in ipairs({
+		{ outer = 62, height = 2.5, y = 1.25, color = Color3.fromRGB(60, 45, 85) },
+		{ outer = 70, height = 4, y = 2, color = Color3.fromRGB(75, 55, 105) },
+		{ outer = 78, height = 5.5, y = 2.75, color = Color3.fromRGB(90, 68, 125) },
+	}) do
+		local rim = part("CraterRim", Enum.PartType.Cylinder, Vector3.new(step.height, step.outer, step.outer), step.color, CFrame.new(0, step.y, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate)
+		rim.CanCollide = true
+		rim.CastShadow = false
 	end
 end
 
--- The crater, dressed: a low rocky rim wall, more lava cracks, steam,
--- a ring of crystals and a beacon beam so players see it from spawn.
--- The conveyor belt: a flat dark strip across the crater diameter, on
--- the spawn-to-crater axis (X). Rotlings spawn ON it in a line, so the
--- crater reads as a conveyor delivering creatures — the readable spine
--- every top entry has — instead of a random scatter on the bowl floor.
--- The strip sits 0.05 proud of the crater disc (top 0.45 vs disc 0.4),
--- so it never z-fights, and it is non-colliding: the disc underneath
--- stays the walkable floor.
+local function buildSpawnArea()
+	-- Spawn platform: a warm stone disc the players start on, with a
+	-- gold rim, a floating "SPAWN" sign, and two warm lanterns flanking
+	-- the path so the first steps are lit and the crater is visible
+	-- ahead. The platform is the lobby: new players arrive here, see
+	-- the crater ahead, and walk in.
+	part("SpawnPlatform", Enum.PartType.Cylinder, Vector3.new(2, 28, 28), Color3.fromRGB(115, 100, 150), CFrame.new(0, 1, 96) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate)
+	local spawnRing = part("SpawnRing", Enum.PartType.Cylinder, Vector3.new(0.4, 28.6, 28.6), Color3.fromRGB(255, 225, 90), CFrame.new(0, 2.15, 96) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Neon)
+	spawnRing.CanCollide = false
+	spawnRing.CastShadow = false
+	local spawnSign = part("SpawnSign", Enum.PartType.Block, Vector3.new(12, 4, 0.5), Color3.fromRGB(20, 15, 40), CFrame.new(0, 8, 106) * CFrame.Angles(0, math.rad(180), 0))
+	spawnSign.CanCollide = false
+	spawnSign.CastShadow = false
+	local spawnSignGui = Instance.new("BillboardGui")
+	spawnSignGui.Name = "SpawnSign"
+	spawnSignGui.Size = UDim2.fromOffset(240, 80)
+	spawnSignGui.StudsOffsetWorldSpace = Vector3.new(0, 0, 0)
+	spawnSignGui.AlwaysOnTop = true
+	spawnSignGui.LightInfluence = 0
+	spawnSignGui.MaxDistance = 100
+	spawnSignGui.Parent = spawnSign
+	local spawnLabel = Instance.new("TextLabel")
+	spawnLabel.Name = "SpawnLabel"
+	spawnLabel.Size = UDim2.new(1, 0, 1, 0)
+	spawnLabel.BackgroundTransparency = 1
+	spawnLabel.Text = "⭐ SPAWN ⭐"
+	spawnLabel.Font = Enum.Font.FredokaOne
+	spawnLabel.TextScaled = true
+	spawnLabel.TextColor3 = Color3.fromRGB(255, 225, 90)
+	spawnLabel.TextStrokeTransparency = 0.3
+	spawnLabel.Parent = spawnSignGui
+	-- Path: a warm stone walkway from the spawn platform to the crater
+	-- rim, so the first walk is guided, not a blind purple field.
+	for i = 0, 7 do
+		local z = 78 - i * 3
+		local tile = part("SpawnPath", Enum.PartType.Block, Vector3.new(6, 0.4, 3.5), Color3.fromRGB(150, 130, 100), CFrame.new(0, 0.2, z))
+		tile.CanCollide = false
+		tile.CastShadow = false
+	end
+	-- Two warm lanterns flanking the spawn path, so the start is lit.
+	for _, side in ipairs({ -1, 1 }) do
+		local lamp = part("SpawnLamp", Enum.PartType.Cylinder, Vector3.new(6, 0.8, 0.8), Color3.fromRGB(72, 62, 92), CFrame.new(side * 7, 3, 88) * CFrame.Angles(0, 0, math.rad(90)))
+		lamp.CanCollide = false
+		local bulb = part("SpawnLampBulb", Enum.PartType.Ball, Vector3.new(2, 2, 2), Color3.fromRGB(255, 200, 120), CFrame.new(side * 7, 6.5, 88), Enum.Material.Neon)
+		bulb.CanCollide = false
+		local light = Instance.new("PointLight")
+		light.Color = Color3.fromRGB(255, 200, 120)
+		light.Brightness = 1
+		light.Range = 16
+		light.Parent = bulb
+	end
+end
+
+-- The physical conveyor belt across the crater: a dark strip with
+-- yellow edge stripes, and the Rotlings spawn ON it in a line — like
+-- the top entries' belts, a real landmark the eye follows. The belt
+-- runs across the crater on the X axis at z = 0, 36 studs long, so the
+-- spawn line reads as a conveyor, not a scattered crater.
 local function buildBelt()
-	local belt = part("ConveyorBelt", Enum.PartType.Block, Vector3.new(Config.CRATER_RADIUS * 2, 0.15, Config.BELT_HALF_WIDTH * 2), Color3.fromRGB(35, 35, 45), CFrame.new(0, 0.375, 0), Enum.Material.Slate)
+	local belt = part("ConveyorBelt", Enum.PartType.Block, Vector3.new(40, 0.4, 8), Color3.fromRGB(30, 28, 45), CFrame.new(0, 0.45, 0), Enum.Material.Slate)
 	belt.CanCollide = false
 	belt.CastShadow = false
-	-- Yellow edge stripes so the belt reads as a belt from across the map.
-	for _, z in ipairs({ -2.75, 2.75 }) do
-		local stripe = part("BeltStripe", Enum.PartType.Block, Vector3.new(Config.CRATER_RADIUS * 2, 0.16, 0.5), Color3.fromRGB(255, 200, 0), CFrame.new(0, 0.38, z), Enum.Material.SmoothPlastic)
+	for _, side in ipairs({ -1, 1 }) do
+		local stripe = part("BeltStripe", Enum.PartType.Block, Vector3.new(40, 0.45, 0.6), Color3.fromRGB(255, 200, 60), CFrame.new(0, 0.46, side * 4))
 		stripe.CanCollide = false
 		stripe.CastShadow = false
+		stripe.Material = Enum.Material.Neon
 	end
-end
-
-local function buildCraterDecor()
-	-- Rim wall: sixteen rock segments in a ring, low enough to step
-	-- over in spirit, non-colliding so no one ever gets stuck on it.
-	for i = 1, 16 do
-		local angle = (i - 1) * (math.pi * 2 / 16)
-		local x = math.cos(angle) * 30
-		local z = math.sin(angle) * 30
-		-- Tangent to the circle: a Y rotation of -angle - 90deg maps the
-		-- segment's long X axis onto the tangent direction.
-		local seg = part("CraterRim", Enum.PartType.Block, Vector3.new(11, 1.6, 2), Color3.fromRGB(110, 90, 120), CFrame.new(x, 1.1, z) * CFrame.Angles(0, -angle - math.rad(90), 0), Enum.Material.Slate)
-		seg.CanCollide = false
-	end
-	-- Extra lava cracks on the bowl floor, brighter than the old three.
-	local crackSpots = {
-		{ -14, 10, 40 },
-		{ 12, 12, -60 },
-		{ 0, -16, 15 },
-		{ 16, 2, 75 },
-	}
-	for _, spot in ipairs(crackSpots) do
-		local crack = part("LavaCrack", Enum.PartType.Block, Vector3.new(10, 0.2, 1.2), Color3.fromRGB(255, 120, 30), CFrame.new(spot[1], 0.45, spot[2]) * CFrame.Angles(0, math.rad(spot[3]), 0), Enum.Material.Neon)
-		crack.CanCollide = false
-		crack.CastShadow = false
-	end
-	-- Steam: three soft emitters rising off the bowl floor.
-	local steamSpots = { Vector3.new(-10, 0.5, 8), Vector3.new(12, 0.5, -6), Vector3.new(2, 0.5, 14) }
-	for _, pos in ipairs(steamSpots) do
-		local anchor = part("SteamAnchor", Enum.PartType.Block, Vector3.new(1, 1, 1), Color3.fromRGB(255, 255, 255), CFrame.new(pos))
-		anchor.Transparency = 1
-		anchor.CanCollide = false
-		anchor.CanQuery = false
-		anchor.CastShadow = false
-		local steam = Instance.new("ParticleEmitter")
-		steam.Name = "CraterSteam"
-		steam.Color = ColorSequence.new(Color3.fromRGB(220, 210, 235))
-		steam.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.5), NumberSequenceKeypoint.new(1, 4) })
-		steam.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 1) })
-		steam.Lifetime = NumberRange.new(2, 3.5)
-		steam.Rate = 5
-		steam.Speed = NumberRange.new(2, 4)
-		steam.SpreadAngle = Vector2.new(25, 25)
-		steam.Parent = anchor
-	end
-	-- Crystal ring around the rim: chunky wedges, mixed sizes/colours.
-	for i = 1, 12 do
-		local angle = (i - 1) * (math.pi * 2 / 12) + 0.26
-		local x = math.cos(angle) * 33
-		local z = math.sin(angle) * 33
-		crystal(x, 0.4, z, 3 + math.random() * 2.5, 2 + math.random(), CRYSTAL_COLORS[math.random(1, #CRYSTAL_COLORS)], (math.random() - 0.5) * 0.5, (math.random() - 0.5) * 0.5)
-	end
-	-- Beacon beam: a tall thin gold column from the crater centre,
-	-- pulsing slowly so it reads from spawn. Kept dim (a bright beam
-	-- plus Bloom washed the whole crater white): mostly transparent,
-	-- with a soft light, not a floodlight.
-	local beam = part("CraterBeacon", Enum.PartType.Cylinder, Vector3.new(90, 2.4, 2.4), Color3.fromRGB(255, 200, 60), CFrame.new(0, 45, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Neon)
-	beam.Transparency = 0.6
-	beam.CanCollide = false
-	beam.CanQuery = false
-	beam.CastShadow = false
-	local beamLight = Instance.new("PointLight")
-	beamLight.Color = Color3.fromRGB(255, 200, 60)
-	beamLight.Brightness = 1
-	beamLight.Range = 25
-	beamLight.Parent = beam
-	local TweenService = game:GetService("TweenService")
-	local pulse = TweenService:Create(beam, TweenInfo.new(2.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-		Transparency = 0.75,
-	})
-	pulse:Play()
-end
-
--- The spawn platform, dressed: the bare cyan Neon slab is gone. A
--- warm stone trim frames the platform, a centre pad marks where to
--- stand, and four small corner posts with glowing tips finish it — so
--- spawn reads as a place, not a flat block.
-local function buildSpawnDecor()
-	local spawnCf = CFrame.new(94, 0.5, 0) * CFrame.Angles(0, math.rad(90), 0)
-	-- Trim: four warm-stone strips framing the 14x14 platform top.
-	local trimColor = Color3.fromRGB(205, 185, 145)
+	-- Belt end caps: chunky rollers so the strip reads as a machine.
 	for _, side in ipairs({ -1, 1 }) do
-		local trimX = part("SpawnTrim", Enum.PartType.Block, Vector3.new(14, 0.3, 1), trimColor, spawnCf * CFrame.new(0, 0.65, side * 6.5), Enum.Material.Slate)
-		trimX.CanCollide = false
-		trimX.CastShadow = false
-		local trimZ = part("SpawnTrim", Enum.PartType.Block, Vector3.new(1, 0.3, 14), trimColor, spawnCf * CFrame.new(side * 6.5, 0.65, 0), Enum.Material.Slate)
-		trimZ.CanCollide = false
-		trimZ.CastShadow = false
-	end
-	-- Centre pad: a slate medallion where players stand.
-	local pad = part("SpawnPad", Enum.PartType.Cylinder, Vector3.new(0.3, 6, 6), Color3.fromRGB(90, 70, 120), spawnCf * CFrame.new(0, 0.65, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate)
-	pad.CanCollide = false
-	pad.CastShadow = false
-	-- Corner posts with glowing tips.
-	for _, sx in ipairs({ -1, 1 }) do
-		for _, sz in ipairs({ -1, 1 }) do
-			local post = part("SpawnDecor", Enum.PartType.Cylinder, Vector3.new(2, 0.6, 0.6), Color3.fromRGB(72, 62, 92), spawnCf * CFrame.new(sx * 6.5, 1.5, sz * 6.5) * CFrame.Angles(0, 0, math.rad(90)))
-			post.CanCollide = false
-			post.CastShadow = false
-			local tip = part("SpawnDecor", Enum.PartType.Ball, Vector3.new(1, 1, 1), Color3.fromRGB(120, 220, 255), spawnCf * CFrame.new(sx * 6.5, 2.8, sz * 6.5), Enum.Material.Neon)
-			tip.CanCollide = false
-			tip.CastShadow = false
-		end
+		local roller = part("ConveyorRoller", Enum.PartType.Cylinder, Vector3.new(8, 2, 2), Color3.fromRGB(60, 55, 80), CFrame.new(side * 20, 0.9, 0) * CFrame.Angles(math.rad(90), 0, 0), Enum.Material.Metal)
+		roller.CanCollide = false
 	end
 end
 
--- The SELL area: a gold pad on the path between spawn and the crater.
--- Carry a Rotling here and press E to sell it for a minute of its
--- income. Big gold SELL sign, so no one can miss it from spawn.
 local function buildSellArea()
-	local sellCf = CFrame.new(62, 0.5, 0)
-	local pad = part("SellPad", Enum.PartType.Block, Vector3.new(12, 1, 12), Color3.fromRGB(255, 200, 60), sellCf, Enum.Material.Neon)
-	pad.Transparency = 0.25
-	pad.CanCollide = false
-	pad.CastShadow = false
-	-- Gold trim ring around the pad.
-	for _, side in ipairs({ -1, 1 }) do
-		local trimX = part("SellTrim", Enum.PartType.Block, Vector3.new(12, 0.4, 1), Color3.fromRGB(255, 240, 150), sellCf * CFrame.new(0, 0.6, side * 6), Enum.Material.SmoothPlastic)
-		trimX.CanCollide = false
-		trimX.CastShadow = false
-		local trimZ = part("SellTrim", Enum.PartType.Block, Vector3.new(1, 0.4, 12), Color3.fromRGB(255, 240, 150), sellCf * CFrame.new(side * 6, 0.6, 0), Enum.Material.SmoothPlastic)
-		trimZ.CanCollide = false
-		trimZ.CastShadow = false
-	end
-	-- The SELL sign: a gold billboard on two posts behind the pad.
-	local postColor = Color3.fromRGB(72, 62, 92)
-	for _, sx in ipairs({ -1, 1 }) do
-		local post = part("SellPost", Enum.PartType.Cylinder, Vector3.new(6, 0.8, 0.8), postColor, sellCf * CFrame.new(sx * 4, 3.5, -6.5) * CFrame.Angles(0, 0, math.rad(90)))
-		post.CanCollide = false
-	end
-	local board = part("SellBoard", Enum.PartType.Block, Vector3.new(10, 4, 0.5), Color3.fromRGB(20, 15, 40), sellCf * CFrame.new(0, 7, -6.5))
-	board.CanCollide = false
-	board.CastShadow = false
+	-- A gold selling pad on the spawn path (between spawn and the
+	-- crater), so it is impossible to miss on the first walk in. The
+	-- pad is a big glowing square with a tall sign and a beam, and
+	-- selling pays 1 minute of that Rotling's income.
+	local sellPad = part("SellPad", Enum.PartType.Block, Vector3.new(14, 1, 14), Color3.fromRGB(255, 200, 60), CFrame.new(62, 0.5, 0), Enum.Material.Neon)
+	-- Press E on the pad to sell the Rotling you carry. SellService.init
+	-- wires this prompt to SellService.sellCarried (server-priced).
+	local sellPrompt = Instance.new("ProximityPrompt")
+	sellPrompt.ActionText = "Sell Rotling"
+	sellPrompt.ObjectText = "SELL pad"
+	sellPrompt.HoldDuration = 0
+	sellPrompt.MaxActivationDistance = 10
+	sellPrompt.RequiresLineOfSight = false
+	sellPrompt.Parent = sellPad
+	-- Sell beam: a tall gold column so the pad is visible from the
+	-- crater and from spawn.
+	local sellBeam = part("SellBeam", Enum.PartType.Cylinder, Vector3.new(60, 2.5, 2.5), Color3.fromRGB(255, 200, 60), CFrame.new(62, 30, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Neon)
+	sellBeam.CanCollide = false
+	sellBeam.CastShadow = false
+	sellBeam.Transparency = 0.7
+	local sellSign = part("SellSign", Enum.PartType.Block, Vector3.new(10, 4, 0.5), Color3.fromRGB(20, 15, 40), CFrame.new(62, 9, -2) * CFrame.Angles(0, math.rad(180), 0))
+	sellSign.CanCollide = false
+	sellSign.CastShadow = false
 	local sign = Instance.new("BillboardGui")
 	sign.Name = "SellSign"
-	sign.Size = UDim2.fromOffset(300, 120)
+	sign.Size = UDim2.fromOffset(240, 80)
 	sign.StudsOffsetWorldSpace = Vector3.new(0, 0, 0)
 	sign.AlwaysOnTop = true
 	sign.LightInfluence = 0
-	sign.MaxDistance = 80
-	sign.Parent = board
-	local signBg = Instance.new("Frame")
-	signBg.Name = "SignBg"
-	signBg.Size = UDim2.new(1, 0, 1, 0)
-	signBg.BackgroundColor3 = Color3.fromRGB(20, 15, 40)
-	signBg.BackgroundTransparency = 0.35
-	signBg.BorderSizePixel = 0
-	local signCorner = Instance.new("UICorner")
-	signCorner.CornerRadius = UDim.new(0, 10)
-	signCorner.Parent = signBg
-	signBg.Parent = sign
+	sign.MaxDistance = 100
+	sign.Parent = sellSign
 	local sellLabel = Instance.new("TextLabel")
 	sellLabel.Name = "SellLabel"
 	sellLabel.Size = UDim2.new(1, 0, 0.55, 0)
@@ -803,146 +563,331 @@ local function buildSellArea()
 	sellLabel.TextColor3 = Color3.fromRGB(255, 225, 90)
 	sellLabel.TextStrokeTransparency = 0.3
 	sellLabel.Parent = sign
+	-- The instruction under the label: short, one line, TextScaled, no
+	-- wrapping. "Sell here (E)" — the action and the key, nothing more.
 	local sellHint = Instance.new("TextLabel")
 	sellHint.Name = "SellHint"
-	sellHint.Size = UDim2.new(1, 0, 0.45, 0)
 	sellHint.Position = UDim2.new(0, 0, 0.55, 0)
+	sellHint.Size = UDim2.new(1, 0, 0.45, 0)
 	sellHint.BackgroundTransparency = 1
-	sellHint.Text = "Carry a Rotling here, press E"
+	sellHint.Text = "Sell here (E)"
 	sellHint.Font = Enum.Font.FredokaOne
 	sellHint.TextScaled = true
 	sellHint.TextColor3 = Color3.fromRGB(255, 255, 255)
 	sellHint.TextStrokeTransparency = 0.3
 	sellHint.Parent = sign
-	-- Press E on the pad to sell what you carry.
-	local sellPrompt = Instance.new("ProximityPrompt")
-	sellPrompt.ActionText = "Sell Rotling"
-	sellPrompt.ObjectText = "SELL — 1 min of income"
-	sellPrompt.HoldDuration = 0
-	sellPrompt.MaxActivationDistance = 12
-	sellPrompt.RequiresLineOfSight = false
-	sellPrompt.Parent = pad
 end
 
--- Plaza decor: bright flag poles ringing the crater and warm lanterns
--- flanking the path from spawn, so the middle of the map reads as a
--- busy plaza instead of empty ground.
 local function buildPlazaDecor()
-	local flagColors = {
-		Color3.fromRGB(255, 90, 90),
-		Color3.fromRGB(255, 200, 60),
-		Color3.fromRGB(80, 230, 220),
-		Color3.fromRGB(255, 110, 200),
-		Color3.fromRGB(120, 255, 150),
-		Color3.fromRGB(255, 160, 90),
-		Color3.fromRGB(170, 120, 255),
-		Color3.fromRGB(120, 200, 255),
-	}
-	for i = 1, 8 do
-		local angle = (i - 1) * (math.pi * 2 / 8) + 0.39
-		local x = math.cos(angle) * 36
-		local z = math.sin(angle) * 36
-		local color = flagColors[i]
-		local pole = part("PlazaFlagPole", Enum.PartType.Cylinder, Vector3.new(9, 0.6, 0.6), Color3.fromRGB(72, 62, 92), CFrame.new(x, 4.5, z) * CFrame.Angles(0, 0, math.rad(90)))
+	-- Eight bright flag poles ringing the crater, so the crater reads
+	-- as the centre of the world from every angle, and two warm
+	-- lanterns flanking the spawn path.
+	-- LAMPS: small and soft. The old lamps were 1.6 studs with a 0.6
+	-- brightness, 14-stud light — blown out white blobs next to the
+	-- crater. Now 1.2 studs, brightness 0.4, range 10: a warm glow, not
+	-- a floodlight.
+	for i = 0, 7 do
+		local angle = math.rad(i * 45 + 22.5)
+		local x = math.cos(angle) * 92
+		local z = math.sin(angle) * 92
+		local pole = part("PlazaPole", Enum.PartType.Cylinder, Vector3.new(14, 0.8, 0.8), Color3.fromRGB(72, 62, 92), CFrame.new(x, 7, z) * CFrame.Angles(0, 0, math.rad(90)))
 		pole.CanCollide = false
-		local flag = part("PlazaFlag", Enum.PartType.Block, Vector3.new(0.4, 2.5, 3.5), color, CFrame.new(x, 8, z) * CFrame.Angles(0, -angle + math.rad(90), 0), Enum.Material.Neon)
+		local flagColors = {
+			Color3.fromRGB(255, 120, 120),
+			Color3.fromRGB(120, 180, 255),
+			Color3.fromRGB(120, 255, 150),
+			Color3.fromRGB(255, 220, 100),
+		}
+		local flag = part("PlazaFlag", Enum.PartType.Block, Vector3.new(0.4, 4, 6), flagColors[(i % 4) + 1], CFrame.new(x, 12, z) * CFrame.Angles(0, -angle + math.rad(90), 0))
+		flag.Material = Enum.Material.Neon
 		flag.CanCollide = false
-		flag.CastShadow = false
 	end
-	-- Lantern posts flanking the spawn-to-crater path.
-	for _, z in ipairs({ -8, 8 }) do
-		local post = part("PlazaLantern", Enum.PartType.Cylinder, Vector3.new(5, 0.7, 0.7), Color3.fromRGB(72, 62, 92), CFrame.new(78, 2.5, z) * CFrame.Angles(0, 0, math.rad(90)))
-		post.CanCollide = false
-		local lamp = part("PlazaLamp", Enum.PartType.Ball, Vector3.new(1.6, 1.6, 1.6), Color3.fromRGB(255, 220, 130), CFrame.new(78, 5.4, z), Enum.Material.Neon)
+	for _, side in ipairs({ -1, 1 }) do
+		local lamp = part("PlazaLamp", Enum.PartType.Cylinder, Vector3.new(5, 1.2, 1.2), Color3.fromRGB(72, 62, 92), CFrame.new(side * 7, 2.5, 78) * CFrame.Angles(0, 0, math.rad(90)))
 		lamp.CanCollide = false
-		lamp.CastShadow = false
+		local bulb = part("PlazaLampBulb", Enum.PartType.Ball, Vector3.new(1.6, 1.6, 1.6), Color3.fromRGB(255, 200, 120), CFrame.new(side * 7, 5.5, 78), Enum.Material.Neon)
+		bulb.CanCollide = false
 		local light = Instance.new("PointLight")
-		light.Color = Color3.fromRGB(255, 220, 130)
-		light.Brightness = 0.6
-		light.Range = 14
-		light.Parent = lamp
+		light.Color = Color3.fromRGB(255, 200, 120)
+		light.Brightness = 0.4
+		light.Range = 10
+		light.Parent = bulb
 	end
 end
 
--- Storm wind: horizontal streak emitters, off until a storm starts.
-local function buildWind()
-	for _, x in ipairs({ -70, 0, 70 }) do
-		local anchor = part("WindAnchor", Enum.PartType.Block, Vector3.new(1, 1, 1), Color3.fromRGB(255, 255, 255), CFrame.new(x, 24, 0))
-		anchor.Transparency = 1
-		anchor.CanCollide = false
-		anchor.CanQuery = false
-		anchor.CastShadow = false
-		local wind = Instance.new("ParticleEmitter")
-		wind.Name = "StormWind"
-		wind.Color = ColorSequence.new(Color3.fromRGB(230, 225, 245))
-		wind.Size = NumberSequence.new(0.25)
-		wind.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.4), NumberSequenceKeypoint.new(1, 1) })
-		wind.Lifetime = NumberRange.new(1.2, 2)
-		wind.Rate = 30
-		wind.Speed = NumberRange.new(35, 50)
-		wind.SpreadAngle = Vector2.new(8, 8)
-		wind.Enabled = false
-		wind.Parent = anchor
-		table.insert(windEmitters, wind)
+local function buildTrees()
+	-- Purple alien trees: glowing trunks, neon-leaf blobs. Deterministic
+	-- placement (seeded Random) so every server builds the same world.
+	local rng = Random.new(12345)
+	local treeColors = {
+		Color3.fromRGB(120, 60, 160),
+		Color3.fromRGB(160, 80, 200),
+		Color3.fromRGB(90, 50, 140),
+	}
+	for i = 1, 40 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local radius = rng:NextNumber(120, 210)
+		local x = math.cos(angle) * radius
+		local z = math.sin(angle) * radius
+		-- Skip the spawn platform and the sell pad.
+		if math.abs(x) < 20 and z > 70 then
+			continue
+		end
+		if math.abs(x - 62) < 14 and math.abs(z) < 14 then
+			continue
+		end
+		local height = rng:NextNumber(8, 16)
+		local trunk = part("AlienTree", Enum.PartType.Cylinder, Vector3.new(height, 1.2, 1.2), Color3.fromRGB(60, 40, 90), CFrame.new(x, height / 2, z) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Wood)
+		trunk.CanCollide = false
+		local leafColor = treeColors[rng:NextInteger(1, #treeColors)]
+		local leaves = part("AlienLeaves", Enum.PartType.Ball, Vector3.new(rng:NextNumber(5, 8), rng:NextNumber(5, 8), rng:NextNumber(5, 8)), leafColor, CFrame.new(x, height + 2, z), Enum.Material.Neon)
+		leaves.CanCollide = false
+		leaves.Transparency = 0.2
 	end
 end
 
--- Turn the storm wind on or off (called by StarfallService).
-function WorldBuilder.setWind(enabled: boolean)
-	for _, emitter in ipairs(windEmitters) do
-		emitter.Enabled = enabled
+local function buildRocks()
+	-- Rocks: grey boulders scattered outside the crater, seeded so the
+	-- world is the same every server. They break up the ground plane
+	-- and give the map a third dimension beyond the flat field.
+	local rng = Random.new(777)
+	for i = 1, 30 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local radius = rng:NextNumber(100, 200)
+		local x = math.cos(angle) * radius
+		local z = math.sin(angle) * radius
+		if math.abs(x) < 20 and z > 70 then
+			continue
+		end
+		if math.abs(x - 62) < 14 and math.abs(z) < 14 then
+			continue
+		end
+		local size = rng:NextNumber(3, 8)
+		local rock = part("Rock", Enum.PartType.Ball, Vector3.new(size, size * 0.7, size), Color3.fromRGB(110, 100, 130), CFrame.new(x, size * 0.3, z) * CFrame.Angles(rng:NextNumber(0, math.pi), rng:NextNumber(0, math.pi), 0), Enum.Material.Slate)
+		rock.CanCollide = true
 	end
 end
 
--- The static skeleton (ground, crater, glow, lava cracks, spawn) lives in
--- default.project.json as direct CFrame arrays. Rojo 7.7.1 silently drops
--- "Position" and "Rotation" properties (verified by a minimal test build:
--- a Part with Position+Rotation gets NO CFrame in the rbxl, only a direct
--- "CFrame" array is written), so the project file MUST use CFrame. As a
--- belt-and-braces guarantee, fixTerrain() re-asserts the same CFrames in
--- code at boot, so the world is flat and correct in Studio even if the
--- project file's CFrame is ever lost again.
-local function fixTerrain()
-	local function setCFrame(name: string, cf: CFrame)
-		local inst = workspace:FindFirstChild(name)
-		if inst and inst:IsA("BasePart") then
-			inst.CFrame = cf
-		else
-			warn("[WorldBuilder] terrain part missing: " .. name)
+local function buildHills()
+	-- Hills: big smooth domes at the map edge, so the horizon is not a
+	-- flat line. Seeded, same every server.
+	local rng = Random.new(4242)
+	for i = 1, 8 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local radius = rng:NextNumber(195, 215)
+		local x = math.cos(angle) * radius
+		local z = math.sin(angle) * radius
+		local size = rng:NextNumber(40, 70)
+		local hill = part("Hill", Enum.PartType.Ball, Vector3.new(size, size * 0.35, size), Color3.fromRGB(85, 70, 120), CFrame.new(x, -2, z), Enum.Material.SmoothPlastic)
+		hill.CanCollide = false
+		hill.CastShadow = false
+	end
+end
+
+-- The ground is textured, not one flat purple plane. A sand ring
+-- circles the crater, and a grid of large ground tiles in varied warm
+-- colours and materials covers the map — paths, rocks, hills and props
+-- break it up further. The base Ground part underneath stays (project
+-- file, warm sand tone), but the eye reads the tiles and the ring.
+local function buildGroundDetail()
+	-- Sand ring: a warm sand disc under the crater, wider than the
+	-- crater floor, so the crater sits in a sandy bowl, not a bare
+	-- purple field. The crater floor (56 wide) sits on top of it.
+	local sandRing = part("SandRing", Enum.PartType.Cylinder, Vector3.new(0.2, 90, 90), Color3.fromRGB(200, 175, 130), CFrame.new(0, 0.05, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Sand)
+	sandRing.CanCollide = false
+	sandRing.CastShadow = false
+	-- Ground tiles: an 8x8 grid of 60-stud tiles, each a different warm
+	-- colour and material, laid just above the base ground. Tiles
+	-- inside the sand ring are skipped (the ring covers them).
+	local tileColors = {
+		Color3.fromRGB(205, 180, 135), -- sand
+		Color3.fromRGB(190, 160, 130), -- dusty rose
+		Color3.fromRGB(180, 158, 140), -- warm stone
+		Color3.fromRGB(165, 148, 190), -- muted purple
+		Color3.fromRGB(220, 200, 160), -- light sand
+		Color3.fromRGB(175, 150, 125), -- tan
+	}
+	local tileMaterials = {
+		Enum.Material.Sand,
+		Enum.Material.Slate,
+		Enum.Material.SmoothPlastic,
+		Enum.Material.Grass,
+	}
+	local rng = Random.new(20261117)
+	for row = 1, 8 do
+		for col = 1, 8 do
+			local x = -210 + (col - 1) * 60 + 30
+			local z = -210 + (row - 1) * 60 + 30
+			-- Skip tiles under the sand ring (radius 45) so the ring
+			-- reads cleanly and no tile pokes through it.
+			if math.sqrt(x * x + z * z) < 50 then
+				continue
+			end
+			local color = tileColors[rng:NextInteger(1, #tileColors)]
+			local material = tileMaterials[rng:NextInteger(1, #tileMaterials)]
+			local tile = part("GroundTile", Enum.PartType.Block, Vector3.new(60, 0.1, 60), color, CFrame.new(x, 0.02, z), material)
+			tile.CanCollide = false
+			tile.CastShadow = false
 		end
 	end
-	-- Flat discs: a Roblox cylinder's axis is X; rotating 90 deg about Z
-	-- makes the axis vertical, so Size [0.4, 56, 56] is a flat disc 0.4
-	-- thick and 56 wide. The glow ring is 58 wide, a 1-stud neon rim.
-	setCFrame("Crater", CFrame.new(0, 0.2, 0) * CFrame.Angles(0, 0, math.rad(90)))
-	setCFrame("CraterGlow", CFrame.new(0, 0.1, 0) * CFrame.Angles(0, 0, math.rad(90)))
-	setCFrame("Ground", CFrame.new(0, -10, 0))
-	setCFrame("LavaCrack1", CFrame.new(-8, 0.45, 6) * CFrame.Angles(0, math.rad(35), 0))
-	setCFrame("LavaCrack2", CFrame.new(10, 0.45, -8) * CFrame.Angles(0, math.rad(-50), 0))
-	setCFrame("LavaCrack3", CFrame.new(2, 0.45, 14) * CFrame.Angles(0, math.rad(80), 0))
-	setCFrame("SpawnLocation", CFrame.new(94, 0.5, 0) * CFrame.Angles(0, math.rad(90), 0))
+end
+
+local function buildCrystals()
+	-- Crystal clusters: glowing shards around the crater rim and
+	-- scattered in the field, in the rarity colours. They are the
+	-- "meteor shards" of the theme: the storm dropped them, and the
+	-- Rotlings gather around them. Seeded, same every server.
+	local rng = Random.new(999)
+	local crystalColors = {
+		Color3.fromRGB(120, 200, 255),
+		Color3.fromRGB(180, 110, 255),
+		Color3.fromRGB(255, 120, 180),
+		Color3.fromRGB(120, 255, 170),
+	}
+	for i = 1, 24 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local radius = rng:NextNumber(35, 95)
+		local x = math.cos(angle) * radius
+		local z = math.sin(angle) * radius
+		local height = rng:NextNumber(3, 8)
+		local crystal = part("Crystal", Enum.PartType.Wedge, Vector3.new(2, height, 2), crystalColors[rng:NextInteger(1, #crystalColors)], CFrame.new(x, height / 2, z) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), rng:NextNumber(-0.3, 0.3)), Enum.Material.Neon)
+		crystal.CanCollide = false
+		crystal.Transparency = 0.15
+	end
+	-- The centre cluster: a tall crystal ring around the beacon, so the
+	-- crater centre is a glowing monument, not an empty disc.
+	for i = 0, 5 do
+		local angle = math.rad(i * 60)
+		local x = math.cos(angle) * 8
+		local z = math.sin(angle) * 8
+		local crystal = part("Crystal", Enum.PartType.Wedge, Vector3.new(2.5, 9, 2.5), Color3.fromRGB(255, 120, 180), CFrame.new(x, 4.5, z) * CFrame.Angles(0, angle, math.rad(-0.2)), Enum.Material.Neon)
+		crystal.CanCollide = false
+		crystal.Transparency = 0.15
+	end
+end
+
+local function buildFloatingIslands()
+	-- Floating islands: small rock islands with a crystal on top,
+	-- bobbing gently above the field. They share one float-bob loop
+	-- (startFloatBob) so nothing needs its own heartbeat.
+	local rng = Random.new(31337)
+	for i = 1, 6 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local radius = rng:NextNumber(120, 180)
+		local x = math.cos(angle) * radius
+		local z = math.sin(angle) * radius
+		local y = rng:NextNumber(25, 45)
+		local size = rng:NextNumber(10, 18)
+		local island = part("FloatingIsland", Enum.PartType.Ball, Vector3.new(size, size * 0.5, size), Color3.fromRGB(85, 70, 120), CFrame.new(x, y, z), Enum.Material.Slate)
+		island.CanCollide = false
+		island.CastShadow = false
+		registerFloat(island, 1.5)
+		local crystal = part("IslandCrystal", Enum.PartType.Wedge, Vector3.new(2, 6, 2), Color3.fromRGB(120, 200, 255), CFrame.new(x, y + size * 0.25 + 3, z), Enum.Material.Neon)
+		crystal.CanCollide = false
+		crystal.Transparency = 0.15
+		registerFloat(crystal, 1.5, island.CFrame.Position.X + island.CFrame.Position.Z)
+	end
+	startFloatBob()
+end
+
+local function buildSkyDecor()
+	-- A big planet hanging in the sky, a ring of distant stars, and a
+	-- meteor shower streak: the sky is part of the scene, not an empty
+	-- gradient. NO clouds: the old static lavender blobs were the
+	-- "frozen purple blobs" Malek saw hanging in the sky — they had no
+	-- drift code and read as stuck purple shapes. Removed.
+	local planet = part("Planet", Enum.PartType.Ball, Vector3.new(80, 80, 80), Color3.fromRGB(255, 180, 120), CFrame.new(-150, 120, -250), Enum.Material.SmoothPlastic)
+	planet.CanCollide = false
+	planet.CastShadow = false
+	local planetRing = part("PlanetRing", Enum.PartType.Cylinder, Vector3.new(2, 120, 120), Color3.fromRGB(255, 220, 160), CFrame.new(-150, 120, -250) * CFrame.Angles(math.rad(75), 0, 0), Enum.Material.Neon)
+	planetRing.CanCollide = false
+	planetRing.CastShadow = false
+	planetRing.Transparency = 0.4
+	-- Stars: small bright dots scattered high in the sky.
+	local rng = Random.new(555)
+	for i = 1, 40 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local radius = rng:NextNumber(200, 300)
+		local x = math.cos(angle) * radius
+		local z = math.sin(angle) * radius
+		local y = rng:NextNumber(80, 160)
+		local star = part("SkyStar", Enum.PartType.Ball, Vector3.new(1.5, 1.5, 1.5), Color3.fromRGB(255, 255, 255), CFrame.new(x, y, z), Enum.Material.Neon)
+		star.CanCollide = false
+		star.CastShadow = false
+	end
+	-- Meteor streak: a diagonal glowing line high in the sky, a hint of
+	-- the storm that is coming.
+	local streak = part("MeteorStreak", Enum.PartType.Block, Vector3.new(40, 1, 1), Color3.fromRGB(255, 150, 80), CFrame.new(80, 100, -120) * CFrame.Angles(0, math.rad(30), math.rad(-30)), Enum.Material.Neon)
+	streak.CanCollide = false
+	streak.CastShadow = false
+	streak.Transparency = 0.3
+end
+
+local function buildWind()
+	-- Wind: a gentle particle drift across the map, so the air feels
+	-- alive. One emitter per quadrant, low rate, so it never clutters
+	-- a screenshot.
+	for _, pos in ipairs({
+		Vector3.new(-100, 20, -100),
+		Vector3.new(100, 20, -100),
+		Vector3.new(-100, 20, 100),
+		Vector3.new(100, 20, 100),
+	}) do
+		local emitterPart = Instance.new("Part")
+		emitterPart.Name = "WindEmitter"
+		emitterPart.Size = Vector3.new(1, 1, 1)
+		emitterPart.Anchored = true
+		emitterPart.CanCollide = false
+		emitterPart.CanQuery = false
+		emitterPart.Transparency = 1
+		emitterPart.CFrame = CFrame.new(pos)
+		emitterPart.Parent = workspace
+		local emitter = Instance.new("ParticleEmitter")
+		emitter.Texture = "rbxassetid://241594314"
+		emitter.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
+		emitter.Transparency = NumberSequence.new(0.7)
+		emitter.Size = NumberSequence.new(0.5)
+		emitter.Lifetime = NumberRange.new(4, 6)
+		emitter.Rate = 4
+		emitter.Speed = NumberRange.new(8, 12)
+		emitter.SpreadAngle = Vector2.new(10, 10)
+		emitter.Parent = emitterPart
+		table.insert(windEmitters, emitter)
+	end
+end
+
+-- Fix the terrain: the project file's Ground part is 480x20x480 at
+-- y=-10, so its top is at y=0 and the spawn platform, crater floor and
+-- paths sit on it. This function exists so a future terrain change has
+-- one place to live; it currently verifies the ground is where the
+-- builders expect it.
+local function fixTerrain()
+	local ground = workspace:FindFirstChild("Ground")
+	if ground and ground:IsA("Part") then
+		ground.CFrame = CFrame.new(0, -10, 0)
+		ground.Size = Vector3.new(480, 20, 480)
+	end
 end
 
 function WorldBuilder.build()
-	math.randomseed(os.time())
 	fixTerrain()
 	for baseId = 1, Config.BASE_COUNT do
 		buildBase(baseId)
 	end
-	buildPaths()
-	buildSpawnDecor()
+	buildCrater()
+	buildSpawnArea()
+	buildBelt()
 	buildSellArea()
 	buildPlazaDecor()
 	buildTrees()
-	buildRocksAndMushrooms()
+	buildRocks()
 	buildHills()
-	buildCrystalClusters()
+	buildGroundDetail()
+	buildCrystals()
 	buildFloatingIslands()
 	buildSkyDecor()
-	buildCraterDecor()
-	buildBelt()
 	buildWind()
-	startFloatBob()
+	print("[WorldBuilder] world built: " .. tostring(Config.BASE_COUNT) .. " bases, crater, conveyor, sell area, plaza, trees, rocks, hills, ground detail, crystals, islands, sky, wind.")
 end
 
 return WorldBuilder

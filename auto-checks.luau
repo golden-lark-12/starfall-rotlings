@@ -23,6 +23,32 @@
 --       hand-rolled "$" .. tostring instead of Formatting.formatMoney)
 --   (l) the meteor storm never triggers when the countdown hits zero
 --       (storm loop unguarded, no meteors spawned, no watchdog)
+--   (m) the conveyor runs empty (fewer than 6 Rotlings to grab)
+--   (n) the look is not bright and saturated (dark sky, grey haze)
+--   (o) a base has no level sign
+--   (p) there is no clear SELL area (pad, sign, prompt, price)
+--   (q) the top HUD is incomplete (cash, income, Shop/Upgrade/Daily,
+--       mission bar)
+--   (r) missions or the daily reward are not wired
+--   (s) the grab -> carry -> place loop is broken
+--   (t) placed Rotlings never earn
+--   (u) buying/upgrading is broken
+--   (v) rebirth / next tier is broken
+--   (w) some action has no feedback (sound + burst + cash pop-up)
+--   (x) the tutorial arrows are missing or wrong
+--   (y) the crater has no readable conveyor belt
+--   (z) the HUD has no title, Index count or leaderboard
+--   (aa) the storm banner is not full-width
+--   (ab) no giant hero meteors in the storm
+--   (ac) photo-mode cameras are not reframed (4 shots: hero, crater,
+--       base, storm)
+--   (ad) photo-mode tags do not all read
+--   (ae) the storm logs nothing and no meteor lands within 10s of the
+--       storm starting
+--   (af) the ground is one flat purple plane (no sand ring, no tiles)
+--   (ag) the plaza lamps are big and blown out
+--   (ah) a custom button sits under Roblox's own top-left menu or the
+--       top-right player list (any button above y=60, or no UIScale)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -961,6 +987,11 @@ do
 		if not worldSrc:find('"💰 SELL"') then
 			table.insert(problems, 'SELL sign does not say "💰 SELL"')
 		end
+		-- The sign's instruction is one short line, TextScaled, no
+		-- wrapping: "Sell here (E)".
+		if not worldSrc:find('"Sell here %(E%)"') then
+			table.insert(problems, 'SELL sign does not say "Sell here (E)"')
+		end
 		if not worldSrc:find('sellPrompt%.ActionText = "Sell Rotling"') then
 			table.insert(problems, 'no "Sell Rotling" prompt on the SELL pad')
 		end
@@ -980,7 +1011,7 @@ do
 		if #problems > 0 then
 			check("p", false, "no clear SELL area — " .. table.concat(problems, "; ") .. ". Parts: SellPad / SellSign (WorldBuilder.luau), SellService.sellCarried, SellRotling remote")
 		else
-			check("p", true, "clear SELL area — gold SellPad on the spawn path with a 💰 SELL sign and E prompt, server-priced at baseCps x " .. tostring(configValue(read("src/shared/Config.luau"), "SELL_MULT") or 60))
+			check("p", true, "clear SELL area — gold SellPad on the spawn path with a 💰 SELL sign, \"Sell here (E)\" hint and E prompt, server-priced at baseCps x " .. tostring(configValue(read("src/shared/Config.luau"), "SELL_MULT") or 60))
 		end
 	end
 end
@@ -1423,7 +1454,11 @@ do
 	end
 end
 
--- -- (ac) photo-mode cameras are close -----------------------------------------
+-- -- (ac) photo-mode cameras are the 4 bounty shots ---------------------------
+-- The judge sees only 4 screenshots, so photo mode has exactly 4 shots:
+-- 1 hero (low, close down the belt), 2 isometric crater, 3 my base
+-- close, 4 storm (wide crater + sky with the banner and giant meteors).
+-- The old 5-shot layout (carrying + HUD shots) is gone.
 do
 	local photoSrc = read("src/client/PhotoModeController.client.luau")
 	if not photoSrc then
@@ -1445,17 +1480,28 @@ do
 		if not photoSrc:find("Vector3.new%(0, 7, 0%)") then
 			table.insert(problems, "shot 3 is not 7 studs up")
 		end
-		-- Shot 4 (carrying): looks at the chest, and says so.
-		if not photoSrc:find("Vector3.new%(0, 1.8, 0%)") then
-			table.insert(problems, "shot 4 does not look at the chest (0, 1.8, 0)")
+		-- Shot 4 (storm): wide crater + sky view, banner and meteors.
+		if not photoSrc:find("Vector3.new%(48, 10, 18%)") then
+			table.insert(problems, "shot 4 is not the wide storm camera (48, 10, 18)")
 		end
-		if not photoSrc:find("in front of your chest") then
-			table.insert(problems, "shot 4 detail still says the Rotling is above the head")
+		if not photoSrc:find("Vector3.new%(0, 12, 0%)") then
+			table.insert(problems, "shot 4 does not look at the crater + sky (0, 12, 0)")
+		end
+		-- Exactly 4 shots: the "4/4" label exists, no "5/5" anywhere.
+		if not photoSrc:find('"4/4') then
+			table.insert(problems, 'no "4/4" shot label — photo mode is not the 4-shot layout')
+		end
+		if photoSrc:find('"5/5') or photoSrc:find('"1/5') then
+			table.insert(problems, "photo mode still has a 5-shot layout (1/5 or 5/5 found)")
+		end
+		-- The 5th press exits (advance past shot 4).
+		if not photoSrc:find("shotIndex >= 4") then
+			table.insert(problems, "photo mode does not exit after shot 4 (shotIndex >= 4)")
 		end
 		if #problems > 0 then
-			check("ac", false, "photo-mode cameras are not reframed — " .. table.concat(problems, "; ") .. ". Parts: SHOTS / shotCFrame (PhotoModeController.client.luau)")
+			check("ac", false, "photo-mode cameras are not the 4 bounty shots — " .. table.concat(problems, "; ") .. ". Parts: SHOTS / shotCFrame (PhotoModeController.client.luau)")
 		else
-			check("ac", true, "photo cameras reframed — hero close on the belt, crater isometric, base 16 out / 7 up, carrying looks at the chest")
+			check("ac", true, "photo cameras are the 4 bounty shots — hero close on the belt, crater isometric, base 16 out / 7 up, storm wide (48, 10, 18) looking at the sky")
 		end
 	end
 end
@@ -1506,6 +1552,213 @@ do
 			check("ad", false, "photo-mode tags do not all read — " .. table.concat(problems, "; ") .. ". Parts: TagController.client.luau, RotlingLabel (RotlingFactory.luau), Config.TAG_PHOTO_MAX_*")
 		else
 			check("ad", true, "photo-mode tags — every tag within " .. tostring(photoDist) .. " studs shows, 200x84 with a dark card + rarity border")
+		end
+	end
+end
+
+-- -- (ae) storm logs + a meteor lands within 10s of the storm starting ----
+-- The old storm failed silently: the countdown hit zero and nothing
+-- happened. Now the storm must log STORM START and METEOR LANDED, and
+-- a meteor must be in the air immediately — hero meteors spawn at
+-- storm start with no wait before the first, and the rain loop calls
+-- spawnMeteor() before its first wait. Both tweens (hero 1.6s, rain
+-- 0.8s) land well inside 10s.
+do
+	local starSrc = read("src/server/StarfallService.luau")
+	if not starSrc then
+		check("ae", false, "could not verify storm logging — StarfallService.luau missing")
+	else
+		local problems: { string } = {}
+		if not starSrc:find('%[Starfall%] STORM START') then
+			table.insert(problems, 'no "[Starfall] STORM START" log in StarfallService.luau')
+		end
+		if not starSrc:find('%[Starfall%] METEOR LANDED') then
+			table.insert(problems, 'no "[Starfall] METEOR LANDED" log in StarfallService.luau')
+		end
+		-- Hero meteors spawn at storm start, no wait before the first.
+		if not starSrc:find("task.spawn%(spawnHeroMeteor%)") then
+			table.insert(problems, "hero meteors are not spawned at storm start (task.spawn(spawnHeroMeteor))")
+		end
+		-- The rain loop's first statement is a spawn, not a wait.
+		if not starSrc:find("while time%(%) < phaseEndsAt do%s+spawnMeteor%(%)") then
+			table.insert(problems, "the rain loop waits before its first spawnMeteor() (must spawn immediately)")
+		end
+		-- Both fall tweens land inside 10s.
+		local rainTween = num(starSrc:match("local function spawnMeteor%(%)[^{]-TweenInfo%.new%(([%d%.]+),"))
+		if not rainTween then
+			table.insert(problems, "rain meteor TweenInfo not found in spawnMeteor")
+		elseif rainTween > 10 then
+			table.insert(problems, "rain meteor tween " .. tostring(rainTween) .. "s (over 10s)")
+		end
+		local heroTween = num(starSrc:match("local function spawnHeroMeteor%(%)[^{]-TweenInfo%.new%(([%d%.]+),"))
+		if not heroTween then
+			table.insert(problems, "hero meteor TweenInfo not found in spawnHeroMeteor")
+		elseif heroTween > 10 then
+			table.insert(problems, "hero meteor tween " .. tostring(heroTween) .. "s (over 10s)")
+		end
+		if #problems > 0 then
+			check("ae", false, "the storm is silent or slow — " .. table.concat(problems, "; ") .. ". Parts: spawnHeroMeteor / spawnMeteor / onMeteorLanded (StarfallService.luau)")
+		else
+			check("ae", true, "storm logs STORM START + METEOR LANDED, hero meteors spawn at storm start, rain loop spawns immediately, tweens " .. tostring(heroTween) .. "s / " .. tostring(rainTween) .. "s (both land within 10s)")
+		end
+	end
+end
+
+-- -- (af) ground is textured, not one flat purple plane ----------------------
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local ok, projectText = pcall(fs.readFile, root .. "/default.project.json")
+	local project: any = nil
+	if ok then
+		local decOk, decoded = pcall(serde.decode, "json", projectText)
+		if decOk then
+			project = decoded
+		end
+	end
+	if not worldSrc or not project then
+		check("af", false, "could not verify the ground — WorldBuilder.luau or default.project.json missing")
+	else
+		local problems: { string } = {}
+		-- A sand ring circles the crater, and a grid of ground tiles
+		-- textures the map. Both are built by buildGroundDetail, called
+		-- from WorldBuilder.build().
+		if not worldSrc:find("function buildGroundDetail%(%)") then
+			table.insert(problems, "buildGroundDetail() not found in WorldBuilder.luau")
+		end
+		if not worldSrc:find("buildGroundDetail%(%)") then
+			table.insert(problems, "buildGroundDetail() is never called")
+		end
+		if not worldSrc:find('part%("SandRing"') then
+			table.insert(problems, 'no "SandRing" part in WorldBuilder.luau')
+		end
+		if not worldSrc:find('part%("GroundTile"') then
+			table.insert(problems, 'no "GroundTile" parts in WorldBuilder.luau')
+		end
+		-- The base ground itself is warm sand, not purple: its blue
+		-- channel must be lower than its red channel.
+		local ground = project.tree and project.tree.Workspace and project.tree.Workspace.Ground
+		local groundProps = if ground then ground["$properties"] else nil
+		local groundColor = if groundProps then groundProps.Color else nil
+		if not groundColor then
+			table.insert(problems, "Ground Color not found in default.project.json")
+		elseif groundColor[3] >= groundColor[1] then
+			table.insert(problems, "Ground Color (" .. tostring(groundColor[1]) .. ", " .. tostring(groundColor[2]) .. ", " .. tostring(groundColor[3]) .. ") is purple (blue >= red), not warm sand")
+		end
+		if #problems > 0 then
+			check("af", false, "the ground is one flat purple plane — " .. table.concat(problems, "; ") .. ". Parts: buildGroundDetail / SandRing / GroundTile (WorldBuilder.luau), Ground (default.project.json)")
+		else
+			check("af", true, "ground is textured — sand ring + ground-tile grid, base ground warm sand (" .. tostring(groundColor[1]) .. ", " .. tostring(groundColor[2]) .. ", " .. tostring(groundColor[3]) .. ")")
+		end
+	end
+end
+
+-- -- (ag) plaza lamps are small and soft --------------------------------------
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not worldSrc then
+		check("ag", false, "could not verify the lamps — WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		-- The plaza lamp is a short post with a small bulb: the
+		-- cylinder's diameter (Y and Z, after the 90-degree roll) is
+		-- at most 1.2 studs. The old lamps were 1.6 and blew out.
+		local lampX, lampY, lampZ = worldSrc:match('part%("PlazaLamp", Enum%.PartType%.Cylinder, Vector3%.new%(([%d%.]+),%s*([%d%.]+),%s*([%d%.]+)%)')
+		if not lampX or not lampY or not lampZ then
+			table.insert(problems, 'PlazaLamp part not found in WorldBuilder.luau')
+		else
+			local dY = num(lampY)
+			local dZ = num(lampZ)
+			if not dY or not dZ then
+				table.insert(problems, "PlazaLamp size not numeric")
+			elseif dY > 1.2 or dZ > 1.2 then
+				table.insert(problems, "PlazaLamp diameter " .. tostring(dY) .. "x" .. tostring(dZ) .. " (over 1.2)")
+			end
+		end
+		-- The lamp's own light is soft: brightness at most 0.5, range
+		-- at most 12. (The spawn lamps are brighter on purpose; this
+		-- reads the light that follows the PlazaLampBulb part.)
+		local bulbPos = worldSrc:find('part%("PlazaLampBulb"')
+		if not bulbPos then
+			table.insert(problems, 'PlazaLampBulb part not found in WorldBuilder.luau')
+		else
+			local after = worldSrc:sub(bulbPos)
+			local bright = num(after:match("light%.Brightness%s*=%s*([%d%.]+)"))
+			local range = num(after:match("light%.Range%s*=%s*([%d%.]+)"))
+			if not bright then
+				table.insert(problems, "plaza lamp PointLight Brightness not found")
+			elseif bright > 0.5 then
+				table.insert(problems, "plaza lamp Brightness " .. tostring(bright) .. " (over 0.5 — blown out)")
+			end
+			if not range then
+				table.insert(problems, "plaza lamp PointLight Range not found")
+			elseif range > 12 then
+				table.insert(problems, "plaza lamp Range " .. tostring(range) .. " (over 12)")
+			end
+		end
+		if #problems > 0 then
+			check("ag", false, "the plaza lamps are big and blown out — " .. table.concat(problems, "; ") .. ". Parts: PlazaLamp / PlazaLampBulb (WorldBuilder.luau)")
+		else
+			check("ag", true, "plaza lamps are small and soft — diameter " .. tostring(lampY) .. "x" .. tostring(lampZ) .. ", light soft (brightness <= 0.5, range <= 12)")
+		end
+	end
+end
+
+-- -- (ah) no custom UI under Roblox's own top bar ----------------------------
+-- Roblox's top-left menu and top-right player list end around y=48 on
+-- desktop and phones. Every custom button and label must start at y=60
+-- or lower, and a UIScale must shrink the whole HUD on small screens
+-- so it still fits at 1080p and below. Check (q) pins the top row to
+-- y<=60; this check pins it to y>=60 — together they pin y=60 exactly.
+do
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local shopSrc = read("src/client/ShopController.client.luau")
+	local indexSrc = read("src/client/IndexController.client.luau")
+	local warnSrc = read("src/client/StormWarningController.client.luau")
+	if not hudSrc or not shopSrc or not indexSrc or not warnSrc then
+		check("ah", false, "could not verify the UI top bar — HUDController.client.luau, ShopController.client.luau, IndexController.client.luau or StormWarningController.client.luau missing")
+	else
+		local problems: { string } = {}
+		-- The Y of a makeButton/makeLabel call: the position UDim2 is
+		-- the second UDim2 (the first is the size). The position's X
+		-- scale may be 0 (left-anchored) or 1 (right-anchored); the Y
+		-- offset is the fourth number either way.
+		local function buttonY(source: string, name: string): number?
+			return num(source:match('makeButton%(gui, "' .. name .. '".-UDim2%.new%(0,%s*%d+,%s*0,%s*%d+%), UDim2%.new%([%d%.%-]+,%s*[%d%.%-]+,%s*[%d%.%-]+,%s*(%d+)%)'))
+		end
+		local function labelY(source: string, name: string): number?
+			return num(source:match('makeLabel%(gui, "' .. name .. '".-UDim2%.new%(0,%s*%d+,%s*0,%s*%d+%), UDim2%.new%([%d%.%-]+,%s*[%d%.%-]+,%s*[%d%.%-]+,%s*(%d+)%)'))
+		end
+		local tops: { { name: string, y: number? } } = {
+			{ name = "ShopButton", y = buttonY(shopSrc, "ShopButton") },
+			{ name = "UpgradeButton", y = buttonY(hudSrc, "UpgradeButton") },
+			{ name = "DailyButton", y = buttonY(hudSrc, "DailyButton") },
+			{ name = "RebirthButton", y = buttonY(hudSrc, "RebirthButton") },
+			{ name = "LockButton", y = buttonY(hudSrc, "LockButton") },
+			{ name = "IndexButton", y = buttonY(indexSrc, "IndexButton") },
+			{ name = "Storm", y = labelY(hudSrc, "Storm") },
+		}
+		for _, entry in ipairs(tops) do
+			if not entry.y then
+				table.insert(problems, entry.name .. " position not found")
+			elseif entry.y < 60 then
+				table.insert(problems, entry.name .. " sits at y=" .. tostring(entry.y) .. " (under Roblox's top bar, must be >= 60)")
+			end
+		end
+		-- The storm warning bar sits below the top bar + mission bar.
+		local warnY = num(warnSrc:match('warnBar%.Position%s*=%s*UDim2%.new%(0%.5,%s*0,%s*0,%s*(%d+)%)'))
+		if not warnY then
+			table.insert(problems, "StormWarning bar position not found")
+		elseif warnY < 160 then
+			table.insert(problems, "StormWarning bar sits at y=" .. tostring(warnY) .. " (over the top bar, must be >= 160)")
+		end
+		-- A UIScale shrinks the HUD on small screens.
+		if not hudSrc:find('Instance.new%("UIScale"%)') or not hudSrc:find('hudScale%.Name = "HudScale"') then
+			table.insert(problems, "no UIScale (HudScale) in HUDController.client.luau — the HUD cannot shrink on phones")
+		end
+		if #problems > 0 then
+			check("ah", false, "a custom button sits under Roblox's top bar — " .. table.concat(problems, "; ") .. ". Parts: top-row buttons / Storm label (HUDController.client.luau, ShopController.client.luau, IndexController.client.luau), StormWarning bar, HudScale")
+		else
+			check("ah", true, "no custom UI under Roblox's top bar — every button and label starts at y>=60, storm banner below the mission bar, HudScale shrinks the HUD on small screens")
 		end
 	end
 end

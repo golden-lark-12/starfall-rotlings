@@ -46,6 +46,26 @@ Config.STORM_DURATION = 8
 Config.STORM_METEOR_INTERVAL = 0.45
 Config.STORM_DAMAGE = 15 -- health lost per meteor hit while in the crater
 Config.STARSTRUCK_CHANCE = 0.4 -- a free Rotling near an impact survives as Starstruck
+-- Storm extras: meteors that land near a player, and rare Rotlings at
+-- impact points. Half the storm's meteors aim near a random player so
+-- 6-10 crash close enough to shake the camera; hero meteors always
+-- leave a rare Rotling at the impact point for 30 seconds.
+Config.STORM_NEAR_PLAYER_CHANCE = 0.5 -- half the rain meteors aim near a player
+Config.STORM_NEAR_PLAYER_RADIUS = 15 -- studs around the player a near meteor may land
+Config.STORM_RARE_LIFETIME = 30 -- seconds a storm-spawned rare Rotling stays grabbable
+
+-- Sprint: hold Shift (or the mobile Run button) to run. Base walk
+-- speed is 16; sprinting is 26. Stamina drains while sprinting and
+-- refills when you stop, and the camera's field of view kicks out
+-- while you run so the speed reads.
+Config.SPRINT_BASE_SPEED = 16
+Config.SPRINT_SPEED = 26
+Config.SPRINT_STAMINA_MAX = 100
+Config.SPRINT_STAMINA_DRAIN = 25 -- per second while sprinting
+Config.SPRINT_STAMINA_REGEN = 15 -- per second while not sprinting
+Config.SPRINT_STAMINA_MIN = 20 -- stamina must be above this to start sprinting again
+Config.SPRINT_FOV = 82 -- field of view while sprinting (base is 70)
+Config.SPRINT_FOV_BASE = 70
 
 -- Bases and stealing.
 Config.LOCK_DURATION = 60 -- seconds a base lock holds

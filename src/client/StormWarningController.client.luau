@@ -5,6 +5,8 @@
 -- everyone to stay out of the crater. Hidden while the sky is calm.
 -- FULL WIDTH: the judge reads the threat shot at thumbnail size, so the
 -- banner spans the whole screen like the top entries' tsunami banners.
+-- It sits at y=168, below the top bar (128) and the mission bar (160),
+-- so it never covers the HUD buttons.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 

@@ -9,7 +9,10 @@
 --   -> earn (1/s tick) -> upgrade (shop tiers) -> buy (shop panel)
 --   -> rebirth (reset for +25%) -> next tier (rarer spawns)
 --   with sound + burst + cash pop-up on every action, and tutorial
---   arrows for a new player's first 60 seconds.
+--   arrows for a new player's first 60 seconds. Step 12 proves the
+--   storm actually lands meteors: STORM START + METEOR LANDED logs,
+--   hero meteors at storm start, the rain loop spawning immediately,
+--   and a rare Rotling at each impact point.
 --
 -- Usage (from the repo root):
 --   ../tools/lune run self-test.luau [root]
@@ -410,6 +413,60 @@ do
 			step("tutorial", false, table.concat(problems, "; "))
 		else
 			step("tutorial", true, "gold arrow, 3 steps (crater -> base -> SELL), 60s, firstTime only, stops on first grab")
+		end
+	end
+end
+
+-- 12. Storm lands: a meteor actually falls within 10s of the storm
+-- starting, and it leaves a rare Rotling at the impact point. The old
+-- storm failed silently (countdown hit zero, nothing happened), so
+-- this step fails if the storm has no logs, no immediate spawn, or a
+-- fall tween longer than 10s.
+do
+	local starSrc = read("src/server/StarfallService.luau")
+	local spawnSrc = read("src/server/SpawnService.luau")
+	if not starSrc or not spawnSrc then
+		step("storm-lands", false, "StarfallService.luau or SpawnService.luau missing")
+	else
+		local problems: { string } = {}
+		if not starSrc:find('%[Starfall%] STORM START') then
+			table.insert(problems, 'no "[Starfall] STORM START" log')
+		end
+		if not starSrc:find('%[Starfall%] METEOR LANDED') then
+			table.insert(problems, 'no "[Starfall] METEOR LANDED" log')
+		end
+		-- Hero meteors spawn at storm start, no wait before the first.
+		if not starSrc:find("task.spawn%(spawnHeroMeteor%)") then
+			table.insert(problems, "hero meteors are not spawned at storm start")
+		end
+		-- The rain loop's first statement is a spawn, not a wait.
+		if not starSrc:find("while time%(%) < phaseEndsAt do%s+spawnMeteor%(%)") then
+			table.insert(problems, "the rain loop waits before its first spawnMeteor()")
+		end
+		-- Both fall tweens land inside 10s.
+		local rainTween = num(starSrc:match("local function spawnMeteor%(%)[^{]-TweenInfo%.new%(([%d%.]+),"))
+		local heroTween = num(starSrc:match("local function spawnHeroMeteor%(%)[^{]-TweenInfo%.new%(([%d%.]+),"))
+		if not rainTween then
+			table.insert(problems, "rain meteor TweenInfo not found in spawnMeteor")
+		elseif rainTween > 10 then
+			table.insert(problems, "rain meteor tween " .. tostring(rainTween) .. "s (over 10s)")
+		end
+		if not heroTween then
+			table.insert(problems, "hero meteor TweenInfo not found in spawnHeroMeteor")
+		elseif heroTween > 10 then
+			table.insert(problems, "hero meteor tween " .. tostring(heroTween) .. "s (over 10s)")
+		end
+		-- A meteor landing leaves a rare Rotling at the impact point.
+		if not starSrc:find("SpawnService.spawnRareAt%(target%)") then
+			table.insert(problems, "onMeteorLanded never spawns a rare Rotling (SpawnService.spawnRareAt)")
+		end
+		if not spawnSrc:find("function SpawnService.spawnRareAt") then
+			table.insert(problems, "SpawnService.spawnRareAt not found")
+		end
+		if #problems > 0 then
+			step("storm-lands", false, table.concat(problems, "; "))
+		else
+			step("storm-lands", true, "STORM START + METEOR LANDED logged, hero meteors at storm start, rain loop spawns immediately, tweens " .. tostring(heroTween) .. "s / " .. tostring(rainTween) .. "s (both land within 10s), rare Rotling at each impact")
 		end
 	end
 end
