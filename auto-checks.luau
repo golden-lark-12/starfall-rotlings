@@ -58,6 +58,30 @@
 --   (ak) the name tag sits on the model instead of above it (fixed
 --       offset that sinks into a hat at 1.5x, or no re-seat after a
 --       scale change, so the tag covers the face)
+--   (al) selling is not a clearing tool (sell value above 30x income,
+--       or the owner cannot pick their own placed Rotling back up)
+--   (am) the storm hits only the crater centre (no spread, no warning
+--       circle, no knockback, bases not safe)
+--   (an) rivals do not exist or do not play (no rival bots, no steal,
+--       no chase, no bounty, no leaderboard presence)
+--   (ao) the slap bat is missing or cannot knock a rival down
+--   (ap) meteor eggs never spawn, cannot be carried, or never hatch
+--   (aq) the map is empty (no shop, upgrade machine, altar, index
+--       wall, spaceship, background, signposts, fences, paths or
+--       critters)
+--   (ar) boosts do not exist in the world or the HUD
+--   (as) Malek's items 2-5 are not fixed (beam still a fat pillar,
+--       ground still loud purple, lamps still blown out, carried
+--       Rotling still invisible)
+--   (at) the last adds are missing (no visible mutations, no
+--       Stardust in the HUD, no level/XP, fewer than 20 Rotlings,
+--       no logo)
+--   (au) the cheap wins are missing (no multiplier in tags, no NEXT
+--       REBIRTH bar, no upgrade levels, no title billboard, no
+--       shield dome, no pursuit banner, no global events, no danger
+--       meter or belt list, Disco Pickle still named that)
+--   (av) the buddy Rotling is missing (no half-size follower, no tag,
+--       no +5% cash, no Index swap)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -1398,8 +1422,8 @@ do
 		if not hudSrc:find('"GameTitle"') or not hudSrc:find("STARFALL ROTLINGS") then
 			table.insert(problems, "no STARFALL ROTLINGS title label in the top HUD")
 		end
-		if not hudSrc:find("indexCount") or not hudSrc:find('"/12"') then
-			table.insert(problems, "no Index count (x/12) in the HUD")
+		if not hudSrc:find("indexCount") or not hudSrc:find("indexTotal") then
+			table.insert(problems, "no Index count (x/20) in the HUD")
 		end
 		if not hudSrc:find('"LeaderboardPanel"') then
 			table.insert(problems, "no LeaderboardPanel in the HUD")
@@ -1413,7 +1437,7 @@ do
 		if #problems > 0 then
 			check("z", false, "the HUD has no identity or density — " .. table.concat(problems, "; ") .. ". Parts: GameTitle / LeaderboardPanel (HUDController.client.luau), HudData (Remotes.luau), broadcastHud (IncomeService.luau)")
 		else
-			check("z", true, "HUD identity + density — STARFALL ROTLINGS title, Index count x/12, top-3 leaderboard panel")
+			check("z", true, "HUD identity + density — STARFALL ROTLINGS title, Index count x/20, top-3 leaderboard panel")
 		end
 	end
 end
@@ -1809,8 +1833,8 @@ do
 				table.insert(problems, "a " .. rarity .. " Rotling has bodyColor (" .. got .. "), rarity colour is (" .. want .. ")")
 			end
 		end
-		if defCount ~= 12 then
-			table.insert(problems, "only " .. tostring(defCount) .. " catalog defs with a bodyColor (need 12)")
+		if defCount < 20 then
+			table.insert(problems, "only " .. tostring(defCount) .. " catalog defs with a bodyColor (need 20)")
 		end
 		-- The factory paints the body with the rarity colour itself.
 		if not factorySrc:find("local bodyColor = rarity%.color") then
@@ -1841,8 +1865,8 @@ do
 		for id in catalogSrc:gmatch('id = "([%w_]+)"') do
 			table.insert(ids, id)
 		end
-		if #ids ~= 12 then
-			table.insert(problems, "only " .. tostring(#ids) .. " catalog defs (need 12)")
+		if #ids < 20 then
+			table.insert(problems, "only " .. tostring(#ids) .. " catalog defs (need 20)")
 		end
 		local seen: { [string]: boolean } = {}
 		local silCount = 0
@@ -1853,8 +1877,8 @@ do
 			end
 			seen[sil] = true
 		end
-		if silCount ~= 12 then
-			table.insert(problems, "only " .. tostring(silCount) .. " silhouette keys in the catalog (need 12, one per Rotling)")
+		if silCount < 20 then
+			table.insert(problems, "only " .. tostring(silCount) .. " silhouette keys in the catalog (need 20, one per Rotling)")
 		end
 		-- At least 2 signature features listed per def.
 		for list in catalogSrc:gmatch("features = {([^}]+)}") do
@@ -1892,7 +1916,7 @@ do
 		if #problems > 0 then
 			check("aj", false, "Rotlings are not distinct characters — " .. table.concat(problems, "; ") .. ". Parts: silhouette / features (RotlingCatalog.luau), addEyes / addMouth / addNameProp (RotlingFactory.luau)")
 		else
-			check("aj", true, "12 distinct silhouettes, every Rotling has a face (eyes factor " .. tostring(eyeFactor)
+			check("aj", true, tostring(#ids) .. " distinct silhouettes, every Rotling has a face (eyes factor " .. tostring(eyeFactor)
 				.. ", >= ~0.5 studs) and 2+ signature features with a factory branch each")
 		end
 	end
@@ -1952,6 +1976,542 @@ do
 			check("ak", false, "the name tag can sit on the model or cover the face — " .. table.concat(problems, "; ") .. ". Parts: addLabel / refreshLabelOffset (RotlingFactory.luau), setModelScale sites (CarryService.luau)")
 		else
 			check("ak", true, "name tag floats above the model — bounding-box top + 0.8 margin, stored 1x offset re-seated on every scale change (build + " .. tostring(refreshCalls) .. " CarryService sites)")
+		end
+	end
+end
+
+-- -- (al) selling is a clearing tool, and owners can pick up their own Rotlings --
+-- Item 9: sell value is ~25x income/s (never above 30x) for EVERY
+-- Rotling, so placing is always the better long-term choice; and the
+-- owner can pick up their own placed Rotling ("Take") and carry it
+-- again, while the steal path for other players' bases is unchanged.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local catalogSrc = read("src/shared/RotlingCatalog.luau")
+	local sellSrc = read("src/server/SellService.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	if not configSrc or not catalogSrc or not sellSrc or not carrySrc then
+		check("al", false, "could not verify the economy — Config.luau, RotlingCatalog.luau, SellService.luau or CarryService.luau missing")
+	else
+		local problems: { string } = {}
+		local mult = configValue(configSrc, "SELL_MULT")
+		if not mult then
+			table.insert(problems, "Config.SELL_MULT not found")
+		elseif mult > 30 then
+			table.insert(problems, "SELL_MULT is " .. tostring(mult) .. " (above 30x — selling beats placing)")
+		end
+		-- SellService.sellValue must be def cps x SELL_MULT (times the
+		-- mutation multiplier), not a flat price.
+		if not sellSrc:find("SELL_MULT") then
+			table.insert(problems, "SellService.sellValue does not use Config.SELL_MULT")
+		end
+		-- Own-base pickup: CarryService.pickupOwn exists, tryGrab
+		-- routes owners to it, and the prompt says "Take".
+		if not carrySrc:find("function CarryService.pickupOwn") then
+			table.insert(problems, "CarryService.pickupOwn not found (owners cannot pick up their own Rotlings)")
+		end
+		if not carrySrc:find("pickupOwn%(player, model%)") then
+			table.insert(problems, "tryGrab never routes an owner to pickupOwn")
+		end
+		if not carrySrc:find('"Take ') then
+			table.insert(problems, 'no "Take <name>" prompt for own-base pickup')
+		end
+		-- The steal path is untouched: StealService still refuses your
+		-- own Rotlings when reached directly, and tryGrab still routes
+		-- other players' placed Rotlings to trySteal.
+		local stealSrc = read("src/server/StealService.luau")
+		if not stealSrc then
+			table.insert(problems, "StealService.luau missing")
+		elseif not stealSrc:find("That one is already yours") then
+			table.insert(problems, "StealService no longer refuses your own Rotlings")
+		end
+		if not carrySrc:find("StealService.trySteal") then
+			table.insert(problems, "tryGrab no longer routes other players' Rotlings to StealService.trySteal")
+		end
+		if #problems > 0 then
+			check("al", false, "selling is not a clearing tool or own-base pickup is broken — " .. table.concat(problems, "; ") .. ". Parts: SELL_MULT (Config.luau), sellValue (SellService.luau), pickupOwn / tryGrab (CarryService.luau)")
+		else
+			check("al", true, "sell is " .. tostring(mult) .. "x income (<= 30x), owners pick up their own Rotlings with a Take prompt, steal path unchanged")
+		end
+	end
+end
+
+-- -- (am) the storm spreads across the whole map ------------------------------
+-- Item 6: impacts are zone-based (near players, near bases just
+-- outside the safe ring, anywhere on the map), never on a base; a
+-- warning circle shows 2s before impact; a hit knocks the player back
+-- and drops the carried Rotling; players on bases are safe; the storm
+-- banner carries the hazard label.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local stormSrc = read("src/server/StarfallService.luau")
+	if not configSrc or not stormSrc then
+		check("am", false, "could not verify the storm spread — Config.luau or StarfallService.luau missing")
+	else
+		local problems: { string } = {}
+		local spread = configValue(configSrc, "STORM_SPREAD_RADIUS")
+		if not spread then
+			table.insert(problems, "Config.STORM_SPREAD_RADIUS not found")
+		elseif spread < 100 then
+			table.insert(problems, "STORM_SPREAD_RADIUS is " .. tostring(spread) .. " (under 100 — impacts stay near the crater)")
+		end
+		local warnTime = configValue(configSrc, "STORM_WARNING_TIME")
+		if not warnTime then
+			table.insert(problems, "Config.STORM_WARNING_TIME not found")
+		elseif warnTime < 2 then
+			table.insert(problems, "STORM_WARNING_TIME is " .. tostring(warnTime) .. "s (under 2s — no time to react)")
+		end
+		if not stormSrc:find("showWarningCircle") then
+			table.insert(problems, "no warning circle before impact (StarfallService.showWarningCircle)")
+		end
+		if not stormSrc:find("onBase") then
+			table.insert(problems, "no safe-zone check for players on bases (StarfallService.onBase)")
+		end
+		if not stormSrc:find("dropAllCarried") then
+			table.insert(problems, "a meteor hit never drops the carried Rotling")
+		end
+		if not stormSrc:find("STORM_HAZARD_LABEL") then
+			table.insert(problems, "the storm banner carries no hazard label")
+		end
+		if not configSrc:find('STORM_HAZARD_LABEL = "DANGER:') then
+			table.insert(problems, 'Config.STORM_HAZARD_LABEL is not a "DANGER: ..." label')
+		end
+		if #problems > 0 then
+			check("am", false, "the storm does not spread — " .. table.concat(problems, "; ") .. ". Parts: spread/warning constants (Config.luau), pickTarget / onMeteorLanded (StarfallService.luau)")
+		else
+			check("am", true, "storm spreads " .. tostring(spread) .. " studs with " .. tostring(warnTime) .. "s warning circles, knockback + drop, bases safe, hazard label on the banner")
+		end
+	end
+end
+
+-- -- (an) rivals play the game -------------------------------------------------
+-- Item 7: 4 named rival bots own bases 5-8, run to the crater, grab,
+-- carry home and earn (and show on the leaderboard); rivals steal from
+-- unlocked player bases with a THIEF alert and sign; rivals chase egg
+-- carriers with a live distance readout; the bounty board names the
+-- top storm earner.
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	if not rivalSrc or not configSrc or not incomeSrc or not mainSrc then
+		check("an", false, "could not verify the rivals — RivalService.luau, Config.luau, IncomeService.luau or Main.server.luau missing")
+	else
+		local problems: { string } = {}
+		if not rivalSrc:find("RIVAL_COUNT") then
+			table.insert(problems, "no RIVAL_COUNT in RivalService")
+		end
+		for _, name in ipairs({ "Ziggy", "Nova", "Pip", "Comet" }) do
+			if not configSrc:find('"' .. name .. '"') then
+				table.insert(problems, 'rival "' .. name .. '" missing from Config.RIVAL_NAMES')
+			end
+		end
+		if not rivalSrc:find("is sneaking to your base") then
+			table.insert(problems, "no steal alert to the victim")
+		end
+		if not rivalSrc:find("THIEF ON YOUR TAIL") then
+			table.insert(problems, 'no "THIEF ON YOUR TAIL!" pursuit banner with distance')
+		end
+		if not rivalSrc:find("studs behind you") then
+			table.insert(problems, "the pursuit banner has no live distance readout")
+		end
+		if not rivalSrc:find("dropEgg") then
+			table.insert(problems, "a rival tag never makes the egg carrier drop the egg")
+		end
+		if not rivalSrc:find("rival.coins") then
+			table.insert(problems, "rivals never earn coins (no earnings tick)")
+		end
+		if not incomeSrc:find("Rival") then
+			table.insert(problems, "rivals never appear on the leaderboard (IncomeService)")
+		end
+		if not incomeSrc:find("setBountyText") then
+			table.insert(problems, "the bounty board is never updated (IncomeService.setBountyText)")
+		end
+		if not mainSrc:find("RivalService.start") then
+			table.insert(problems, "RivalService.start is never called (Main.server)")
+		end
+		if #problems > 0 then
+			check("an", false, "rivals do not play — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, names (Config.luau), leaderboard/bounty (IncomeService.luau), wiring (Main.server.luau)")
+		else
+			check("an", true, "4 named rivals on bases 5-8 grab, carry, earn and show on the leaderboard; steal + chase + bounty all wired")
+		end
+	end
+end
+
+-- -- (ao) the slap bat ----------------------------------------------------------
+-- Item 10: F key + SLAP button, 2s cooldown, 9-stud cone, knockback +
+-- drop, stars + bonk, shield immunity, rivals slap back.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local slapSrc = read("src/server/SlapService.luau")
+	local slapClient = read("src/client/SlapController.client.luau")
+	if not configSrc or not slapSrc or not slapClient then
+		check("ao", false, "could not verify the slap bat — Config.luau, SlapService.luau or SlapController.client.luau missing")
+	else
+		local problems: { string } = {}
+		-- configValue("SLAP_COOLDOWN") would match RIVAL_SLAP_COOLDOWN
+		-- first (it appears earlier in Config.luau), so anchor the match.
+		local cooldown = num(configSrc:match("Config%.SLAP_COOLDOWN = ([%d%.]+)"))
+		if not cooldown then
+			table.insert(problems, "Config.SLAP_COOLDOWN not found")
+		elseif cooldown ~= 2 then
+			table.insert(problems, "SLAP_COOLDOWN is " .. tostring(cooldown) .. "s (must be 2s)")
+		end
+		if not slapSrc:find("slapRival") then
+			table.insert(problems, "SlapService never slaps rivals")
+		end
+		if not slapSrc:find("dropCarried") then
+			table.insert(problems, "a slap never makes the victim drop what they carry")
+		end
+		if not slapSrc:find("applySlapFromRival") then
+			table.insert(problems, "rivals never slap back")
+		end
+		if not slapSrc:find("shield") then
+			table.insert(problems, "a Shield boost does not block slaps")
+		end
+		if not slapClient:find("KeyCode.F") then
+			table.insert(problems, "no F keybind for the slap bat")
+		end
+		if not slapClient:find("SLAP") then
+			table.insert(problems, "no on-screen SLAP button")
+		end
+		if not slapClient:find("SlapBat") then
+			table.insert(problems, "no visible bat part while swinging")
+		end
+		if #problems > 0 then
+			check("ao", false, "the slap bat is broken — " .. table.concat(problems, "; ") .. ". Parts: SlapService.luau, SlapController.client.luau")
+		else
+			check("ao", true, "slap bat: F key + SLAP button, 2s cooldown, knockback + drop, stars + bonk, shield immunity, rivals slap back")
+		end
+	end
+end
+
+-- -- (ap) meteor eggs ------------------------------------------------------------
+-- Item 12: 1-2 eggs per storm, heavy carry (walk slower), rivals chase,
+-- incubator per base, 60s hatch into a random Rotling with Epic /
+-- Legendary / mutation chances, hatch animation + reveal popup, and
+-- the egg drops on death.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	if not configSrc or not eggSrc or not mainSrc then
+		check("ap", false, "could not verify the meteor eggs — Config.luau, MeteorEggService.luau or Main.server.luau missing")
+	else
+		local problems: { string } = {}
+		local perStorm = configValue(configSrc, "EGGS_PER_STORM")
+		if not perStorm then
+			table.insert(problems, "Config.EGGS_PER_STORM not found")
+		elseif perStorm < 1 or perStorm > 2 then
+			table.insert(problems, "EGGS_PER_STORM is " .. tostring(perStorm) .. " (must be 1-2)")
+		end
+		local hatch = configValue(configSrc, "EGG_HATCH_TIME")
+		if not hatch then
+			table.insert(problems, "Config.EGG_HATCH_TIME not found")
+		elseif hatch ~= 60 then
+			table.insert(problems, "EGG_HATCH_TIME is " .. tostring(hatch) .. "s (must be 60s)")
+		end
+		if not eggSrc:find("spawnEggsForStorm") then
+			table.insert(problems, "eggs never spawn in a storm")
+		end
+		if not eggSrc:find("notifyEggCarrier") then
+			table.insert(problems, "grabbing an egg never alerts the rivals")
+		end
+		if not eggSrc:find("incubat") then
+			table.insert(problems, "no incubator placement (MeteorEggService.placeEgg)")
+		end
+		if not eggSrc:find("HATCHED:") then
+			table.insert(problems, "no hatch reveal banner")
+		end
+		if not eggSrc:find("Scorched") then
+			table.insert(problems, "eggs never hatch Scorched")
+		end
+		if not mainSrc:find("MeteorEggService.dropEgg") then
+			table.insert(problems, "dying never drops the egg (Main.server)")
+		end
+		local worldSrc = read("src/server/WorldBuilder.luau")
+		if not worldSrc or not worldSrc:find("Incubator") then
+			table.insert(problems, "no incubator built on the bases (WorldBuilder)")
+		end
+		if #problems > 0 then
+			check("ap", false, "meteor eggs are broken — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau, incubator (WorldBuilder.luau), wiring (Main.server.luau)")
+		else
+			check("ap", true, "meteor eggs: " .. tostring(perStorm) .. " per storm, heavy carry, rivals chase, incubator hatch in " .. tostring(hatch) .. "s, Scorched chance, drops on death")
+		end
+	end
+end
+
+-- -- (aq) the map is filled -------------------------------------------------------
+-- Item 8: a physical Star Shop with keeper, upgrade machines, a rebirth
+-- altar, an index wall, a crashed spaceship, a moon + mountains, and
+-- signposts, fences, paths and ambient critters.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not worldSrc then
+		check("aq", false, "could not verify the map fill — WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		local need = {
+			{ "Star Shop", 'part%("ShopFloor"' },
+			{ "shopkeeper", '"Shopkeeper"' },
+			{ "neon STAR SHOP sign", '"★ STAR SHOP ★"' },
+			{ "upgrade machines", '"UpgradeMachine"' },
+			{ "rebirth altar", '"AltarStone"' },
+			{ "index wall", '"IndexWallBoard"' },
+			{ "crashed spaceship", '"SpaceshipSaucer"' },
+			{ "moon", 'part%("Moon"' },
+			{ "mountains", 'part%("Mountain"' },
+			{ "signposts", '"Signpost"' },
+			{ "fences", '"FencePost"' },
+			{ "stone paths", '"StonePath"' },
+			{ "ambient critters", '"Critter"' },
+		}
+		for _, item in ipairs(need) do
+			if not worldSrc:find(item[2]) then
+				table.insert(problems, "no " .. item[1] .. " in WorldBuilder")
+			end
+		end
+		if not worldSrc:find("buildStarShop%(%)") then
+			table.insert(problems, "buildStarShop never called from WorldBuilder.build")
+		end
+		if #problems > 0 then
+			check("aq", false, "the map is empty — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau")
+		else
+			check("aq", true, "map filled: Star Shop + keeper, upgrade machines, rebirth altar, index wall, spaceship, moon + mountains, signposts, fences, paths, critters")
+		end
+	end
+end
+
+-- -- (ar) boosts ------------------------------------------------------------------
+-- Item 11: pickups spawn around the map and in the Star Shop (Speed
+-- Coil, Magnet, 2x Cash, Shield), active boosts show as HUD icons with
+-- timers, and boosts are also buyable in the shop for Stardust.
+do
+	local boostSrc = read("src/server/BoostService.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local shopSrc = read("src/client/ShopController.client.luau")
+	if not boostSrc or not hudSrc or not shopSrc then
+		check("ar", false, "could not verify the boosts — BoostService.luau, HUDController.client.luau or ShopController.client.luau missing")
+	else
+		local problems: { string } = {}
+		for _, kind in ipairs({ "speed", "magnet", "cash", "shield" }) do
+			if not boostSrc:find(kind .. " = { label") then
+				table.insert(problems, 'boost "' .. kind .. '" missing from the BoostService table')
+			end
+		end
+		if not boostSrc:find("shopCenter") then
+			table.insert(problems, "boost pickups never spawn inside the Star Shop")
+		end
+		if not boostSrc:find("applyWalkSpeed") then
+			table.insert(problems, "boosts never change walk speed (no applyWalkSpeed)")
+		end
+		if not hudSrc:find("BoostRow") then
+			table.insert(problems, "no active-boost icon row in the HUD")
+		end
+		if not shopSrc:find("BOOST_VIEW") then
+			table.insert(problems, "boosts are not buyable in the shop")
+		end
+		if not shopSrc:find("buyBoostFunction") then
+			table.insert(problems, "the shop never calls the BuyBoost remote")
+		end
+		if #problems > 0 then
+			check("ar", false, "boosts are broken — " .. table.concat(problems, "; ") .. ". Parts: BoostService.luau, BoostRow (HUDController), BOOST_VIEW (ShopController)")
+		else
+			check("ar", true, "boosts: Speed/Magnet/2x Cash/Shield pickups (map + shop), HUD icons with timers, buyable for Stardust")
+		end
+	end
+end
+
+-- -- (as) Malek's items 2-5 ---------------------------------------------------------
+-- Item 2: the beam is thin (1.5 studs) and semi-transparent (0.6) with
+-- a dim light. Item 3: the ground tiles are a soft lilac/grass mix, no
+-- loud saturated purple. Item 4: the lamp bulbs are small and dim.
+-- Item 5: the carried Rotling rides at CARRY_Z <= -3 in front of the
+-- chest and keeps its rarity highlight while carried.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	if not configSrc or not worldSrc or not factorySrc then
+		check("as", false, "could not verify items 2-5 — Config.luau, WorldBuilder.luau or RotlingFactory.luau missing")
+	else
+		local problems: { string } = {}
+		local carryZ = configValue(configSrc, "CARRY_Z")
+		if not carryZ then
+			table.insert(problems, "Config.CARRY_Z not found")
+		elseif carryZ > -3 then
+			table.insert(problems, "CARRY_Z is " .. tostring(carryZ) .. " (above -3 — the player's torso hides the carried Rotling)")
+		end
+		if not worldSrc:find('Vector3.new%(180, 1.5, 1.5%)') then
+			table.insert(problems, "the crater beam is not 1.5 studs thin")
+		end
+		if not worldSrc:find("beam.Transparency = 0.6") then
+			table.insert(problems, "the crater beam is not semi-transparent (0.6)")
+		end
+		if worldSrc:find("165, 148, 190") then
+			table.insert(problems, "the loud muted-purple tile colour (165, 148, 190) is still in the ground")
+		end
+		if not worldSrc:find("200, 180, 220") then
+			table.insert(problems, "no soft lilac in the ground tiles")
+		end
+		if not worldSrc:find("140, 200, 130") then
+			table.insert(problems, "no grass green in the ground tiles")
+		end
+		local bulbSize = worldSrc:match('PlazaLampBulb", Enum.PartType.Ball, Vector3.new%(([0-9%.]+),')
+		if not bulbSize then
+			table.insert(problems, "PlazaLampBulb size not found")
+		elseif tonumber(bulbSize) > 1.2 then
+			table.insert(problems, "PlazaLampBulb is " .. bulbSize .. " studs (above 1.2 — blown out)")
+		end
+		if not factorySrc:find("hl.Enabled = true") then
+			table.insert(problems, "the rarity highlight is not kept on while carried (RotlingFactory.setCarriedVisual)")
+		end
+		if #problems > 0 then
+			check("as", false, "items 2-5 are not fixed — " .. table.concat(problems, "; ") .. ". Parts: beam/lamps/tiles (WorldBuilder.luau), CARRY_Z (Config.luau), setCarriedVisual (RotlingFactory.luau)")
+		else
+			check("as", true, "beam thin + semi-transparent, ground soft lilac/grass, lamps small and dim, carried Rotling at CARRY_Z " .. tostring(carryZ) .. " with its highlight on")
+		end
+	end
+end
+
+-- -- (at) the last adds ---------------------------------------------------------------
+-- Item 13: mutations visible (Diamond + Scorched with glow/multiplier),
+-- Stardust in the HUD, level/XP in the HUD, 20+ Rotlings, and the logo
+-- stage rendered from the game.
+do
+	local catalogSrc = read("src/shared/RotlingCatalog.luau")
+	local mutationSrc = read("src/shared/MutationConfig.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not catalogSrc or not mutationSrc or not hudSrc or not worldSrc then
+		check("at", false, "could not verify the last adds — RotlingCatalog.luau, MutationConfig.luau, HUDController.client.luau or WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		local defCount = 0
+		for _ in catalogSrc:gmatch('id = "([%w_]+)"') do
+			defCount += 1
+		end
+		if defCount < 20 then
+			table.insert(problems, "only " .. tostring(defCount) .. " Rotlings in the catalog (need 20+)")
+		end
+		if not mutationSrc:find('"Diamond"') then
+			table.insert(problems, "no Diamond mutation in MutationConfig")
+		end
+		if not mutationSrc:find('"Scorched"') then
+			table.insert(problems, "no Scorched mutation in MutationConfig")
+		end
+		if not hudSrc:find("Stardust") then
+			table.insert(problems, "no Stardust label in the HUD")
+		end
+		if not hudSrc:find("XpBar") then
+			table.insert(problems, "no XP bar in the HUD")
+		end
+		if not worldSrc:find("LogoStage") then
+			table.insert(problems, "no logo stage in the world (WorldBuilder.buildLogoStage)")
+		end
+		if not worldSrc:find("STARFALL ROTLINGS") then
+			table.insert(problems, "no STARFALL ROTLINGS title in the world")
+		end
+		if #problems > 0 then
+			check("at", false, "the last adds are missing — " .. table.concat(problems, "; ") .. ". Parts: catalog/mutations (Shared), Stardust + XP (HUDController), logo stage (WorldBuilder.luau)")
+		else
+			check("at", true, tostring(defCount) .. " Rotlings, Diamond + Scorched mutations, Stardust + XP in the HUD, logo stage in the world")
+		end
+	end
+end
+
+-- -- (au) the cheap wins ---------------------------------------------------------------
+-- Cheap wins 1-9: multiplier in every tag and the index, NEXT REBIRTH
+-- bar, upgrade levels with effects, title billboard, shield dome +
+-- SAFE label, pursuit banner, global events, danger meter + belt list,
+-- and Boogie Brine (not Disco Pickle).
+do
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local shopSrc = read("src/client/ShopController.client.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local catalogSrc = read("src/shared/RotlingCatalog.luau")
+	local eventSrc = read("src/server/GlobalEventService.luau")
+	if not factorySrc or not hudSrc or not shopSrc or not worldSrc or not catalogSrc or not eventSrc then
+		check("au", false, "could not verify the cheap wins — RotlingFactory.luau, HUDController.client.luau, ShopController.client.luau, WorldBuilder.luau, RotlingCatalog.luau or GlobalEventService.luau missing")
+	else
+		local problems: { string } = {}
+		if not factorySrc:find('" ✦ "') then
+			table.insert(problems, 'no "✦ RAINBOW x5" multiplier line in the Rotling tags')
+		end
+		if not hudSrc:find("NEXT REBIRTH") then
+			table.insert(problems, "no NEXT REBIRTH progress bar in the HUD")
+		end
+		if not shopSrc:find("now %+") then
+			table.insert(problems, "no upgrade levels with current effects in the shop rows")
+		end
+		if not worldSrc:find("TitleBoard") then
+			table.insert(problems, "no giant title billboard over the crater")
+		end
+		if not worldSrc:find("ShieldDome") then
+			table.insert(problems, "no shield dome on the bases")
+		end
+		if not worldSrc:find("SAFE %(") then
+			table.insert(problems, 'no "SAFE (45s)" shield label')
+		end
+		if not hudSrc:find("Stardust Shower") then
+			table.insert(problems, 'no "Stardust Shower" global event label in the HUD')
+		end
+		if not hudSrc:find("2x Cash Hour") then
+			table.insert(problems, 'no "2x Cash Hour" global event label in the HUD')
+		end
+		if not hudSrc:find("DangerBar") then
+			table.insert(problems, "no Meteor Danger meter in the HUD")
+		end
+		if not hudSrc:find("BeltPanel") then
+			table.insert(problems, 'no "On the belt" list in the HUD')
+		end
+		if catalogSrc:find('name = "Disco Pickle"') then
+			table.insert(problems, '"Disco Pickle" is still a Rotling name in the catalog (must be renamed)')
+		end
+		if not catalogSrc:find("Boogie Brine") then
+			table.insert(problems, '"Boogie Brine" is not in the catalog')
+		end
+		if #problems > 0 then
+			check("au", false, "cheap wins are missing — " .. table.concat(problems, "; ") .. ". Parts: tags (RotlingFactory.luau), HUD bars (HUDController), shop rows (ShopController), billboard/dome (WorldBuilder), events (GlobalEventService.luau)")
+		else
+			check("au", true, "cheap wins: multiplier in tags + index, NEXT REBIRTH bar, upgrade levels, title billboard, shield dome + SAFE label, pursuit banner, 2 global events, danger meter + belt list, Boogie Brine")
+		end
+	end
+end
+
+-- -- (av) the buddy Rotling --------------------------------------------------------------
+-- BUDDY: your highest-income placed Rotling, half size, floats and bobs
+-- beside you with a "Buddy: <name> · +5% cash" tag, follows smoothly,
+-- and swaps from the Index.
+do
+	local buddySrc = read("src/server/BuddyService.luau")
+	local indexSrc = read("src/client/IndexController.client.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	if not buddySrc or not indexSrc or not mainSrc then
+		check("av", false, "could not verify the buddy — BuddyService.luau, IndexController.client.luau or Main.server.luau missing")
+	else
+		local problems: { string } = {}
+		if not buddySrc:find("BUDDY_SCALE") and not buddySrc:find("0.5") then
+			table.insert(problems, "the buddy is not half size")
+		end
+		if not buddySrc:find("Buddy: ") then
+			table.insert(problems, 'no "Buddy: <name>" tag on the follower')
+		end
+		if not buddySrc:find("%+5%% cash") then
+			table.insert(problems, "no +5% cash on the buddy tag")
+		end
+		if not indexSrc:find("Set as Buddy") then
+			table.insert(problems, "no Set as Buddy button in the Index")
+		end
+		if not mainSrc:find("BuddyService.attachBuddy") then
+			table.insert(problems, "the buddy is never attached on spawn (Main.server)")
+		end
+		if #problems > 0 then
+			check("av", false, "the buddy is missing — " .. table.concat(problems, "; ") .. ". Parts: BuddyService.luau, Index swap (IndexController), wiring (Main.server.luau)")
+		else
+			check("av", true, "buddy: half-size highest-income follower with a +5% cash tag, swappable from the Index, attached on spawn")
 		end
 	end
 end

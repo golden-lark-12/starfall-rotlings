@@ -289,7 +289,7 @@ do
 		step("economy", false, "Config.luau, RarityConfig.luau or RotlingCatalog.luau missing")
 	else
 		local problems: { string } = {}
-		-- Wobble Wombat: Common (cps 1) x cpsMult 1 = 1/s; sells for 60.
+		-- Wobble Wombat: Common (cps 1) x cpsMult 1 = 1/s; sells for 25x.
 		local commonCps = num(raritySrc:match('name = "Common".-cps = (%d+)'))
 		local wombatMult = num(catalogSrc:match('id = "wombat".-cpsMult = ([%d%.]+)'))
 		local sellMult = num(configSrc:match("SELL_MULT%s*=%s*(%d+)"))
@@ -467,6 +467,256 @@ do
 			step("storm-lands", false, table.concat(problems, "; "))
 		else
 			step("storm-lands", true, "STORM START + METEOR LANDED logged, hero meteors at storm start, rain loop spawns immediately, tweens " .. tostring(heroTween) .. "s / " .. tostring(rainTween) .. "s (both land within 10s), rare Rotling at each impact")
+		end
+	end
+end
+
+-- 13. Sell is 25x: selling clears a pad, never beats placing.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local sellSrc = read("src/server/SellService.luau")
+	if not configSrc or not sellSrc then
+		step("sell-25x", false, "Config.luau or SellService.luau missing")
+	else
+		local problems: { string } = {}
+		local sellMult = num(configSrc:match("SELL_MULT%s*=%s*(%d+)"))
+		if not sellMult then
+			table.insert(problems, "SELL_MULT not found in Config.luau")
+		elseif sellMult > 30 then
+			table.insert(problems, "SELL_MULT is " .. tostring(sellMult) .. "x (above 30x — selling beats placing)")
+		end
+		if not sellSrc:find("baseCps%(def, mutation%) %* Config%.SELL_MULT") then
+			table.insert(problems, "sellValue is not baseCps x SELL_MULT")
+		end
+		if #problems > 0 then
+			step("sell-25x", false, table.concat(problems, "; "))
+		else
+			step("sell-25x", true, "sell pays " .. tostring(sellMult) .. "x income (<= 30x) — placing is always the better long-term choice")
+		end
+	end
+end
+
+-- 14. Own-base pickup: the owner can take their own placed Rotling
+-- back up and carry it again; other players still go through steal.
+do
+	local carrySrc = read("src/server/CarryService.luau")
+	if not carrySrc then
+		step("own-pickup", false, "CarryService.luau missing")
+	else
+		local problems: { string } = {}
+		if not carrySrc:find("function CarryService%.pickupOwn") then
+			table.insert(problems, "pickupOwn not found")
+		end
+		if not carrySrc:find("CarryService%.pickupOwn%(player, model%)") then
+			table.insert(problems, "tryGrab never routes an owner to pickupOwn")
+		end
+		if not carrySrc:find('"Take "') then
+			table.insert(problems, 'no "Take <name>" prompt for own-base pickup')
+		end
+		if not carrySrc:find("StealService%.trySteal%(player, model%)") then
+			table.insert(problems, "other players' Rotlings no longer route to StealService.trySteal")
+		end
+		if #problems > 0 then
+			step("own-pickup", false, table.concat(problems, "; "))
+		else
+			step("own-pickup", true, "owners pick up their own Rotlings (Take prompt); rivals still steal")
+		end
+	end
+end
+
+-- 15. Rivals: 4 named bots on bases 5-8 that grab, carry, earn and
+-- steal; the leaderboard and bounty board show them.
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	if not rivalSrc or not mainSrc or not incomeSrc then
+		step("rivals", false, "RivalService.luau, Main.server.luau or IncomeService.luau missing")
+	else
+		local problems: { string } = {}
+		if not rivalSrc:find("function RivalService%.start") then
+			table.insert(problems, "RivalService.start not found")
+		end
+		if not mainSrc:find("RivalService%.start") then
+			table.insert(problems, "Main.server never starts the rivals")
+		end
+		if not rivalSrc:find("is sneaking to your base") then
+			table.insert(problems, "no steal alert to the victim")
+		end
+		if not rivalSrc:find("THIEF ON YOUR TAIL") then
+			table.insert(problems, "no pursuit banner when a rival chases an egg carrier")
+		end
+		if not incomeSrc:find("Rival") then
+			table.insert(problems, "rivals never appear on the leaderboard")
+		end
+		if not incomeSrc:find("setBountyText") then
+			table.insert(problems, "the bounty board is never updated")
+		end
+		if #problems > 0 then
+			step("rivals", false, table.concat(problems, "; "))
+		else
+			step("rivals", true, "4 rivals on bases 5-8 grab, carry, earn, steal and chase; leaderboard + bounty wired")
+		end
+	end
+end
+
+-- 16. Slap bat: F key + SLAP button, 2s cooldown, knockback + drop.
+do
+	local slapSrc = read("src/server/SlapService.luau")
+	local slapClient = read("src/client/SlapController.client.luau")
+	if not slapSrc or not slapClient then
+		step("slap", false, "SlapService.luau or SlapController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not slapSrc:find("function SlapService%.trySlap") then
+			table.insert(problems, "trySlap not found")
+		end
+		if not slapSrc:find("dropCarried") then
+			table.insert(problems, "a slap never drops the victim's carry")
+		end
+		if not slapSrc:find("applySlapFromRival") then
+			table.insert(problems, "rivals never slap back")
+		end
+		if not slapClient:find("KeyCode%.F") then
+			table.insert(problems, "no F keybind for the slap bat")
+		end
+		if not slapClient:find("SLAP") then
+			table.insert(problems, "no on-screen SLAP button")
+		end
+		if #problems > 0 then
+			step("slap", false, table.concat(problems, "; "))
+		else
+			step("slap", true, "F key + SLAP button, 2s cooldown, knockback + drop, rivals slap back")
+		end
+	end
+end
+
+-- 17. Meteor eggs: 2 per storm, heavy carry, incubator hatch in 60s.
+do
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	if not eggSrc or not mainSrc then
+		step("eggs", false, "MeteorEggService.luau or Main.server.luau missing")
+	else
+		local problems: { string } = {}
+		if not eggSrc:find("function MeteorEggService%.spawnEggsForStorm") then
+			table.insert(problems, "spawnEggsForStorm not found")
+		end
+		if not eggSrc:find("function MeteorEggService%.placeEgg") then
+			table.insert(problems, "placeEgg not found (no incubator placement)")
+		end
+		if not eggSrc:find("HATCHED:") then
+			table.insert(problems, "no hatch reveal banner")
+		end
+		if not eggSrc:find("EGG_HATCH_TIME") then
+			table.insert(problems, "hatch never waits EGG_HATCH_TIME (60s)")
+		end
+		if not mainSrc:find("MeteorEggService%.dropEgg") then
+			table.insert(problems, "dying never drops the egg")
+		end
+		if #problems > 0 then
+			step("eggs", false, table.concat(problems, "; "))
+		else
+			step("eggs", true, "2 eggs per storm, heavy carry, incubator hatch in 60s with reveal, drops on death")
+		end
+	end
+end
+
+-- 18. Boosts: 4 pickups in the world + shop, HUD icons with timers.
+do
+	local boostSrc = read("src/server/BoostService.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local shopSrc = read("src/client/ShopController.client.luau")
+	if not boostSrc or not hudSrc or not shopSrc then
+		step("boosts", false, "BoostService.luau, HUDController.client.luau or ShopController.client.luau missing")
+	else
+		local problems: { string } = {}
+		for _, kind in ipairs({ "speed", "magnet", "cash", "shield" }) do
+			if not boostSrc:find(kind .. " = { label") then
+				table.insert(problems, 'boost "' .. kind .. '" missing from BoostService')
+			end
+		end
+		if not hudSrc:find("BoostRow") then
+			table.insert(problems, "no BoostRow in the HUD")
+		end
+		if not shopSrc:find("BOOST_VIEW") then
+			table.insert(problems, "boosts are not buyable in the shop")
+		end
+		if #problems > 0 then
+			step("boosts", false, table.concat(problems, "; "))
+		else
+			step("boosts", true, "Speed/Magnet/2x Cash/Shield pickups + shop rows, HUD icons with timers")
+		end
+	end
+end
+
+-- 19. Buddy: half-size follower, +5% cash, swappable from the Index.
+do
+	local buddySrc = read("src/server/BuddyService.luau")
+	local indexSrc = read("src/client/IndexController.client.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	if not buddySrc or not indexSrc or not mainSrc then
+		step("buddy", false, "BuddyService.luau, IndexController.client.luau or Main.server.luau missing")
+	else
+		local problems: { string } = {}
+		if not buddySrc:find("function BuddyService%.attachBuddy") then
+			table.insert(problems, "attachBuddy not found")
+		end
+		if not buddySrc:find("Buddy: ") then
+			table.insert(problems, 'no "Buddy: <name>" tag')
+		end
+		if not buddySrc:find("%+5%% cash") then
+			table.insert(problems, "no +5% cash on the buddy tag")
+		end
+		if not indexSrc:find("Set as Buddy") then
+			table.insert(problems, "no Set as Buddy button in the Index")
+		end
+		if not mainSrc:find("BuddyService%.attachBuddy") then
+			table.insert(problems, "the buddy is never attached on spawn")
+		end
+		if #problems > 0 then
+			step("buddy", false, table.concat(problems, "; "))
+		else
+			step("buddy", true, "half-size follower with +5% cash tag, swappable from the Index, attached on spawn")
+		end
+	end
+end
+
+-- 20. Cheap wins: NEXT REBIRTH bar, danger meter, belt list, title
+-- billboard, shield dome, global events.
+do
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local eventSrc = read("src/server/GlobalEventService.luau")
+	if not hudSrc or not worldSrc or not eventSrc then
+		step("cheap-wins", false, "HUDController.client.luau, WorldBuilder.luau or GlobalEventService.luau missing")
+	else
+		local problems: { string } = {}
+		if not hudSrc:find("NEXT REBIRTH") then
+			table.insert(problems, "no NEXT REBIRTH bar in the HUD")
+		end
+		if not hudSrc:find("DangerBar") then
+			table.insert(problems, "no Meteor Danger meter in the HUD")
+		end
+		if not hudSrc:find("BeltPanel") then
+			table.insert(problems, 'no "On the belt" list in the HUD')
+		end
+		if not worldSrc:find("TitleBoard") then
+			table.insert(problems, "no title billboard over the crater")
+		end
+		if not worldSrc:find("ShieldDome") then
+			table.insert(problems, "no shield dome on the bases")
+		end
+		if not eventSrc:find("STARDUST SHOWER") then
+			table.insert(problems, "no Stardust Shower global event")
+		end
+		if not eventSrc:find("2X CASH HOUR") then
+			table.insert(problems, "no 2x Cash Hour global event")
+		end
+		if #problems > 0 then
+			step("cheap-wins", false, table.concat(problems, "; "))
+		else
+			step("cheap-wins", true, "NEXT REBIRTH bar, danger meter, belt list, title billboard, shield dome, 2 global events")
 		end
 	end
 end
