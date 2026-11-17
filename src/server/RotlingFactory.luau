@@ -94,6 +94,22 @@ local function bodyForSilhouette(def: RotlingCatalog.RotlingDef): (Vector3, Enum
 		return Vector3.new(s * 1.25, s * 0.55, s * 0.9), Enum.PartType.Block
 	elseif def.silhouette == "bear" then
 		return Vector3.new(s, s, s), Enum.PartType.Ball
+	elseif def.silhouette == "mole-dig" then
+		return Vector3.new(s * 1.3, s * 0.6, s * 1.1), Enum.PartType.Block
+	elseif def.silhouette == "tortoise-shell" then
+		return Vector3.new(s * 1.2, s * 0.7, s * 1.2), Enum.PartType.Ball
+	elseif def.silhouette == "boba-round" then
+		return Vector3.new(s * 0.9, s, s * 0.9), Enum.PartType.Ball
+	elseif def.silhouette == "penguin-waddle" then
+		return Vector3.new(s * 0.7, s, s * 0.7), Enum.PartType.Block
+	elseif def.silhouette == "avocado-oval" then
+		return Vector3.new(s * 0.9, s * 1.1, s * 0.9), Enum.PartType.Ball
+	elseif def.silhouette == "llama-tall" then
+		return Vector3.new(s * 0.5, s * 1.2, s * 0.5), Enum.PartType.Block
+	elseif def.silhouette == "narwhal-horn" then
+		return Vector3.new(s, s * 0.95, s), Enum.PartType.Ball
+	elseif def.silhouette == "cat-sit" then
+		return Vector3.new(s * 0.9, s * 0.9, s * 0.9), Enum.PartType.Block
 	elseif def.body == "ball" then
 		return Vector3.new(s, s, s), Enum.PartType.Ball
 	elseif def.body == "tall" then
@@ -139,12 +155,13 @@ function RotlingFactory.setModelScale(model: Model, target: number)
 end
 
 -- Carried look: the REAL model at a readable size, riding in front of
--- the chest — no bubble, no shrink-to-a-box. The glow shell and the
--- highlight are dimmed while carried so the Rotling keeps its real
--- colours and face instead of reading as a big pale block over the
--- player's view. The name tag hides while carried too (it overlaps
--- the top HUD). Call with false on place/scatter to restore everything;
--- the caller re-sets the size (1 on a pad, 1.5x back in the crater).
+-- the chest — no bubble, no shrink-to-a-box. The glow shell is hidden
+-- while carried so the Rotling keeps its real colours and face instead
+-- of reading as a big pale block over the player's view, but the rarity
+-- outline stays on so the carried Rotling pops against any background.
+-- The name tag hides while carried too (it overlaps the top HUD).
+-- Call with false on place/scatter to restore everything; the caller
+-- re-sets the size (1 on a pad, 1.5x back in the crater).
 function RotlingFactory.setCarriedVisual(model: Model, carried: boolean)
 	local body = model.PrimaryPart
 	if not body then
@@ -163,9 +180,12 @@ function RotlingFactory.setCarriedVisual(model: Model, carried: boolean)
 	if shell and shell:IsA("BasePart") then
 		shell.Transparency = if carried then 1 else 0.88
 	end
+	-- The rarity outline stays ON while carried: the carried Rotling
+	-- must pop in front of the chest (Malek's item 5), and the outline
+	-- is the cheapest way to keep it readable against any background.
 	local hl = model:FindFirstChildOfClass("Highlight")
 	if hl then
-		hl.Enabled = not carried
+		hl.Enabled = true
 	end
 	local label = body:FindFirstChild("RotlingLabel")
 	if label and label:IsA("BillboardGui") then
@@ -666,6 +686,108 @@ local function addNameProp(model: Model, body: Part, def: RotlingCatalog.Rotling
 		starH.Material = Enum.Material.Neon
 		starH.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y * 0.18, bodySize.Z / 2 + size * 0.12)
 		weldIt(starH)
+	elseif def.id == "smore" then
+		-- A dirt mound: the mole is half-buried, only the top shows.
+		local mound = makePart("DirtMound", Enum.PartType.Ball, Vector3.new(bodySize.X * 1.1, size * 0.3, bodySize.Z * 1.1), Color3.fromRGB(120, 85, 50))
+		mound.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y * 0.35, 0)
+		weldIt(mound)
+		-- A tiny shovel stuck in the mound, and a hard hat.
+		local shovel = makePart("Shovel", Enum.PartType.Block, Vector3.new(size * 0.08, size * 0.6, size * 0.08), Color3.fromRGB(150, 110, 60), Enum.Material.Wood)
+		shovel.CFrame = top * CFrame.new(bodySize.X * 0.35, size * 0.2, 0) * CFrame.Angles(0, 0, -0.3)
+		weldIt(shovel)
+		local hat = makePart("HardHat", Enum.PartType.Ball, Vector3.new(size * 0.45, size * 0.22, size * 0.45), Color3.fromRGB(255, 200, 40))
+		hat.CFrame = top * CFrame.new(0, size * 0.02, 0)
+		weldIt(hat)
+	elseif def.id == "tortoise" then
+		-- A domed shell plate on the back, with a shell rim.
+		local shell = makePart("Shell", Enum.PartType.Ball, Vector3.new(bodySize.X * 0.9, size * 0.35, bodySize.Z * 0.9), Color3.fromRGB(90, 140, 70))
+		shell.CFrame = top * CFrame.new(0, -size * 0.05, -bodySize.Z * 0.1)
+		weldIt(shell)
+		-- Four stubby feet peeking out, and a little tail.
+		for _, spot in ipairs({ { -0.35, 0.3 }, { 0.35, 0.3 }, { -0.35, -0.3 }, { 0.35, -0.3 } }) do
+			local foot = makePart("Foot", Enum.PartType.Ball, Vector3.new(size * 0.16, size * 0.16, size * 0.16), Color3.fromRGB(60, 110, 50))
+			foot.CFrame = body.CFrame * CFrame.new(spot[1] * bodySize.X, -bodySize.Y * 0.4, spot[2] * bodySize.Z)
+			weldIt(foot)
+		end
+		local tail = makePart("Tail", Enum.PartType.Ball, Vector3.new(size * 0.14, size * 0.14, size * 0.14), Color3.fromRGB(60, 110, 50))
+		tail.CFrame = body.CFrame * CFrame.new(0, -size * 0.1, -bodySize.Z / 2 - size * 0.05)
+		weldIt(tail)
+	elseif def.id == "boba" then
+		-- A wide straw poking out of the top, and three boba pearls
+		-- floating in the body.
+		local straw = makePart("Straw", Enum.PartType.Cylinder, Vector3.new(size * 0.5, size * 0.14, size * 0.14), Color3.fromRGB(255, 120, 150))
+		straw.CFrame = top * CFrame.new(size * 0.1, size * 0.2, 0) * CFrame.Angles(0, 0, -0.25)
+		weldIt(straw)
+		for _, spot in ipairs({ { -0.2, -0.1 }, { 0.2, -0.25 }, { 0, 0.1 } }) do
+			local pearl = makePart("Pearl", Enum.PartType.Ball, Vector3.new(size * 0.14, size * 0.14, size * 0.14), Color3.fromRGB(40, 25, 20))
+			pearl.CFrame = body.CFrame * CFrame.new(spot[1] * bodySize.X, spot[2] * bodySize.Y, bodySize.Z / 2 + size * 0.03)
+			weldIt(pearl)
+		end
+	elseif def.id == "penguin" then
+		-- A white belly patch and a little orange beak.
+		local bellyPatch = makePart("BellyPatch", Enum.PartType.Ball, Vector3.new(bodySize.X * 0.55, bodySize.Y * 0.5, size * 0.12), Color3.fromRGB(245, 245, 245))
+		bellyPatch.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y * 0.1, bodySize.Z / 2 + size * 0.02)
+		weldIt(bellyPatch)
+		local beak = makePart("Beak", Enum.PartType.Block, Vector3.new(size * 0.2, size * 0.12, size * 0.16), Color3.fromRGB(255, 160, 40))
+		beak.CFrame = body.CFrame * CFrame.new(0, -size * 0.02, bodySize.Z / 2 + size * 0.06)
+		weldIt(beak)
+		-- Two flipper wings on the sides.
+		for _, side in ipairs({ -1, 1 }) do
+			local flipper = makePart("Flipper", Enum.PartType.Block, Vector3.new(size * 0.1, size * 0.5, size * 0.25), Color3.fromRGB(40, 60, 90))
+			flipper.CFrame = body.CFrame * CFrame.new(side * (bodySize.X / 2 + size * 0.04), 0, 0)
+			weldIt(flipper)
+		end
+	elseif def.id == "avocado" then
+		-- A big round pit in the middle, and a little leaf on top.
+		local pit = makePart("Pit", Enum.PartType.Ball, Vector3.new(size * 0.35, size * 0.35, size * 0.15), Color3.fromRGB(120, 70, 30))
+		pit.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y * 0.1, bodySize.Z / 2 + size * 0.04)
+		weldIt(pit)
+		local leaf = makePart("Leaf", Enum.PartType.Block, Vector3.new(size * 0.3, size * 0.08, size * 0.2), Color3.fromRGB(60, 180, 80))
+		leaf.CFrame = top * CFrame.new(size * 0.15, size * 0.05, 0) * CFrame.Angles(0, 0.4, 0.4)
+		weldIt(leaf)
+		local stem = makePart("Stem", Enum.PartType.Cylinder, Vector3.new(size * 0.2, size * 0.08, size * 0.08), Color3.fromRGB(120, 80, 40))
+		stem.CFrame = top * CFrame.new(0, size * 0.05, 0) * CFrame.Angles(0, 0, math.rad(90))
+		weldIt(stem)
+	elseif def.id == "llama" then
+		-- A long neck with a small head, and a fluffy tail.
+		local neck = makePart("Neck", Enum.PartType.Block, Vector3.new(size * 0.22, size * 0.5, size * 0.22), body.Color)
+		neck.CFrame = top * CFrame.new(0, size * 0.2, 0)
+		weldIt(neck)
+		local head = makePart("Head", Enum.PartType.Block, Vector3.new(size * 0.3, size * 0.3, size * 0.3), body.Color)
+		head.CFrame = top * CFrame.new(0, size * 0.55, 0)
+		weldIt(head)
+		local fluff = makePart("Fluff", Enum.PartType.Ball, Vector3.new(size * 0.3, size * 0.3, size * 0.3), Color3.fromRGB(255, 245, 220))
+		fluff.CFrame = body.CFrame * CFrame.new(0, -size * 0.1, -bodySize.Z / 2 - size * 0.05)
+		weldIt(fluff)
+	elseif def.id == "narwhal" then
+		-- The unicorn horn, spiralled, and a little tail fin.
+		local horn = makePart("Horn", Enum.PartType.Cylinder, Vector3.new(size * 0.5, size * 0.12, size * 0.12), Color3.fromRGB(240, 240, 250))
+		horn.CFrame = top * CFrame.new(0, size * 0.25, 0) * CFrame.Angles(0, 0, math.rad(90))
+		weldIt(horn)
+		local fin = makePart("TailFin", Enum.PartType.Block, Vector3.new(size * 0.4, size * 0.1, size * 0.25), body.Color)
+		fin.CFrame = body.CFrame * CFrame.new(0, -size * 0.1, -bodySize.Z / 2 - size * 0.08)
+		weldIt(fin)
+		-- Two side fins.
+		for _, side in ipairs({ -1, 1 }) do
+			local sideFin = makePart("SideFin", Enum.PartType.Block, Vector3.new(size * 0.08, size * 0.3, size * 0.2), body.Color)
+			sideFin.CFrame = body.CFrame * CFrame.new(side * (bodySize.X / 2 + size * 0.03), -bodySize.Y * 0.2, 0)
+			weldIt(sideFin)
+		end
+	elseif def.id == "cat" then
+		-- Pointy cat ears and a long comet tail with a star tip.
+		for _, side in ipairs({ -1, 1 }) do
+			local ear = makePart("Ear", Enum.PartType.Block, Vector3.new(size * 0.18, size * 0.3, size * 0.1), body.Color)
+			ear.CFrame = top * CFrame.new(side * size * 0.25, size * 0.1, 0) * CFrame.Angles(0, 0, side * -0.2)
+			weldIt(ear)
+		end
+		local tail = makePart("CometTail", Enum.PartType.Block, Vector3.new(size * 0.12, size * 0.12, size * 0.8), Color3.fromRGB(255, 180, 80))
+		tail.Material = Enum.Material.Neon
+		tail.CFrame = body.CFrame * CFrame.new(0, size * 0.1, -bodySize.Z / 2 - size * 0.35)
+		weldIt(tail)
+		local star = makePart("TailStar", Enum.PartType.Ball, Vector3.new(size * 0.25, size * 0.25, size * 0.25), Color3.fromRGB(255, 240, 120))
+		star.Material = Enum.Material.Neon
+		star.CFrame = body.CFrame * CFrame.new(0, size * 0.1, -bodySize.Z / 2 - size * 0.75)
+		weldIt(star)
 	end
 end
 
@@ -826,9 +948,12 @@ local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef
 	rarityLabel.Position = UDim2.new(0, 0, 0.4, 0)
 	rarityLabel.Size = UDim2.new(1, 0, 0.3, 0)
 	rarityLabel.BackgroundTransparency = 1
+	-- The mutation line carries the multiplier (cheap win 1): a mutated
+	-- Rotling's tag reads "✦ RAINBOW x5" so the value is obvious from
+	-- the path — and the cps line below already includes it.
 	local rarityText = def.rarity
 	if mutation then
-		rarityText ..= " " .. mutation
+		rarityText ..= " ✦ " .. mutation .. " x" .. tostring(MutationConfig.mutationMult(mutation))
 	end
 	rarityLabel.Text = rarityText
 	rarityLabel.Font = Enum.Font.FredokaOne
@@ -976,6 +1101,11 @@ function RotlingFactory.applyMutationVisual(model: Model, mutation: string?)
 	elseif mutation == "Starstruck" then
 		body.Color = Color3.fromRGB(255, 240, 170)
 		body.Material = Enum.Material.Neon
+	elseif mutation == "Diamond" then
+		body.Color = Color3.fromRGB(190, 240, 255)
+		body.Material = Enum.Material.Glass
+	elseif mutation == "Scorched" then
+		body.Color = Color3.fromRGB(60, 35, 25)
 	end
 	local old = body:FindFirstChild("MutationSparkle")
 	if old then
@@ -995,7 +1125,7 @@ function RotlingFactory.applyMutationVisual(model: Model, mutation: string?)
 		if rarityLabel and rarityLabel:IsA("TextLabel") then
 			local text = def.rarity
 			if mutation then
-				text ..= " " .. mutation
+				text ..= " ✦ " .. mutation .. " x" .. tostring(MutationConfig.mutationMult(mutation))
 			end
 			rarityLabel.Text = text
 		end
@@ -1034,12 +1164,17 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 		bodyColor = Color3.fromRGB(170, 225, 255)
 	elseif mutation == "Starstruck" then
 		bodyColor = Color3.fromRGB(255, 240, 170)
+	elseif mutation == "Diamond" then
+		bodyColor = Color3.fromRGB(190, 240, 255)
+	elseif mutation == "Scorched" then
+		bodyColor = Color3.fromRGB(60, 35, 25)
 	end
 	local body = makePart("Body", bodyShape, bodySize, bodyColor)
 	-- Gummy Bear reads "translucent" without any transparency: a bright
 	-- Neon body in its Cosmic cyan, solid (Transparency 0) like the
 	-- rest, with the glow shell and sparkles on top.
 	body.Material = if mutation == "Rainbow" or mutation == "Starstruck" then Enum.Material.Neon
+		elseif mutation == "Diamond" then Enum.Material.Glass
 		elseif def.id == "gummy" then Enum.Material.Neon
 		else Enum.Material.SmoothPlastic
 	-- Rest the body's bottom on the given surface: centre it half its

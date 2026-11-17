@@ -94,6 +94,26 @@ local function buildRaider(position: Vector3): Model
 	light.Range = 10
 	light.Parent = body
 
+	-- A red THIEF sign over its head, so the steal is visible from
+	-- across the map (item 7b).
+	local thiefSign = Instance.new("BillboardGui")
+	thiefSign.Name = "ThiefSign"
+	thiefSign.Size = UDim2.fromOffset(160, 36)
+	thiefSign.StudsOffsetWorldSpace = Vector3.new(0, 5, 0)
+	thiefSign.AlwaysOnTop = true
+	thiefSign.LightInfluence = 0
+	thiefSign.MaxDistance = 80
+	thiefSign.Parent = body
+	local thiefLabel = Instance.new("TextLabel")
+	thiefLabel.Size = UDim2.new(1, 0, 1, 0)
+	thiefLabel.BackgroundTransparency = 1
+	thiefLabel.Text = "🚨 THIEF!"
+	thiefLabel.Font = Enum.Font.FredokaOne
+	thiefLabel.TextScaled = true
+	thiefLabel.TextColor3 = Color3.fromRGB(255, 60, 60)
+	thiefLabel.TextStrokeTransparency = 0.2
+	thiefLabel.Parent = thiefSign
+
 	-- A humanoid so it can walk with MoveTo.
 	local humanoid = Instance.new("Humanoid")
 	humanoid.WalkSpeed = Config.RAIDER_WALK_SPEED
@@ -220,7 +240,7 @@ local function runRaid(model: Model)
 		if owner then
 			local def = RotlingCatalog.getDef(stolen:GetAttribute("DefId") :: string)
 			local name = if def then def.name else "a Rotling"
-			Remotes.bannerEvent():FireClient(owner, "A Rot Raider is stealing your " .. name .. "! Bonk it!", 5)
+			Remotes.bannerEvent():FireClient(owner, "🚨 THIEF AT YOUR BASE! A Rot Raider is stealing your " .. name .. "! Bonk it!", 5)
 		end
 	end
 	-- Carry: run for the crater edge. If it gets there, the loot is gone.

@@ -16,20 +16,28 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local GuiKit = require(script.Parent:WaitForChild("GuiKit"))
 
 local SHOP_VIEW = {
-	Speed = { label = "Speed Boots", desc = "+2 WalkSpeed per tier", tiers = { 250, 1000, 5000 } },
-	Carry = { label = "Extra Arms", desc = "+1 Rotling carried per tier", tiers = { 500, 3000 } },
-	Income = { label = "Golden Trough", desc = "+25% base income per tier", tiers = { 750, 2500, 10000 } },
-	Pads = { label = "Extra Pad", desc = "+1 base pad per tier (max 8)", tiers = { 2000, 8000 } },
-	Lock = { label = "Longer Lock", desc = "+30s base lock per tier", tiers = { 1000, 4000 } },
+	Speed = { label = "Speed Boots", desc = "+2 WalkSpeed per tier", tiers = { 200, 800, 4000 } },
+	Carry = { label = "Extra Arms", desc = "+1 Rotling carried per tier", tiers = { 400, 2500 } },
+	Income = { label = "Golden Trough", desc = "+25% base income per tier", tiers = { 600, 2000, 8000 } },
+	Pads = { label = "Extra Pad", desc = "+1 base pad per tier (max 8)", tiers = { 1500, 6000 } },
+	Lock = { label = "Longer Lock", desc = "+30s base lock per tier", tiers = { 800, 3000 } },
 }
 local SHOP_ORDER = { "Speed", "Carry", "Income", "Pads", "Lock" }
+
+-- Boosts (item 11): bought with Stardust, not coins. One row each.
+local BOOST_VIEW = {
+	{ kind = "speed", label = "⚡ Speed Coil", desc = "+40% speed, 30s" },
+	{ kind = "magnet", label = "🧲 Magnet", desc = "Auto-grab nearest Rotling within 15 studs, 30s" },
+	{ kind = "cash", label = "💰 2x Cash", desc = "Double income, 60s" },
+	{ kind = "shield", label = "🛡️ Shield", desc = "Immune to slaps and meteors, 20s" },
+}
 
 local gui = GuiKit.getGui()
 
 -- Top-left row, beside the HUD's Upgrade and Daily buttons, at y=60.
 local shopButton = GuiKit.makeButton(gui, "ShopButton", "🛒 Shop (B)", UDim2.new(0, 120, 0, 44), UDim2.new(0, 12, 0, 60), GuiKit.COLORS.Blue)
 
-local shopPanel = GuiKit.makePanel(gui, "ShopPanel", UDim2.new(0, 420, 0, 560), UDim2.new(0.5, -210, 0.5, -280))
+local shopPanel = GuiKit.makePanel(gui, "ShopPanel", UDim2.new(0, 420, 0, 780), UDim2.new(0.5, -210, 0.5, -390))
 shopPanel.Visible = false
 GuiKit.makeLabel(shopPanel, "Title", "🛒 SHOP", UDim2.new(1, 0, 0, 44), UDim2.new(0, 0, 0, 8), 30, GuiKit.COLORS.White)
 local shopClose = GuiKit.makeButton(shopPanel, "Close", "X", UDim2.new(0, 40, 0, 40), UDim2.new(1, -48, 0, 8), GuiKit.COLORS.Close)
@@ -38,6 +46,24 @@ local tiers = { Speed = 0, Carry = 0, Income = 0, Pads = 0, Lock = 0 }
 
 local refreshShop: () -> ()
 
+-- Current effect text per ladder (cheap win 3): the row shows the
+-- level AND what it does right now, not just the next price.
+local function effectText(key: string, tier: number): string
+	if key == "Speed" then
+		return "Lv " .. tostring(tier) .. "/3 — now +" .. tostring(2 * tier) .. " WalkSpeed"
+	elseif key == "Carry" then
+		return "Lv " .. tostring(tier) .. "/2 — carry " .. tostring(1 + tier) .. " at once"
+	elseif key == "Income" then
+		return "Lv " .. tostring(tier) .. "/3 — now +" .. tostring(25 * tier) .. "% income"
+	elseif key == "Pads" then
+		return "Lv " .. tostring(tier) .. "/2 — " .. tostring(6 + tier) .. " pads open"
+	elseif key == "Lock" then
+		return "Lv " .. tostring(tier) .. "/2 — lock lasts " .. tostring(60 + 30 * tier) .. "s"
+	else
+		return "Lv " .. tostring(tier)
+	end
+end
+
 local shopRows = {}
 for i, key in ipairs(SHOP_ORDER) do
 	local item = SHOP_VIEW[key]
@@ -45,7 +71,7 @@ for i, key in ipairs(SHOP_ORDER) do
 	local row = GuiKit.makePanel(shopPanel, key .. "Row", UDim2.new(1, -24, 0, 88), UDim2.new(0, 12, 0, y))
 	GuiKit.makeLabel(row, "Name", item.label, UDim2.new(1, -130, 0, 28), UDim2.new(0, 10, 0, 6), 22, Color3.fromRGB(255, 255, 255))
 	GuiKit.makeLabel(row, "Desc", item.desc, UDim2.new(1, -130, 0, 22), UDim2.new(0, 10, 0, 34), 16, Color3.fromRGB(200, 200, 220))
-	local tierLabel = GuiKit.makeLabel(row, "Tier", "Tier 0/" .. tostring(#item.tiers), UDim2.new(1, -130, 0, 22), UDim2.new(0, 10, 0, 58), 16, Color3.fromRGB(160, 255, 170))
+	local tierLabel = GuiKit.makeLabel(row, "Tier", "Lv 0", UDim2.new(1, -130, 0, 22), UDim2.new(0, 10, 0, 58), 16, Color3.fromRGB(160, 255, 170))
 	local buyButton = GuiKit.makeButton(row, "Buy", Formatting.formatMoney(item.tiers[1]), UDim2.new(0, 104, 0, 44), UDim2.new(1, -114, 0, 22), GuiKit.COLORS.Buy)
 	shopRows[key] = { row = row, tierLabel = tierLabel, buyButton = buyButton }
 	buyButton.MouseButton1Click:Connect(function()
@@ -58,12 +84,37 @@ for i, key in ipairs(SHOP_ORDER) do
 	end)
 end
 
+-- Boosts section: four rows, bought with Stardust (20 each).
+GuiKit.makeLabel(shopPanel, "BoostsTitle", "✨ BOOSTS — 20 💎 each", UDim2.new(1, -24, 0, 28), UDim2.new(0, 12, 0, 540), 20, GuiKit.COLORS.Gold)
+for i, boost in ipairs(BOOST_VIEW) do
+	local y = 568 + (i - 1) * 40
+	local row = GuiKit.makePanel(shopPanel, "Boost" .. boost.kind .. "Row", UDim2.new(1, -24, 0, 36), UDim2.new(0, 12, 0, y))
+	GuiKit.makeLabel(row, "Name", boost.label, UDim2.new(0, 130, 0, 22), UDim2.new(0, 10, 0, 7), 16, Color3.fromRGB(255, 255, 255))
+	GuiKit.makeLabel(row, "Desc", boost.desc, UDim2.new(1, -140, 0, 22), UDim2.new(0, 140, 0, 7), 14, Color3.fromRGB(200, 200, 220))
+	local buyButton = GuiKit.makeButton(row, "Buy", "20 💎", UDim2.new(0, 80, 0, 28), UDim2.new(1, -90, 0, 4), GuiKit.COLORS.Buy)
+	buyButton.MouseButton1Click:Connect(function()
+		local ok, message = Remotes.buyBoostFunction():InvokeServer(boost.kind)
+		GuiKit.showBanner(gui, message, 3)
+	end)
+end
+
+-- Mutation reroll: 30 Stardust, rerolls the mutation of your
+-- highest-income placed Rotling.
+local rerollRow = GuiKit.makePanel(shopPanel, "RerollRow", UDim2.new(1, -24, 0, 36), UDim2.new(0, 12, 0, 728))
+GuiKit.makeLabel(rerollRow, "Name", "🎲 Reroll Mutation", UDim2.new(0, 170, 0, 22), UDim2.new(0, 10, 0, 7), 16, Color3.fromRGB(255, 255, 255))
+GuiKit.makeLabel(rerollRow, "Desc", "Reroll your best Rotling's mutation", UDim2.new(1, -180, 0, 22), UDim2.new(0, 180, 0, 7), 14, Color3.fromRGB(200, 200, 220))
+local rerollButton = GuiKit.makeButton(rerollRow, "Buy", "30 💎", UDim2.new(0, 80, 0, 28), UDim2.new(1, -90, 0, 4), GuiKit.COLORS.Buy)
+rerollButton.MouseButton1Click:Connect(function()
+	local ok, message = Remotes.rerollFunction():InvokeServer()
+	GuiKit.showBanner(gui, message, 3)
+end)
+
 function refreshShop()
 	for _, key in ipairs(SHOP_ORDER) do
 		local item = SHOP_VIEW[key]
 		local tier = tiers[key]
 		local row = shopRows[key]
-		row.tierLabel.Text = "Tier " .. tostring(tier) .. "/" .. tostring(#item.tiers)
+		row.tierLabel.Text = effectText(key, tier)
 		if tier >= #item.tiers then
 			row.buyButton.Text = "MAXED"
 			row.buyButton.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
@@ -132,6 +183,12 @@ Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 	if shopPanel.Visible then
 		refreshShop()
 	end
+end)
+
+-- Walking into the Star Shop or onto an upgrade machine opens the
+-- panel (the server fires this when the world prompt is pressed).
+Remotes.openShopEvent().OnClientEvent:Connect(function(section: string?)
+	openShop(section)
 end)
 
 print("Starfall Rotlings shop ready.")

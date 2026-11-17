@@ -47,6 +47,9 @@ function SellService.sellCarried(player: Player): (boolean, string)
 	-- must never read as full after a sale.
 	CarryService.removeCarried(player, model)
 	model:Destroy()
+	-- Selling can change the best buddy (highest income).
+	local BuddyService = require(script.Parent.BuddyService)
+	BuddyService.refreshBuddy(player)
 	profile.coins += value
 	MissionService.addProgress(player, "earn", value)
 	DataService.saveProfile(player)

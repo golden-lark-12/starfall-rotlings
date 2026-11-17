@@ -200,6 +200,9 @@ function CarryService.pickupOwn(player: Player, model: Model)
 	model:SetAttribute("BaseId", 0)
 	model:SetAttribute("PadIndex", 0)
 	CarryService.carryRotling(player, model)
+	-- Picking a Rotling back up can change the best buddy.
+	local BuddyService = require(script.Parent.BuddyService)
+	BuddyService.refreshBuddy(player)
 	Remotes.bannerEvent():FireClient(player, "Picked it back up — place it on another pad or sell it.", 3)
 end
 
@@ -349,6 +352,9 @@ function CarryService.placeOnPad(player: Player, model: Model, baseId: number, p
 	RotlingFactory.setRestPose(model)
 	MissionService.addProgress(player, "place", 1)
 	addXp(player, Config.XP_PLACE)
+	-- A new placement can change the best buddy (highest income).
+	local BuddyService = require(script.Parent.BuddyService)
+	BuddyService.refreshBuddy(player)
 	Remotes.bannerEvent():FireClient(player, "Placed! It now earns coins every second.", 3)
 end
 

@@ -206,6 +206,6 @@ Config.SAVE_VERSION = 4 -- v4 adds stardust / xp / level / buddyDefId
 
 -- Index completion rewards.
 Config.INDEX_RARITY_REWARD = 500 -- coins for completing one rarity's set
-Config.INDEX_FULL_REWARD = 5000 -- coins for finding all twelve Rotlings
+Config.INDEX_FULL_REWARD = 5000 -- coins for finding all twenty Rotlings
 
 return Config

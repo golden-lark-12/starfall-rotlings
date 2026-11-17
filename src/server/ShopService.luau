@@ -168,6 +168,26 @@ function ShopService.init()
 		local ok, message = ShopService.rerollMutation(player)
 		return ok, message
 	end
+	Remotes.buyBoostFunction().OnServerInvoke = function(player: Player, kind: string)
+		local BoostService = require(script.Parent.BoostService)
+		local ok, message = BoostService.buyBoost(player, kind)
+		return ok, message
+	end
+	-- World prompts: the Star Shop floor and each upgrade machine open
+	-- the Shop UI on the client (ShopController listens for the event).
+	for _, descendant in ipairs(workspace:GetDescendants()) do
+		if descendant:IsA("ProximityPrompt") then
+			if descendant.Parent and descendant.Parent.Name == "ShopPrompt" then
+				descendant.Triggered:Connect(function(player: Player)
+					Remotes.openShopEvent():FireClient(player, "shop")
+				end)
+			elseif descendant.Parent and descendant.Parent.Name == "UpgradePrompt" then
+				descendant.Triggered:Connect(function(player: Player)
+					Remotes.openShopEvent():FireClient(player, "upgrade")
+				end)
+			end
+		end
+	end
 end
 
 return ShopService

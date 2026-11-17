@@ -196,14 +196,49 @@ function SpawnService.spawnRareAt(position: Vector3): Model?
 	return model
 end
 
+-- Spawn one Rotling of an exact def (and optional mutation) on the
+-- crater floor. Used by the forced opening mix in start().
+local function spawnForced(defId: string, mutation: string?): Model?
+	local def = RotlingCatalog.getDef(defId)
+	if not def then
+		return nil
+	end
+	local position = findSpawnPosition()
+	local model = RotlingFactory.build(def.id, mutation, position, 1.5)
+	if not model then
+		return nil
+	end
+	model.Parent = workspace
+	SpawnService.connectPrompt(model)
+	SpawnService.registerFree(model)
+	return model
+end
+
 function SpawnService.start()
 	if running then
 		return
 	end
 	running = true
 	-- A few Rotlings are already waiting when the first player arrives:
-	-- the conveyor starts full (CRATER_INITIAL), never empty.
-	for _ = 1, Config.CRATER_INITIAL do
+	-- the conveyor starts full (CRATER_INITIAL), never empty. The
+	-- opening mix is forced, not random: several rarity tiers together
+	-- (Common, Rare, Epic, Legendary, Mythic) and at least 2 mutated
+	-- Rotlings, so the hero and base shots always show the ladder and
+	-- the mutations (item 13).
+	local opening: { { defId: string, mutation: string? } } = {
+		{ defId = "wombat", mutation = nil },
+		{ defId = "boba", mutation = nil },
+		{ defId = "puddles", mutation = nil },
+		{ defId = "avocado", mutation = nil },
+		{ defId = "crumb", mutation = "Gold" },
+		{ defId = "quokka", mutation = nil },
+		{ defId = "bloop", mutation = "Rainbow" },
+		{ defId = "narwhal", mutation = nil },
+	}
+	for _, entry in ipairs(opening) do
+		spawnForced(entry.defId, entry.mutation)
+	end
+	for _ = 1, Config.CRATER_INITIAL - #opening do
 		SpawnService.spawnOne()
 	end
 	task.spawn(animateFree)

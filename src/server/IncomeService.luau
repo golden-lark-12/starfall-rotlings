@@ -199,6 +199,7 @@ function IncomeService.broadcastHud()
 					eventName = eventName,
 					eventSeconds = eventSeconds,
 					buddyName = BuddyService.buddyName(player),
+					eggCarried = State.eggCarriedByUser[player.UserId] ~= nil,
 				})
 			end
 		end)

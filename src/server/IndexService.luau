@@ -2,7 +2,7 @@
 -- Starfall Rotlings: the Index.
 -- Every Rotling a player has grabbed or placed is logged here. Cards stay
 -- greyed out until found. Completing one rarity's set pays coins; finding
--- all twelve pays a big reward once.
+-- all twenty pay a big reward once.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -42,7 +42,7 @@ function IndexService.markFound(player: Player, defId: string)
 		profile.coins += Config.INDEX_RARITY_REWARD
 		Remotes.bannerEvent():FireClient(player, "Index: every " .. def.rarity .. " found! +" .. Formatting.formatMoney(Config.INDEX_RARITY_REWARD) .. "!", 4)
 	end
-	-- All twelve found? Pay the big reward once.
+	-- All twenty found? Pay the big reward once.
 	if not profile.indexFullRewarded then
 		local found = 0
 		for _ in pairs(profile.index) do
@@ -56,7 +56,7 @@ function IndexService.markFound(player: Player, defId: string)
 	end
 end
 
--- How many Rotlings this player has found, of the twelve.
+-- How many Rotlings this player has found, of the twenty.
 function IndexService.foundCount(player: Player): number
 	local profile = DataService.getProfile(player)
 	if not profile then

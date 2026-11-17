@@ -105,9 +105,24 @@ local function wantsSprint(): boolean
 	return (shiftHeld or runHeld) and stamina > 0
 end
 
--- Base speed follows the shop Speed tier in the HUD feed.
+-- Base speed follows the shop Speed tier in the HUD feed, the Speed
+-- Coil boost (x1.4 while active) and the meteor-egg slow (-6 while
+-- carrying an egg — the server enforces the same numbers, so the
+-- client can never outrun its own carry).
+local eggCarried = false
 Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
-	baseSpeed = Config.BASE_WALKSPEED + Config.SPEED_PER_TIER * (data.speedTier or 0)
+	local speedMult = 1
+	for _, boost in ipairs(data.boosts or {}) do
+		if boost.kind == "speed" then
+			speedMult = Config.BOOST_SPEED_MULT
+			break
+		end
+	end
+	eggCarried = data.eggCarried or false
+	baseSpeed = (Config.BASE_WALKSPEED + Config.SPEED_PER_TIER * (data.speedTier or 0)) * speedMult
+	if eggCarried then
+		baseSpeed = math.max(8, baseSpeed - Config.EGG_SLOW)
+	end
 	if not sprinting then
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")

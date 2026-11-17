@@ -37,9 +37,10 @@ function DailyService.claimDaily(player: Player): (boolean, string)
 	end
 	profile.lastDailyClaim = os.time()
 	profile.coins += Config.DAILY_REWARD
+	profile.stardust += Config.DAILY_STARDUST
 	DataService.saveProfile(player)
 	FeedbackService.celebrate(player)
-	return true, "🎁 Daily reward! +" .. Formatting.formatMoney(Config.DAILY_REWARD)
+	return true, "🎁 Daily reward! +" .. Formatting.formatMoney(Config.DAILY_REWARD) .. " and +" .. tostring(Config.DAILY_STARDUST) .. " 💎 Stardust"
 end
 
 -- Wire the ClaimDaily remote function.

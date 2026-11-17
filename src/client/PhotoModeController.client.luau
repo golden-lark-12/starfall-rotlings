@@ -55,7 +55,7 @@ local SHOTS = {
 	},
 	{
 		name = "3/4 — My base",
-		detail = "Pads, Lv sign and placed Rotlings",
+		detail = "Pads, Lv sign and placed Rotlings — a thief at the gate shows here too",
 		position = nil, -- computed from the nearest base, below
 		lookAt = nil,
 	},

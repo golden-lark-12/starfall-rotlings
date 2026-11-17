@@ -26,15 +26,21 @@ local function step(name: string, fn: () -> ()): boolean
 end
 
 local BaseService = require(script.Parent.BaseService)
+local BoostService = require(script.Parent.BoostService)
+local BuddyService = require(script.Parent.BuddyService)
 local CarryService = require(script.Parent.CarryService)
 local DailyService = require(script.Parent.DailyService)
 local DataService = require(script.Parent.DataService)
+local GlobalEventService = require(script.Parent.GlobalEventService)
 local IncomeService = require(script.Parent.IncomeService)
 local LeaderstatsService = require(script.Parent.LeaderstatsService)
+local MeteorEggService = require(script.Parent.MeteorEggService)
 local RaiderService = require(script.Parent.RaiderService)
 local RebirthService = require(script.Parent.RebirthService)
+local RivalService = require(script.Parent.RivalService)
 local SellService = require(script.Parent.SellService)
 local ShopService = require(script.Parent.ShopService)
+local SlapService = require(script.Parent.SlapService)
 local SpawnService = require(script.Parent.SpawnService)
 local StarfallService = require(script.Parent.StarfallService)
 local State = require(script.Parent.State)
@@ -57,6 +63,16 @@ step("income (IncomeService.start)", IncomeService.start)
 step("storm (StarfallService.start)", StarfallService.start)
 step("spawner (SpawnService.start)", SpawnService.start)
 step("raiders (RaiderService.start)", RaiderService.start)
+-- Rivals claim bases 5-8 here, before any player is processed below,
+-- so a joining player never collides with a rival's base.
+step("rivals (RivalService.start)", RivalService.start)
+step("eggs (MeteorEggService.init)", MeteorEggService.init)
+step("eggs (MeteorEggService.start)", MeteorEggService.start)
+step("events (GlobalEventService.start)", GlobalEventService.start)
+step("boosts (BoostService.init)", BoostService.init)
+step("boosts (BoostService.start)", BoostService.start)
+step("buddy (BuddyService.init)", BuddyService.init)
+step("slap (SlapService.init)", SlapService.init)
 
 -- Pad prompts: pressing E on any pad asks the server to place the
 -- Rotling you carry (it checks the pad is yours and free).
@@ -70,6 +86,8 @@ end
 
 local function onCharacterAdded(player: Player, character: Model)
 	ShopService.applyWalkSpeed(player)
+	BoostService.applyWalkSpeed(player)
+	BuddyService.attachBuddy(player, character)
 	-- Spawn at your own base, facing the crater: stand beside the
 	-- platform's front corner, so the glowing pads are right beside you
 	-- and the crater is straight ahead. (The SpawnLocation alone can't
@@ -92,6 +110,7 @@ local function onCharacterAdded(player: Player, character: Model)
 	humanoid.Died:Connect(function()
 		-- Dying drops everything you were carrying into the crater.
 		CarryService.dropAllCarried(player)
+		MeteorEggService.dropEgg(player)
 	end)
 end
 
@@ -111,7 +130,7 @@ local function onPlayerAdded(player: Player)
 		onCharacterAdded(player, character)
 	end)
 	if player.Character then
-		onPlayerAdded(player, player.Character)
+		onCharacterAdded(player, player.Character)
 	end
 	task.delay(2, function()
 		IncomeService.broadcastHud()
@@ -120,6 +139,7 @@ end
 
 local function onPlayerRemoving(player: Player)
 	CarryService.dropAllCarried(player)
+	MeteorEggService.dropEgg(player)
 	DataService.saveProfile(player)
 	BaseService.freeBase(player)
 	DataService.dropProfile(player)

@@ -44,6 +44,7 @@ export type HudData = {
 	eventName: string,
 	eventSeconds: number,
 	buddyName: string?,
+	eggCarried: boolean, -- carrying a meteor egg (walk slower)
 }
 
 local Remotes = {}

@@ -118,6 +118,13 @@ function BaseService.lockBase(player: Player): (boolean, string)
 	State.locks[baseId].lockedUntil = now + duration
 	State.locks[baseId].cooldownUntil = now + duration + Config.LOCK_COOLDOWN
 	BaseService.setGateVisible(baseId, true)
+	-- The shield dome shows too, with its SAFE countdown label
+	-- (cheap win 5) — the lock is visible in the world, not just a
+	-- timer in the HUD. The label is refreshed every income broadcast
+	-- and hidden when the lock expires.
+	local WorldBuilder = require(script.Parent.WorldBuilder)
+	WorldBuilder.setShieldVisible(baseId, true)
+	WorldBuilder.setShieldLabel(baseId, duration)
 	return true, "Base locked for " .. tostring(duration) .. "s! No one can steal from you."
 end
 

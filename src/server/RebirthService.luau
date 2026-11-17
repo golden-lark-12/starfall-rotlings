@@ -73,6 +73,15 @@ function RebirthService.init()
 		local ok, message = RebirthService.doRebirth(player)
 		return ok, message
 	end
+	-- The rebirth altar prompt opens the Rebirth panel on the client
+	-- (HUDController listens for the event).
+	for _, descendant in ipairs(workspace:GetDescendants()) do
+		if descendant:IsA("ProximityPrompt") and descendant.Parent and descendant.Parent.Name == "RebirthPrompt" then
+			descendant.Triggered:Connect(function(player: Player)
+				Remotes.openRebirthEvent():FireClient(player)
+			end)
+		end
+	end
 end
 
 return RebirthService

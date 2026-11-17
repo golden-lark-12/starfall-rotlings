@@ -120,6 +120,9 @@ function WorldBuilder.setShieldVisible(baseId: number, visible: boolean)
 end
 
 -- Shield label: "SAFE (45s)" while locked, hidden when the lock ends.
+-- Hiding the label also hides the dome itself, so the income
+-- broadcast (which calls this every tick) clears the shield the
+-- moment a lock expires — no separate expiry watcher needed.
 function WorldBuilder.setShieldLabel(baseId: number, seconds: number)
 	local label = shieldLabels[baseId]
 	if label then
@@ -127,6 +130,12 @@ function WorldBuilder.setShieldLabel(baseId: number, seconds: number)
 			label.Text = "🛡️ SAFE (" .. tostring(math.ceil(seconds)) .. "s)"
 		else
 			label.Text = ""
+		end
+	end
+	if seconds <= 0 then
+		local dome = shieldDomes[baseId]
+		if dome then
+			dome.Transparency = 1
 		end
 	end
 end
