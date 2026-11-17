@@ -184,6 +184,7 @@ function CarryService.tryGrab(player: Player, model: Model)
 		-- left shrunken on the floor.
 		RotlingFactory.setCarriedVisual(model, false)
 		RotlingFactory.setModelScale(model, 1.5)
+		RotlingFactory.refreshLabelOffset(model)
 		return
 	end
 	CarryService.carryRotling(player, model)
@@ -252,9 +253,19 @@ function CarryService.placeOnPad(player: Player, model: Model, baseId: number, p
 	-- and pivoted onto the pad.
 	RotlingFactory.setCarriedVisual(model, false)
 	RotlingFactory.setModelScale(model, 1)
+	RotlingFactory.refreshLabelOffset(model)
 	local padCf = WorldBuilder.padCFrame(baseId, padIndex)
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
-	local lift = if def then def.size * 0.55 + 0.6 else 2.5
+	-- Seat the Rotling ON the pad from its own body: the pad top is
+	-- 0.3 above the pad centre and the feet hang 0.05*size below the
+	-- body bottom, so the feet rest exactly on the pad. The old fixed
+	-- lift (size*0.55 + 0.6) floated a flat puddle a full stud above
+	-- its pad and sank a tall sock into it.
+	local liftBody = model.PrimaryPart
+	local lift = if liftBody and liftBody:IsA("BasePart")
+		then liftBody.Size.Y / 2 + 0.3 + (if def then def.size * 0.05 else 0.15)
+		elseif def then def.size * 0.55 + 0.6
+		else 2.5
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.Anchored = true
@@ -296,6 +307,7 @@ function CarryService.scatterToCrater(model: Model)
 	-- Back to crater size (1.5x), carried look off, glow and tag back.
 	RotlingFactory.setCarriedVisual(model, false)
 	RotlingFactory.setModelScale(model, 1.5)
+	RotlingFactory.refreshLabelOffset(model)
 	local angle = math.random() * math.pi * 2
 	local radius = math.random() * Config.CRATER_RADIUS * 0.8
 	local pos = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)

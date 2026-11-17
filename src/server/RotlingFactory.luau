@@ -9,6 +9,18 @@
 -- SOLID, not ghost: every part is built with Transparency 0, so the
 -- Rotlings read as solid characters with clear faces and colours per
 -- rarity — never flat semi-transparent boxes.
+--
+-- ITEM 1 (models): each of the 12 Rotlings has its own silhouette
+-- (bodyForSilhouette, one unique key per Rotling from the catalog),
+-- 2-3 signature built-from-parts features (addNameProp), and a body
+-- painted in its rarity tier colour (rarity.color, verbatim). Faces
+-- are placed from the BODY's own size, not the nominal size, so a flat
+-- puddle and a tall noodle both get eyes and a mouth that sit on the
+-- face instead of floating or sinking; the mouth sits proud of the
+-- belly patch (the old mouth was buried inside the belly). The name
+-- tag is offset from the model's bounding-box top, so it always floats
+-- above the tallest hat or crown and never covers the face, at any
+-- scale (refreshLabelOffset after every scale change).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -49,6 +61,67 @@ local function saturate(color: Color3, amount: number): Color3
 		return math.clamp(mean + (c - mean) * amount, 0, 1)
 	end
 	return Color3.new(adj(color.R), adj(color.G), adj(color.B))
+end
+
+-- One unique silhouette per Rotling: the body size and shape come from
+-- the catalog's silhouette key, never from the shared 4-way body type,
+-- so no two Rotlings share an outline. Wide/flat, tall/thin, round,
+-- long and couch-shaped bodies all read differently at thumbnail size.
+-- Falls back to the legacy body type if a def ever lacks a silhouette.
+local function bodyForSilhouette(def: RotlingCatalog.RotlingDef): (Vector3, Enum.PartType)
+	local s = def.size
+	if def.silhouette == "chunky-round" then
+		return Vector3.new(s * 1.05, s * 0.95, s), Enum.PartType.Ball
+	elseif def.silhouette == "flat-puddle" then
+		return Vector3.new(s * 1.9, s * 0.45, s * 1.5), Enum.PartType.Block
+	elseif def.silhouette == "long-wavy" then
+		return Vector3.new(s * 0.62, s, s * 0.62), Enum.PartType.Block
+	elseif def.silhouette == "chunky-cube" then
+		return Vector3.new(s * 0.9, s * 0.95, s * 0.9), Enum.PartType.Block
+	elseif def.silhouette == "tall-capsule" then
+		return Vector3.new(s * 0.62, s, s * 0.62), Enum.PartType.Block
+	elseif def.silhouette == "boxy-ghost" then
+		return Vector3.new(s * 0.9, s * 0.95, s * 0.8), Enum.PartType.Block
+	elseif def.silhouette == "tall-sock" then
+		return Vector3.new(s * 0.5, s, s * 0.5), Enum.PartType.Block
+	elseif def.silhouette == "round-bounce" then
+		return Vector3.new(s, s * 0.9, s), Enum.PartType.Ball
+	elseif def.silhouette == "root-round" then
+		return Vector3.new(s, s, s), Enum.PartType.Ball
+	elseif def.silhouette == "blob-dome" then
+		return Vector3.new(s * 1.1, s * 0.9, s * 1.1), Enum.PartType.Ball
+	elseif def.silhouette == "wide-couch" then
+		return Vector3.new(s * 1.25, s * 0.55, s * 0.9), Enum.PartType.Block
+	elseif def.silhouette == "bear" then
+		return Vector3.new(s, s, s), Enum.PartType.Ball
+	elseif def.body == "ball" then
+		return Vector3.new(s, s, s), Enum.PartType.Ball
+	elseif def.body == "tall" then
+		return Vector3.new(s * 0.62, s, s * 0.62), Enum.PartType.Block
+	elseif def.body == "wide" then
+		return Vector3.new(s * 1.25, s * 0.7, s * 0.9), Enum.PartType.Block
+	else
+		return Vector3.new(s * 0.9, s * 0.85, s * 0.9), Enum.PartType.Block
+	end
+end
+
+-- Re-seat the name tag after a scale change (crater 1.5x, pad 1x,
+-- carry): the stored 1x offset times the live model scale, so the tag
+-- always floats above the tallest part instead of sinking into a hat
+-- when a Rotling grows or shrinking onto the face when it shrinks.
+-- Called from build() after scaling and from CarryService after every
+-- setModelScale; the label hides while carried, so no refresh is
+-- needed on the carry path itself.
+function RotlingFactory.refreshLabelOffset(model: Model)
+	local body = model.PrimaryPart
+	local base = model:GetAttribute("LabelBaseOffset")
+	if not body or typeof(base) ~= "number" then
+		return
+	end
+	local label = body:FindFirstChild("RotlingLabel")
+	if label and label:IsA("BillboardGui") then
+		label.StudsOffsetWorldSpace = Vector3.new(0, (base :: number) * model:GetScale(), 0)
+	end
 end
 
 -- Set a Rotling's size as an ABSOLUTE scale relative to its build size
@@ -190,16 +263,20 @@ end
 
 local function addEyes(model: Model, body: Part, size: number)
 	-- Two big white eyes with dark pupils on the front face, large enough
-	-- to read from across the crater.
-	local eyeSize = size * 0.26
-	local eyeY = size * 0.18
-	local eyeZ = body.Size.Z / 2 + eyeSize * 0.35
+	-- to read from across the crater. Sized from the BODY's own size, so
+	-- a flat puddle gets eyes that fit its low face and a tall noodle
+	-- gets eyes that fit its narrow one: at least ~0.5 studs across on
+	-- the smallest Rotling (puddles, 2.2 studs: 0.54).
+	local bodySize = body.Size
+	local eyeSize = math.min(size * 0.28, bodySize.Y * 0.55, bodySize.X * 0.32)
+	local eyeY = bodySize.Y * 0.16
+	local eyeZ = bodySize.Z / 2 + eyeSize * 0.35
 	for _, side in ipairs({ -1, 1 }) do
 		local white = makePart("Eye", Enum.PartType.Ball, Vector3.new(eyeSize, eyeSize, eyeSize), Color3.fromRGB(255, 255, 255))
-		white.CFrame = body.CFrame * CFrame.new(side * size * 0.22, eyeY, eyeZ)
+		white.CFrame = body.CFrame * CFrame.new(side * bodySize.X * 0.24, eyeY, eyeZ)
 		white.Parent = model
 		local pupil = makePart("Pupil", Enum.PartType.Ball, Vector3.new(eyeSize * 0.5, eyeSize * 0.5, eyeSize * 0.5), Color3.fromRGB(20, 20, 30))
-		pupil.CFrame = body.CFrame * CFrame.new(side * size * 0.22, eyeY, eyeZ + eyeSize * 0.35)
+		pupil.CFrame = body.CFrame * CFrame.new(side * bodySize.X * 0.24, eyeY, eyeZ + eyeSize * 0.35)
 		pupil.Parent = model
 		local weld = Instance.new("WeldConstraint")
 		weld.Part0 = body
@@ -214,8 +291,13 @@ end
 
 local function addMouth(model: Model, body: Part, size: number)
 	-- A dark smile under the eyes, so the face reads as a character.
-	local mouth = makePart("Mouth", Enum.PartType.Block, Vector3.new(size * 0.3, size * 0.07, size * 0.06), Color3.fromRGB(30, 20, 30))
-	mouth.CFrame = body.CFrame * CFrame.new(0, -size * 0.08, body.Size.Z / 2 + size * 0.03)
+	-- It sits PROUD of the belly patch (z past the belly's front
+	-- surface): the old mouth sat at the body face and was buried
+	-- inside the belly ball, invisible.
+	local bodySize = body.Size
+	local mouthWidth = math.min(size * 0.34, bodySize.X * 0.5)
+	local mouth = makePart("Mouth", Enum.PartType.Block, Vector3.new(mouthWidth, size * 0.08, size * 0.06), Color3.fromRGB(30, 20, 30))
+	mouth.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y * 0.2, bodySize.Z / 2 + size * 0.12)
 	mouth.Parent = model
 	local weld = Instance.new("WeldConstraint")
 	weld.Part0 = body
@@ -224,9 +306,14 @@ local function addMouth(model: Model, body: Part, size: number)
 end
 
 local function addFeet(model: Model, body: Part, size: number)
+	-- Feet hang from the body's own bottom, half-sunk into it, so a
+	-- flat puddle and a tall noodle both stand on their feet instead of
+	-- the feet floating below (old code hung them at -size*0.5, which
+	-- floated under every non-ball body) or sinking through the floor.
+	local bodySize = body.Size
 	for _, side in ipairs({ -1, 1 }) do
 		local foot = makePart("Foot", Enum.PartType.Block, Vector3.new(size * 0.28, size * 0.14, size * 0.4), Color3.fromRGB(40, 40, 50))
-		foot.CFrame = body.CFrame * CFrame.new(side * size * 0.24, -size * 0.5, size * 0.08)
+		foot.CFrame = body.CFrame * CFrame.new(side * size * 0.24, -bodySize.Y / 2 + size * 0.02, size * 0.08)
 		foot.Parent = model
 		local weld = Instance.new("WeldConstraint")
 		weld.Part0 = body
@@ -235,7 +322,13 @@ local function addFeet(model: Model, body: Part, size: number)
 	end
 end
 
-local function addArms(model: Model, body: Part, size: number)
+local function addArms(model: Model, body: Part, def: RotlingCatalog.RotlingDef)
+	-- A puddle has no arms; a couch has armrests instead. Everyone else
+	-- gets little limbs, angled out, in a darker shade of the body colour.
+	if def.id == "puddles" or def.id == "couch" then
+		return
+	end
+	local size = def.size
 	-- Little limbs, angled out, in a darker shade of the body colour.
 	local armColor = Color3.new(body.Color.R * 0.7, body.Color.G * 0.7, body.Color.B * 0.7)
 	for _, side in ipairs({ -1, 1 }) do
@@ -250,11 +343,18 @@ local function addArms(model: Model, body: Part, size: number)
 end
 
 -- A small prop that fits the Rotling's NAME, 2-3 parts each. This runs
--- after the generic accessory; for noodle, crumb and toaster it IS the
--- accessory (addAccessory skips the generic one for those three).
+-- after the generic accessory; for noodle, crumb, toaster and couch it
+-- IS the accessory (addAccessory skips the generic one for those four).
+-- `top` is the body's own top edge (body.Size.Y / 2), not size*0.55:
+-- the old top floated a helmet half a stud above a flat puddle and
+-- buried a crown inside a tall sock. Every feature here is solid
+-- Parts (Transparency 0): the old translucent monocle lens and orbit
+-- disc are gone, replaced by a ring of solid gold balls and a ring of
+-- solid neon orbit balls, so the eyes and body always show through.
 local function addNameProp(model: Model, body: Part, def: RotlingCatalog.RotlingDef)
 	local size = def.size
-	local top = body.CFrame * CFrame.new(0, size * 0.55, 0)
+	local bodySize = body.Size
+	local top = body.CFrame * CFrame.new(0, bodySize.Y / 2, 0)
 	local function weldIt(p: Part)
 		p.Parent = model
 		local weld = Instance.new("WeldConstraint")
@@ -269,6 +369,17 @@ local function addNameProp(model: Model, body: Part, def: RotlingCatalog.Rotling
 			ear.CFrame = top * CFrame.new(side * size * 0.22, size * 0.04, 0)
 			weldIt(ear)
 		end
+		-- Snout with a dark nose, above the mouth.
+		local snout = makePart("Snout", Enum.PartType.Block, Vector3.new(size * 0.3, size * 0.2, size * 0.18), Color3.fromRGB(190, 150, 110))
+		snout.CFrame = body.CFrame * CFrame.new(0, -size * 0.02, bodySize.Z / 2 + size * 0.05)
+		weldIt(snout)
+		local nose = makePart("Nose", Enum.PartType.Ball, Vector3.new(size * 0.12, size * 0.1, size * 0.08), Color3.fromRGB(40, 25, 20))
+		nose.CFrame = body.CFrame * CFrame.new(0, size * 0.02, bodySize.Z / 2 + size * 0.15)
+		weldIt(nose)
+		-- Stubby tail at the back.
+		local tail = makePart("Tail", Enum.PartType.Ball, Vector3.new(size * 0.18, size * 0.18, size * 0.18), Color3.fromRGB(110, 80, 50))
+		tail.CFrame = body.CFrame * CFrame.new(0, -size * 0.1, -bodySize.Z / 2 - size * 0.05)
+		weldIt(tail)
 	elseif def.id == "puddles" then
 		-- A tiny knight's helmet with a blue plume.
 		local helmet = makePart("Helmet", Enum.PartType.Ball, Vector3.new(size * 0.5, size * 0.26, size * 0.5), Color3.fromRGB(180, 185, 200))
@@ -279,6 +390,18 @@ local function addNameProp(model: Model, body: Part, def: RotlingCatalog.Rotling
 		plume.Material = Enum.Material.Neon
 		plume.CFrame = top * CFrame.new(0, size * 0.2, 0)
 		weldIt(plume)
+		-- Rim droplets: the puddle's edge beads up.
+		for _, spot in ipairs({ { -0.45, 0.3 }, { 0.45, 0.3 }, { 0, -0.42 } }) do
+			local drop = makePart("Droplet", Enum.PartType.Ball, Vector3.new(size * 0.16, size * 0.16, size * 0.16), Color3.fromRGB(150, 210, 255))
+			drop.CFrame = body.CFrame * CFrame.new(spot[1] * bodySize.X, size * 0.02, spot[2] * bodySize.Z)
+			weldIt(drop)
+		end
+		-- Splash spikes where the puddle jumps.
+		for _, side in ipairs({ -1, 1 }) do
+			local spike = makePart("Splash", Enum.PartType.Wedge, Vector3.new(size * 0.12, size * 0.3, size * 0.12), Color3.fromRGB(150, 210, 255))
+			spike.CFrame = top * CFrame.new(side * bodySize.X * 0.3, size * 0.1, 0) * CFrame.Angles(0, 0, side * -0.35)
+			weldIt(spike)
+		end
 	elseif def.id == "noodle" then
 		-- A chef's hat: white brim and puffy crown.
 		local brim = makePart("ChefBrim", Enum.PartType.Cylinder, Vector3.new(size * 0.12, size * 0.55, size * 0.55), Color3.fromRGB(245, 245, 245))
@@ -287,6 +410,20 @@ local function addNameProp(model: Model, body: Part, def: RotlingCatalog.Rotling
 		local crown = makePart("ChefTop", Enum.PartType.Ball, Vector3.new(size * 0.42, size * 0.36, size * 0.42), Color3.fromRGB(250, 250, 250))
 		crown.CFrame = top * CFrame.new(0, size * 0.2, 0)
 		weldIt(crown)
+		-- Wavy side segments: balls bulging alternately left and right,
+		-- so the long thin body reads as a wavy noodle, not a plank.
+		for i, yFrac in ipairs({ -0.28, 0, 0.28 }) do
+			local side = if i % 2 == 1 then -1 else 1
+			local seg = makePart("NoodleWave", Enum.PartType.Ball, Vector3.new(size * 0.3, size * 0.3, size * 0.3), body.Color)
+			seg.CFrame = body.CFrame * CFrame.new(side * (bodySize.X / 2 - size * 0.02), yFrac * bodySize.Y, 0)
+			weldIt(seg)
+		end
+		-- A noodle curl spiralling off the top.
+		for i = 1, 3 do
+			local curl = makePart("NoodleCurl", Enum.PartType.Ball, Vector3.new(size * 0.1, size * 0.1, size * 0.1), body.Color)
+			curl.CFrame = top * CFrame.new(bodySize.X / 2 + i * size * 0.08, i * size * 0.1, 0)
+			weldIt(curl)
+		end
 	elseif def.id == "crumb" then
 		-- A captain's hat: dark blue cap with a white front band.
 		local cap = makePart("CaptainHat", Enum.PartType.Cylinder, Vector3.new(size * 0.14, size * 0.55, size * 0.55), Color3.fromRGB(30, 60, 130))
@@ -295,46 +432,129 @@ local function addNameProp(model: Model, body: Part, def: RotlingCatalog.Rotling
 		local band = makePart("CaptainBand", Enum.PartType.Block, Vector3.new(size * 0.5, size * 0.08, size * 0.06), Color3.fromRGB(250, 250, 250))
 		band.CFrame = top * CFrame.new(0, size * 0.02, size * 0.26)
 		weldIt(band)
+		-- Crumb dots stuck on the body, clear of the face.
+		local crumbColor = Color3.fromRGB(120, 80, 40)
+		local crumb1 = makePart("CrumbDot", Enum.PartType.Ball, Vector3.new(size * 0.12, size * 0.12, size * 0.12), crumbColor)
+		crumb1.CFrame = body.CFrame * CFrame.new(-size * 0.35, -bodySize.Y * 0.35, bodySize.Z / 2 + size * 0.04)
+		weldIt(crumb1)
+		local crumb2 = makePart("CrumbDot", Enum.PartType.Ball, Vector3.new(size * 0.12, size * 0.12, size * 0.12), crumbColor)
+		crumb2.CFrame = body.CFrame * CFrame.new(size * 0.35, -bodySize.Y * 0.3, bodySize.Z / 2 + size * 0.04)
+		weldIt(crumb2)
+		local crumb3 = makePart("CrumbDot", Enum.PartType.Ball, Vector3.new(size * 0.12, size * 0.12, size * 0.12), crumbColor)
+		crumb3.CFrame = body.CFrame * CFrame.new(-bodySize.X / 2 - size * 0.02, 0, 0)
+		weldIt(crumb3)
+		-- A white sailor collar under the belly.
+		local collar = makePart("Collar", Enum.PartType.Block, Vector3.new(bodySize.X * 0.7, size * 0.1, size * 0.08), Color3.fromRGB(250, 250, 250))
+		collar.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y * 0.42, bodySize.Z / 2 + size * 0.03)
+		weldIt(collar)
 	elseif def.id == "pickle" then
-		-- A tiny disco ball on a stem, above the headphones.
+		-- Rounded capsule cap on top of the tall body.
+		local cap = makePart("PickleCap", Enum.PartType.Ball, Vector3.new(bodySize.X * 1.08, size * 0.3, bodySize.Z * 1.08), Color3.fromRGB(70, 180, 60))
+		cap.CFrame = top * CFrame.new(0, size * 0.05, 0)
+		weldIt(cap)
+		-- A tiny disco ball on a stem, rising from the cap.
 		local stem = makePart("DiscoStem", Enum.PartType.Cylinder, Vector3.new(size * 0.3, size * 0.06, size * 0.06), Color3.fromRGB(90, 90, 100))
-		stem.CFrame = top * CFrame.new(0, size * 0.14, 0) * CFrame.Angles(0, 0, math.rad(90))
+		stem.CFrame = top * CFrame.new(0, size * 0.5, 0) * CFrame.Angles(0, 0, math.rad(90))
 		weldIt(stem)
 		local ball = makePart("DiscoBall", Enum.PartType.Ball, Vector3.new(size * 0.28, size * 0.28, size * 0.28), Color3.fromRGB(210, 210, 220))
 		ball.Material = Enum.Material.Metal
-		ball.CFrame = top * CFrame.new(0, size * 0.36, 0)
+		ball.CFrame = top * CFrame.new(0, size * 0.78, 0)
 		weldIt(ball)
+		-- Pickle dots, clear of the eyes.
+		local dotColor = Color3.fromRGB(40, 140, 40)
+		for _, spot in ipairs({ { -0.25, 0.05 }, { 0.3, -0.15 }, { 0.05, 0.3 } }) do
+			local dot = makePart("PickleDot", Enum.PartType.Ball, Vector3.new(size * 0.11, size * 0.11, size * 0.11), dotColor)
+			dot.CFrame = body.CFrame * CFrame.new(spot[1] * size, spot[2] * bodySize.Y, bodySize.Z / 2 + size * 0.03)
+			weldIt(dot)
+		end
 	elseif def.id == "toaster" then
-		-- A slice of toast popping out of the ghost.
+		-- The toast slot on top, with a slice of toast popping out.
+		local slot = makePart("ToastSlot", Enum.PartType.Block, Vector3.new(size * 0.55, size * 0.06, size * 0.34), Color3.fromRGB(40, 40, 45))
+		slot.CFrame = top * CFrame.new(0, size * 0.01, 0)
+		weldIt(slot)
 		local toast = makePart("Toast", Enum.PartType.Block, Vector3.new(size * 0.36, size * 0.5, size * 0.12), Color3.fromRGB(235, 190, 120))
 		toast.CFrame = top * CFrame.new(0, size * 0.2, 0)
 		weldIt(toast)
 		local butter = makePart("Butter", Enum.PartType.Block, Vector3.new(size * 0.16, size * 0.1, size * 0.14), Color3.fromRGB(255, 230, 80))
 		butter.CFrame = top * CFrame.new(0, size * 0.48, 0)
 		weldIt(butter)
+		-- A front dial with a red pointer, clear of the belly.
+		local dial = makePart("Dial", Enum.PartType.Cylinder, Vector3.new(size * 0.06, size * 0.2, size * 0.2), Color3.fromRGB(50, 50, 60))
+		dial.CFrame = body.CFrame * CFrame.new(size * 0.3, -size * 0.02, bodySize.Z / 2 + size * 0.02) * CFrame.Angles(0, math.rad(90), 0)
+		weldIt(dial)
+		local pointer = makePart("DialPointer", Enum.PartType.Ball, Vector3.new(size * 0.07, size * 0.07, size * 0.07), Color3.fromRGB(255, 60, 60))
+		pointer.Material = Enum.Material.Neon
+		pointer.CFrame = body.CFrame * CFrame.new(size * 0.3, size * 0.05, bodySize.Z / 2 + size * 0.06)
+		weldIt(pointer)
+		-- Scalloped ghost hem along the bottom front edge.
+		for _, xFrac in ipairs({ -0.28, 0, 0.28 }) do
+			local scallop = makePart("GhostHem", Enum.PartType.Ball, Vector3.new(size * 0.16, size * 0.16, size * 0.16), body.Color)
+			scallop.CFrame = body.CFrame * CFrame.new(xFrac * size, -bodySize.Y / 2 + size * 0.02, bodySize.Z / 2 - size * 0.1)
+			weldIt(scallop)
+		end
 	elseif def.id == "socks" then
-		-- A gold monocle lens over the right eye, with a chain. The lens
-		-- is translucent glass so the eye shows through it.
-		local ring = makePart("Monocle", Enum.PartType.Cylinder, Vector3.new(size * 0.05, size * 0.26, size * 0.26), Color3.fromRGB(255, 215, 0))
-		ring.Material = Enum.Material.Glass
-		ring.Transparency = 0.3
-		ring.CFrame = body.CFrame * CFrame.new(size * 0.22, size * 0.18, body.Size.Z / 2 + size * 0.06) * CFrame.Angles(0, math.rad(90), 0)
-		weldIt(ring)
-		local chain = makePart("MonocleChain", Enum.PartType.Cylinder, Vector3.new(size * 0.3, size * 0.04, size * 0.04), Color3.fromRGB(255, 215, 0))
-		chain.CFrame = body.CFrame * CFrame.new(size * 0.34, -size * 0.05, body.Size.Z / 2 + size * 0.04) * CFrame.Angles(0, 0, math.rad(90))
+		-- A folded cuff straddling the top of the tall sock.
+		local cuff = makePart("Cuff", Enum.PartType.Block, Vector3.new(bodySize.X * 1.18, size * 0.2, bodySize.Z * 1.18), Color3.fromRGB(230, 220, 245))
+		cuff.CFrame = top * CFrame.new(0, -size * 0.06, 0)
+		weldIt(cuff)
+		-- A gold monocle RING over the right eye: 8 solid gold balls in
+		-- a circle, so the eye shows through the middle (the old glass
+		-- lens hid it). Plus a chain down to the chest.
+		local eyeSize = math.min(size * 0.28, bodySize.Y * 0.55, bodySize.X * 0.32)
+		local eyeX = bodySize.X * 0.24
+		local eyeY = bodySize.Y * 0.16
+		local eyeZ = bodySize.Z / 2 + eyeSize * 0.35
+		for k = 0, 7 do
+			local a = math.rad(k * 45)
+			local bead = makePart("Monocle", Enum.PartType.Ball, Vector3.new(eyeSize * 0.24, eyeSize * 0.24, eyeSize * 0.24), Color3.fromRGB(255, 215, 0))
+			bead.Material = Enum.Material.Metal
+			bead.CFrame = body.CFrame * CFrame.new(eyeX + math.cos(a) * eyeSize * 0.72, eyeY + math.sin(a) * eyeSize * 0.72, eyeZ + size * 0.04)
+			weldIt(bead)
+		end
+		local chain = makePart("MonocleChain", Enum.PartType.Block, Vector3.new(size * 0.04, size * 0.5, size * 0.04), Color3.fromRGB(255, 215, 0))
+		chain.CFrame = body.CFrame * CFrame.new(eyeX + size * 0.35, -size * 0.05, bodySize.Z / 2 + size * 0.04) * CFrame.Angles(0, 0, math.rad(-35))
 		weldIt(chain)
+		-- A white toe cap at the bottom front.
+		local toe = makePart("ToeCap", Enum.PartType.Block, Vector3.new(bodySize.X * 0.7, size * 0.16, size * 0.08), Color3.fromRGB(250, 250, 250))
+		toe.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y / 2 + size * 0.05, bodySize.Z / 2 + size * 0.02)
+		weldIt(toe)
 	elseif def.id == "quokka" then
-		-- A quantum orbit ring around the body, with a tiny planet on it.
-		-- The ring is a thin translucent disc so the body shows through
-		-- from above and the glowing edge reads from the side.
-		local orbit = makePart("OrbitRing", Enum.PartType.Cylinder, Vector3.new(size * 0.06, size * 1.35, size * 1.35), Color3.fromRGB(80, 220, 255))
-		orbit.Material = Enum.Material.Neon
-		orbit.Transparency = 0.5
-		orbit.CFrame = body.CFrame * CFrame.Angles(0, 0, math.rad(90))
-		weldIt(orbit)
+		-- A quantum orbit ring around the body: solid neon balls in a
+		-- flat ring, with a gap at the front so no ball sits on the
+		-- face, and a tiny planet riding the ring at the back. The old
+		-- translucent disc hid the body from above; the ball ring
+		-- reads as an orbit from every angle.
+		local ringR = bodySize.X * 0.62
+		for k = 0, 9 do
+			local a = math.rad(k * 36)
+			local x = math.cos(a) * ringR
+			local z = math.sin(a) * ringR
+			if z > ringR * 0.8 and math.abs(x) < ringR * 0.5 then
+				continue -- front gap: keep the face clear
+			end
+			local bead = makePart("OrbitBead", Enum.PartType.Ball, Vector3.new(size * 0.12, size * 0.12, size * 0.12), Color3.fromRGB(80, 220, 255))
+			bead.Material = Enum.Material.Neon
+			bead.CFrame = body.CFrame * CFrame.new(x, size * 0.05, z)
+			weldIt(bead)
+		end
 		local planet = makePart("OrbitPlanet", Enum.PartType.Ball, Vector3.new(size * 0.16, size * 0.16, size * 0.16), Color3.fromRGB(255, 150, 80))
-		planet.CFrame = body.CFrame * CFrame.new(size * 0.62, size * 0.1, 0)
+		planet.CFrame = body.CFrame * CFrame.new(-ringR * 0.9, size * 0.05, -ringR * 0.44)
 		weldIt(planet)
+		-- Round ears on top.
+		for _, side in ipairs({ -1, 1 }) do
+			local ear = makePart("Ear", Enum.PartType.Ball, Vector3.new(size * 0.2, size * 0.2, size * 0.2), body.Color)
+			ear.CFrame = top * CFrame.new(side * size * 0.24, size * 0.08, 0)
+			weldIt(ear)
+		end
+		-- Rosy cheeks and a pink tongue under the smile.
+		for _, side in ipairs({ -1, 1 }) do
+			local cheek = makePart("Blush", Enum.PartType.Ball, Vector3.new(size * 0.13, size * 0.13, size * 0.13), Color3.fromRGB(255, 150, 180))
+			cheek.CFrame = body.CFrame * CFrame.new(side * bodySize.X * 0.32, -bodySize.Y * 0.05, bodySize.Z / 2 + size * 0.05)
+			weldIt(cheek)
+		end
+		local tongue = makePart("Tongue", Enum.PartType.Block, Vector3.new(size * 0.16, size * 0.1, size * 0.05), Color3.fromRGB(255, 120, 150))
+		tongue.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y * 0.2 - size * 0.08, bodySize.Z / 2 + size * 0.14)
+		weldIt(tongue)
 	elseif def.id == "turnip" then
 		-- Turnip leaves sprouting from the top.
 		for i = 1, 3 do
@@ -342,48 +562,125 @@ local function addNameProp(model: Model, body: Part, def: RotlingCatalog.Rotling
 			leaf.CFrame = top * CFrame.new((i - 2) * size * 0.14, size * 0.14, 0) * CFrame.Angles(0, 0, (i - 2) * -0.4)
 			weldIt(leaf)
 		end
+		-- A root bulb under the body, with two thin root strands.
+		local bulb = makePart("RootBulb", Enum.PartType.Ball, Vector3.new(size * 0.26, size * 0.26, size * 0.26), Color3.fromRGB(220, 190, 230))
+		bulb.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y / 2 + size * 0.04, 0)
+		weldIt(bulb)
+		for _, side in ipairs({ -1, 1 }) do
+			local strand = makePart("RootStrand", Enum.PartType.Cylinder, Vector3.new(size * 0.3, size * 0.05, size * 0.05), Color3.fromRGB(220, 190, 230))
+			strand.CFrame = body.CFrame * CFrame.new(side * size * 0.12, -bodySize.Y / 2 - size * 0.08, 0) * CFrame.Angles(0, 0, side * 0.5)
+			weldIt(strand)
+		end
+		-- Rosy cheeks.
+		for _, side in ipairs({ -1, 1 }) do
+			local cheek = makePart("Blush", Enum.PartType.Ball, Vector3.new(size * 0.13, size * 0.13, size * 0.13), Color3.fromRGB(255, 150, 180))
+			cheek.CFrame = body.CFrame * CFrame.new(side * bodySize.X * 0.32, -bodySize.Y * 0.05, bodySize.Z / 2 + size * 0.05)
+			weldIt(cheek)
+		end
 	elseif def.id == "bloop" then
-		-- A bow tie at the neck.
+		-- A bow tie at the neck, sitting ON the belly patch (proud of
+		-- its front surface): the old tie sat at the body face and was
+		-- buried inside the belly.
 		for _, side in ipairs({ -1, 1 }) do
 			local wing = makePart("BowTie", Enum.PartType.Wedge, Vector3.new(size * 0.08, size * 0.18, size * 0.2), Color3.fromRGB(160, 20, 60))
-			wing.CFrame = body.CFrame * CFrame.new(side * size * 0.14, -size * 0.28, body.Size.Z / 2 + size * 0.02) * CFrame.Angles(0, math.rad(180), 0)
+			wing.CFrame = body.CFrame * CFrame.new(side * size * 0.14, -size * 0.22, bodySize.Z / 2 + size * 0.14) * CFrame.Angles(0, math.rad(180), 0)
 			weldIt(wing)
 		end
 		local knot = makePart("BowKnot", Enum.PartType.Ball, Vector3.new(size * 0.1, size * 0.1, size * 0.1), Color3.fromRGB(160, 20, 60))
-		knot.CFrame = body.CFrame * CFrame.new(0, -size * 0.28, body.Size.Z / 2 + size * 0.04)
+		knot.CFrame = body.CFrame * CFrame.new(0, -size * 0.22, bodySize.Z / 2 + size * 0.16)
 		weldIt(knot)
+		-- Gold drips on the dome.
+		for _, side in ipairs({ -1, 1 }) do
+			local drip = makePart("GoldDrip", Enum.PartType.Ball, Vector3.new(size * 0.15, size * 0.15, size * 0.15), Color3.fromRGB(255, 215, 0))
+			drip.Material = Enum.Material.Metal
+			drip.CFrame = body.CFrame * CFrame.new(side * bodySize.X * 0.42, bodySize.Y * 0.28, bodySize.Z * 0.2)
+			weldIt(drip)
+		end
 	elseif def.id == "couch" then
-		-- A TV remote held at the side.
+		-- The couch itself: a backrest and two armrests in a darker
+		-- shade of the Mythic pink, so the wide low body reads as a
+		-- couch from the front and the side.
+		local couchColor = Color3.new(body.Color.R * 0.7, body.Color.G * 0.7, body.Color.B * 0.7)
+		local back = makePart("Backrest", Enum.PartType.Block, Vector3.new(bodySize.X * 0.92, size * 0.7, size * 0.28), couchColor)
+		back.CFrame = body.CFrame * CFrame.new(0, size * 0.15, -bodySize.Z / 2 - size * 0.1)
+		weldIt(back)
+		for _, side in ipairs({ -1, 1 }) do
+			local rest = makePart("Armrest", Enum.PartType.Block, Vector3.new(size * 0.32, size * 0.42, bodySize.Z * 0.85), couchColor)
+			rest.CFrame = body.CFrame * CFrame.new(side * (bodySize.X / 2 + size * 0.1), -size * 0.02, 0)
+			weldIt(rest)
+		end
+		-- The emperor's crown, on top of the backrest.
+		local backTop = size * 0.15 + size * 0.35
+		local band = makePart("Crown", Enum.PartType.Cylinder, Vector3.new(size * 0.14, size * 0.5, size * 0.5), Color3.fromRGB(255, 215, 0))
+		band.Material = Enum.Material.Metal
+		band.CFrame = body.CFrame * CFrame.new(0, backTop + size * 0.05, -bodySize.Z / 2 - size * 0.1) * CFrame.Angles(0, 0, math.rad(90))
+		weldIt(band)
+		for i = 1, 3 do
+			local spike = makePart("CrownSpike", Enum.PartType.Wedge, Vector3.new(size * 0.1, size * 0.22, size * 0.1), Color3.fromRGB(255, 215, 0))
+			spike.Material = Enum.Material.Metal
+			spike.CFrame = body.CFrame * CFrame.new((i - 2) * size * 0.18, backTop + size * 0.18, -bodySize.Z / 2 - size * 0.1)
+			weldIt(spike)
+		end
+		-- A crimson cape draped over the back of the backrest.
+		local cape = makePart("Cape", Enum.PartType.Block, Vector3.new(bodySize.X * 0.7, size * 0.45, size * 0.06), Color3.fromRGB(160, 20, 60))
+		cape.CFrame = body.CFrame * CFrame.new(0, size * 0.28, -bodySize.Z / 2 - size * 0.24) * CFrame.Angles(-0.12, 0, 0)
+		weldIt(cape)
+		-- A TV remote leaning on the couch front, with a red button.
 		local remote = makePart("Remote", Enum.PartType.Block, Vector3.new(size * 0.22, size * 0.42, size * 0.1), Color3.fromRGB(35, 35, 45))
-		remote.CFrame = body.CFrame * CFrame.new(body.Size.X / 2 + size * 0.14, -size * 0.1, size * 0.1)
+		remote.CFrame = body.CFrame * CFrame.new(bodySize.X * 0.32, size * 0.02, bodySize.Z / 2 + size * 0.06) * CFrame.Angles(-0.3, 0, 0)
 		weldIt(remote)
 		local btn = makePart("RemoteButton", Enum.PartType.Ball, Vector3.new(size * 0.07, size * 0.07, size * 0.07), Color3.fromRGB(255, 60, 60))
 		btn.Material = Enum.Material.Neon
-		btn.CFrame = body.CFrame * CFrame.new(body.Size.X / 2 + size * 0.14, size * 0.02, size * 0.16)
+		btn.CFrame = body.CFrame * CFrame.new(bodySize.X * 0.32, size * 0.14, bodySize.Z / 2 + size * 0.12)
 		weldIt(btn)
-	elseif def.id == "gummy" then
-		-- A wrapped candy on top.
-		local candy = makePart("Candy", Enum.PartType.Ball, Vector3.new(size * 0.26, size * 0.26, size * 0.26), Color3.fromRGB(255, 120, 180))
-		candy.CFrame = top * CFrame.new(0, size * 0.14, 0)
-		weldIt(candy)
+		-- Cushion tufts on the seat front, above the belly.
 		for _, side in ipairs({ -1, 1 }) do
-			local wrap = makePart("CandyWrap", Enum.PartType.Wedge, Vector3.new(size * 0.08, size * 0.16, size * 0.16), Color3.fromRGB(255, 120, 180))
-			wrap.CFrame = top * CFrame.new(side * size * 0.2, size * 0.14, 0) * CFrame.Angles(0, 0, side * 0.6)
-			weldIt(wrap)
+			local tuft = makePart("Tuft", Enum.PartType.Ball, Vector3.new(size * 0.11, size * 0.11, size * 0.11), Color3.fromRGB(200, 50, 110))
+			tuft.CFrame = body.CFrame * CFrame.new(side * size * 0.21, bodySize.Y * 0.16, bodySize.Z / 2 + size * 0.04)
+			weldIt(tuft)
 		end
+	elseif def.id == "gummy" then
+		-- Bear ears with pink inners.
+		for _, side in ipairs({ -1, 1 }) do
+			local ear = makePart("Ear", Enum.PartType.Ball, Vector3.new(size * 0.3, size * 0.3, size * 0.3), body.Color)
+			ear.CFrame = top * CFrame.new(side * size * 0.28, size * 0.06, 0)
+			weldIt(ear)
+			local inner = makePart("EarInner", Enum.PartType.Ball, Vector3.new(size * 0.16, size * 0.16, size * 0.16), Color3.fromRGB(255, 150, 200))
+			inner.CFrame = top * CFrame.new(side * size * 0.28, size * 0.06, size * 0.12)
+			weldIt(inner)
+		end
+		-- A snout with a dark nose, above the mouth.
+		local snout = makePart("Snout", Enum.PartType.Ball, Vector3.new(size * 0.42, size * 0.3, size * 0.22), Color3.fromRGB(150, 240, 255))
+		snout.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y * 0.1, bodySize.Z / 2 + size * 0.04)
+		weldIt(snout)
+		local nose = makePart("Nose", Enum.PartType.Ball, Vector3.new(size * 0.1, size * 0.1, size * 0.08), Color3.fromRGB(40, 25, 20))
+		nose.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y * 0.06, bodySize.Z / 2 + size * 0.16)
+		weldIt(nose)
+		-- A bright 4-point star on the belly (the gummy's star belly).
+		local starColor = Color3.fromRGB(255, 240, 120)
+		local starV = makePart("StarBelly", Enum.PartType.Block, Vector3.new(size * 0.09, size * 0.38, size * 0.05), starColor)
+		starV.Material = Enum.Material.Neon
+		starV.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y * 0.18, bodySize.Z / 2 + size * 0.12)
+		weldIt(starV)
+		local starH = makePart("StarBelly", Enum.PartType.Block, Vector3.new(size * 0.38, size * 0.09, size * 0.05), starColor)
+		starH.Material = Enum.Material.Neon
+		starH.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y * 0.18, bodySize.Z / 2 + size * 0.12)
+		weldIt(starH)
 	end
 end
 
 local function addAccessory(model: Model, body: Part, def: RotlingCatalog.RotlingDef, rarityColor: Color3)
-	-- Noodle, Crumb and Toaster get a name-specific prop instead of the
-	-- generic one (see addNameProp): a chef hat, a captain's hat and a
-	-- slice of toast read as those names far better than a bowler or an
-	-- antenna.
-	if def.id == "noodle" or def.id == "crumb" or def.id == "toaster" then
+	-- Noodle, Crumb, Toaster and Couch get a name-specific prop instead
+	-- of the generic one (see addNameProp): a chef hat, a captain's
+	-- hat, a slice of toast and a couch with a cape read as those names
+	-- far better than a bowler or an antenna. `top` is the body's own
+	-- top edge, so a hat sits on the head instead of floating above a
+	-- flat body or sinking into a tall one.
+	if def.id == "noodle" or def.id == "crumb" or def.id == "toaster" or def.id == "couch" then
 		return
 	end
 	local size = def.size
-	local top = body.CFrame * CFrame.new(0, size * 0.55, 0)
+	local top = body.CFrame * CFrame.new(0, body.Size.Y / 2, 0)
 	if def.accessory == "horns" then
 		for _, side in ipairs({ -1, 1 }) do
 			local horn = makePart("Horn", Enum.PartType.Wedge, Vector3.new(size * 0.16, size * 0.4, size * 0.16), Color3.fromRGB(240, 220, 180))
@@ -476,7 +773,15 @@ local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "RotlingLabel"
 	billboard.Size = UDim2.fromOffset(200, 84)
-	billboard.StudsOffsetWorldSpace = Vector3.new(0, def.size * 0.85, 0)
+	-- The tag floats above the model's TALLEST part (chef hat, crown,
+	-- disco ball), not at a fixed height: the bounding-box top plus a
+	-- margin, so it never covers the face or a tall accessory. The 1x
+	-- offset is stored on the model so refreshLabelOffset can re-seat
+	-- it after any scale change (crater 1.5x, pad 1x).
+	local boxCf, boxSize = model:GetBoundingBox()
+	local tagOffset = (boxCf.Position.Y + boxSize.Y / 2) - body.Position.Y + 0.8
+	billboard.StudsOffsetWorldSpace = Vector3.new(0, tagOffset, 0)
+	model:SetAttribute("LabelBaseOffset", tagOffset)
 	billboard.AlwaysOnTop = true
 	billboard.LightInfluence = 0
 	-- Big and readable at thumbnail size: the tag is the rarest readable
@@ -716,24 +1021,13 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	local model = Instance.new("Model")
 	model.Name = def.name
 
-	local bodySize: Vector3
-	local bodyShape: Enum.PartType
-	if def.body == "ball" then
-		bodySize = Vector3.new(size, size, size)
-		bodyShape = Enum.PartType.Ball
-	elseif def.body == "tall" then
-		bodySize = Vector3.new(size * 0.62, size, size * 0.62)
-		bodyShape = Enum.PartType.Block
-	elseif def.body == "wide" then
-		bodySize = Vector3.new(size * 1.25, size * 0.7, size * 0.9)
-		bodyShape = Enum.PartType.Block
-	else
-		bodySize = Vector3.new(size * 0.9, size * 0.85, size * 0.9)
-		bodyShape = Enum.PartType.Block
-	end
+	-- One unique silhouette per Rotling (see bodyForSilhouette).
+	local bodySize, bodyShape = bodyForSilhouette(def)
 
-	-- Saturate the colours so they read vivid from the path, not pale.
-	local bodyColor = saturate(def.bodyColor, 1.35)
+	-- The body IS the rarity colour, verbatim — no re-saturation, so a
+	-- Common reads rarity blue and a Cosmic reads rarity cyan, exactly
+	-- as RarityConfig defines them (checked by auto-check (ai)).
+	local bodyColor = rarity.color
 	if mutation == "Gold" then
 		bodyColor = Color3.fromRGB(255, 215, 0)
 	elseif mutation == "Frozen" then
@@ -742,7 +1036,12 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 		bodyColor = Color3.fromRGB(255, 240, 170)
 	end
 	local body = makePart("Body", bodyShape, bodySize, bodyColor)
-	body.Material = if mutation == "Rainbow" or mutation == "Starstruck" then Enum.Material.Neon else Enum.Material.SmoothPlastic
+	-- Gummy Bear reads "translucent" without any transparency: a bright
+	-- Neon body in its Cosmic cyan, solid (Transparency 0) like the
+	-- rest, with the glow shell and sparkles on top.
+	body.Material = if mutation == "Rainbow" or mutation == "Starstruck" then Enum.Material.Neon
+		elseif def.id == "gummy" then Enum.Material.Neon
+		else Enum.Material.SmoothPlastic
 	-- Rest the body's bottom on the given surface: centre it half its
 	-- own height above the position, so no Rotling is ever sunk into the
 	-- crater disc or a pad by a fixed size*0.55 guess.
@@ -751,9 +1050,9 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	body.Parent = model
 	model.PrimaryPart = body
 
-	-- Belly patch on the front.
-	local belly = makePart("Belly", Enum.PartType.Ball, Vector3.new(size * 0.5, size * 0.45, size * 0.2), saturate(def.bellyColor, 1.2))
-	belly.CFrame = body.CFrame * CFrame.new(0, -size * 0.12, bodySize.Z / 2)
+	-- Belly patch on the front, sized from the body's own size.
+	local belly = makePart("Belly", Enum.PartType.Ball, Vector3.new(bodySize.X * 0.45, bodySize.Y * 0.42, size * 0.2), saturate(def.bellyColor, 1.2))
+	belly.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y * 0.18, bodySize.Z / 2)
 	belly.Parent = model
 	local bellyWeld = Instance.new("WeldConstraint")
 	bellyWeld.Part0 = body
@@ -763,7 +1062,7 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	addEyes(model, body, size)
 	addMouth(model, body, size)
 	addFeet(model, body, size)
-	addArms(model, body, size)
+	addArms(model, body, def)
 	addAccessory(model, body, def, rarity.color)
 	addNameProp(model, body, def)
 	addLabel(model, body, def, mutation)
@@ -805,6 +1104,9 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	if b and b:IsA("BasePart") then
 		model:PivotTo(CFrame.new(position + Vector3.new(0, b.Size.Y / 2 + 0.1, 0)))
 	end
+	-- The tag offset is in studs, not model scale: re-seat it for the
+	-- build scale, or a 1.5x crater Rotling's tag sinks into its hat.
+	RotlingFactory.refreshLabelOffset(model)
 
 	-- Remember the rest pose so the idle loop can bob around it.
 	RotlingFactory.setRestPose(model)

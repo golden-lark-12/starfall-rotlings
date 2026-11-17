@@ -49,6 +49,15 @@
 --   (ag) the plaza lamps are big and blown out
 --   (ah) a custom button sits under Roblox's own top-left menu or the
 --       top-right player list (any button above y=60, or no UIScale)
+--   (ai) a Rotling's primary body colour is not its rarity tier colour
+--       (catalog bodyColor differs from RarityConfig, or the factory
+--       re-saturates it instead of painting rarity.color)
+--   (aj) two Rotlings share a silhouette, a Rotling has no face, or a
+--       Rotling has fewer than 2 signature features (no unique
+--       silhouette key, no eyes/mouth, no per-Rotling feature branch)
+--   (ak) the name tag sits on the model instead of above it (fixed
+--       offset that sinks into a hat at 1.5x, or no re-seat after a
+--       scale change, so the tag covers the face)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -1759,6 +1768,190 @@ do
 			check("ah", false, "a custom button sits under Roblox's top bar — " .. table.concat(problems, "; ") .. ". Parts: top-row buttons / Storm label (HUDController.client.luau, ShopController.client.luau, IndexController.client.luau), StormWarning bar, HudScale")
 		else
 			check("ah", true, "no custom UI under Roblox's top bar — every button and label starts at y>=60, storm banner below the mission bar, HudScale shrinks the HUD on small screens")
+		end
+	end
+end
+
+-- -- (ai) every Rotling's primary colour is its rarity colour ------------
+-- Item 1: the body colour is the rarity tier colour, verbatim from
+-- RarityConfig — Commons rarity blue, Rares rarity green, Epics rarity
+-- purple, Legendary rarity gold, Mythic rarity pink, Cosmic rarity
+-- cyan. A re-saturated copy drifts (Common blue (110,200,255) would
+-- come out (84,204,255)), so the factory must paint rarity.color
+-- itself, and every tier colour must be bright and saturated (no grey,
+-- no washed-out white).
+do
+	local catalogSrc = read("src/shared/RotlingCatalog.luau")
+	local raritySrc = read("src/shared/RarityConfig.luau")
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	if not catalogSrc or not raritySrc or not factorySrc then
+		check("ai", false, "could not verify rarity colours — RotlingCatalog.luau, RarityConfig.luau or RotlingFactory.luau missing")
+	else
+		local problems: { string } = {}
+		-- Rarity name -> "r,g,b", plus its channel spread.
+		local rarityColors: { [string]: string } = {}
+		for name, r, g, b in raritySrc:gmatch('name = "([%w]+)", color = Color3%.fromRGB%((%d+), (%d+), (%d+)%)') do
+			rarityColors[name] = r .. "," .. g .. "," .. b
+			local spread = math.max(tonumber(r) or 0, tonumber(g) or 0, tonumber(b) or 0)
+				- math.min(tonumber(r) or 0, tonumber(g) or 0, tonumber(b) or 0)
+			if spread < 100 then
+				table.insert(problems, name .. " rarity colour (" .. rarityColors[name] .. ") is grey/washed-out (channel spread " .. tostring(spread) .. ", under 100)")
+			end
+		end
+		local defCount = 0
+		for rarity, r, g, b in catalogSrc:gmatch('rarity = "([%w]+)",[%s%S]-bodyColor = Color3%.fromRGB%((%d+), (%d+), (%d+)%)') do
+			defCount += 1
+			local want = rarityColors[rarity]
+			local got = r .. "," .. g .. "," .. b
+			if not want then
+				table.insert(problems, "unknown rarity " .. rarity .. " in RotlingCatalog.luau")
+			elseif got ~= want then
+				table.insert(problems, "a " .. rarity .. " Rotling has bodyColor (" .. got .. "), rarity colour is (" .. want .. ")")
+			end
+		end
+		if defCount ~= 12 then
+			table.insert(problems, "only " .. tostring(defCount) .. " catalog defs with a bodyColor (need 12)")
+		end
+		-- The factory paints the body with the rarity colour itself.
+		if not factorySrc:find("local bodyColor = rarity%.color") then
+			table.insert(problems, "RotlingFactory.build does not paint the body with rarity.color (a re-saturated copy drifts off the tier colour)")
+		end
+		if #problems > 0 then
+			check("ai", false, "a Rotling's primary colour is not its rarity colour — " .. table.concat(problems, "; ") .. ". Parts: bodyColor (RotlingCatalog.luau), color (RarityConfig.luau), bodyColor (RotlingFactory.build)")
+		else
+			check("ai", true, "every Rotling's primary colour is its rarity colour — " .. tostring(defCount) .. " defs match RarityConfig exactly, factory paints rarity.color, all 6 tier colours saturated (spread >= 100)")
+		end
+	end
+end
+
+-- -- (aj) distinct silhouettes, a face, and 2+ signature features ---------
+-- Item 1: no two Rotlings share a silhouette key, every Rotling has a
+-- face (big eyes + mouth, built in build()), and every catalog def
+-- lists at least 2 signature features that the factory actually builds
+-- (one addNameProp branch per Rotling id).
+do
+	local catalogSrc = read("src/shared/RotlingCatalog.luau")
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	if not catalogSrc or not factorySrc then
+		check("aj", false, "could not verify silhouettes/faces — RotlingCatalog.luau or RotlingFactory.luau missing")
+	else
+		local problems: { string } = {}
+		-- 12 defs, 12 unique silhouette keys.
+		local ids: { string } = {}
+		for id in catalogSrc:gmatch('id = "([%w_]+)"') do
+			table.insert(ids, id)
+		end
+		if #ids ~= 12 then
+			table.insert(problems, "only " .. tostring(#ids) .. " catalog defs (need 12)")
+		end
+		local seen: { [string]: boolean } = {}
+		local silCount = 0
+		for sil in catalogSrc:gmatch('silhouette = "([%w%-]+)"') do
+			silCount += 1
+			if seen[sil] then
+				table.insert(problems, 'silhouette "' .. sil .. '" is shared by two Rotlings (must be unique)')
+			end
+			seen[sil] = true
+		end
+		if silCount ~= 12 then
+			table.insert(problems, "only " .. tostring(silCount) .. " silhouette keys in the catalog (need 12, one per Rotling)")
+		end
+		-- At least 2 signature features listed per def.
+		for list in catalogSrc:gmatch("features = {([^}]+)}") do
+			local n = 0
+			for _ in list:gmatch('"[^"]+"') do
+				n += 1
+			end
+			if n < 2 then
+				table.insert(problems, "a catalog def lists only " .. tostring(n) .. " signature features (need at least 2)")
+			end
+		end
+		-- The face is built: eyes + mouth calls in build().
+		if not factorySrc:find("addEyes%(model, body, size%)") then
+			table.insert(problems, "RotlingFactory.build never calls addEyes")
+		end
+		if not factorySrc:find("addMouth%(model, body, size%)") then
+			table.insert(problems, "RotlingFactory.build never calls addMouth")
+		end
+		-- Eyes are big enough to read at thumbnail size: the eye-size
+		-- factor is at least 0.25 (smallest Rotling is 2.2 studs, so
+		-- eyes are at least ~0.55 studs across).
+		local eyesBody = functionBody(factorySrc, "addEyes")
+		local eyeFactor = if eyesBody then num(eyesBody:match("size %* ([%d%.]+)")) else nil
+		if not eyeFactor then
+			table.insert(problems, "eye size factor not found in addEyes")
+		elseif eyeFactor < 0.25 then
+			table.insert(problems, "eye size factor " .. tostring(eyeFactor) .. " (under 0.25 — eyes under ~0.5 studs on the smallest Rotling)")
+		end
+		-- Every Rotling id has its own feature branch in the factory.
+		for _, id in ipairs(ids) do
+			if not factorySrc:find('def.id == "' .. id .. '"', 1, true) then
+				table.insert(problems, 'no addNameProp branch for "' .. id .. '" in RotlingFactory.luau')
+			end
+		end
+		if #problems > 0 then
+			check("aj", false, "Rotlings are not distinct characters — " .. table.concat(problems, "; ") .. ". Parts: silhouette / features (RotlingCatalog.luau), addEyes / addMouth / addNameProp (RotlingFactory.luau)")
+		else
+			check("aj", true, "12 distinct silhouettes, every Rotling has a face (eyes factor " .. tostring(eyeFactor)
+				.. ", >= ~0.5 studs) and 2+ signature features with a factory branch each")
+		end
+	end
+end
+
+-- -- (ak) the name tag sits above the model, never on the face --------------
+-- Item 1: the tag offset comes from the model's bounding-box top plus a
+-- margin (not a fixed size*0.85, which sank into a tall hat at 1.5x
+-- crater scale), the 1x offset is stored on the model, and every scale
+-- change re-seats the tag (refreshLabelOffset, called from build and
+-- from CarryService after each setModelScale).
+do
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	if not factorySrc or not carrySrc then
+		check("ak", false, "could not verify the name tag — RotlingFactory.luau or CarryService.luau missing")
+	else
+		local problems: { string } = {}
+		local labelBody = functionBody(factorySrc, "addLabel")
+		if not labelBody then
+			table.insert(problems, "addLabel not found in RotlingFactory.luau")
+		else
+			if not labelBody:find("GetBoundingBox") then
+				table.insert(problems, "addLabel does not measure the model's bounding-box top (tag offset is a fixed height)")
+			end
+			if not labelBody:find("%+ 0.8") then
+				table.insert(problems, "addLabel has no margin above the bounding-box top (tag can touch the tallest part)")
+			end
+			if not labelBody:find('SetAttribute%("LabelBaseOffset"') then
+				table.insert(problems, 'addLabel does not store the 1x offset as "LabelBaseOffset"')
+			end
+		end
+		local refreshBody = functionBody(factorySrc, "RotlingFactory.refreshLabelOffset")
+		if not refreshBody then
+			table.insert(problems, "RotlingFactory.refreshLabelOffset not found")
+		else
+			if not refreshBody:find("GetScale") then
+				table.insert(problems, "refreshLabelOffset does not scale the stored offset by the live model scale")
+			end
+			if not refreshBody:find("LabelBaseOffset") then
+				table.insert(problems, "refreshLabelOffset does not read the stored LabelBaseOffset")
+			end
+		end
+		-- Every scale change in CarryService re-seats the tag: 3 sites
+		-- (grab weld-fail restore, placeOnPad, scatterToCrater).
+		local refreshCalls = 0
+		for _ in carrySrc:gmatch("refreshLabelOffset%(model%)") do
+			refreshCalls += 1
+		end
+		if refreshCalls < 3 then
+			table.insert(problems, "CarryService calls refreshLabelOffset only " .. tostring(refreshCalls) .. " times (need 3: grab restore, place, scatter)")
+		end
+		if not factorySrc:find("refreshLabelOffset%(model%)") then
+			table.insert(problems, "RotlingFactory.build never calls refreshLabelOffset after scaling")
+		end
+		if #problems > 0 then
+			check("ak", false, "the name tag can sit on the model or cover the face — " .. table.concat(problems, "; ") .. ". Parts: addLabel / refreshLabelOffset (RotlingFactory.luau), setModelScale sites (CarryService.luau)")
+		else
+			check("ak", true, "name tag floats above the model — bounding-box top + 0.8 margin, stored 1x offset re-seated on every scale change (build + " .. tostring(refreshCalls) .. " CarryService sites)")
 		end
 	end
 end
