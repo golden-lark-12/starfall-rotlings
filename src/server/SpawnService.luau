@@ -64,7 +64,7 @@ end
 local function animateFree()
 	while true do
 		task.wait(0.1)
-		local now = os.clock()
+		local now = time()
 		for model, baseCf in pairs(bobBases) do
 			if not model.Parent then
 				bobBases[model] = nil
@@ -90,7 +90,9 @@ function SpawnService.spawnOne(): Model?
 	local mutation = MutationConfig.rollMutation()
 	local angle = math.random() * math.pi * 2
 	local radius = math.random() * Config.CRATER_RADIUS * 0.8
-	local position = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+	-- Spawn on the crater floor (top of the crater disc), never at Y=0:
+	-- the disc sits above the ground, so Y=0 buries the Rotling in it.
+	local position = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
 	local model = RotlingFactory.build(def.id, mutation, position)
 	if not model then
 		return nil

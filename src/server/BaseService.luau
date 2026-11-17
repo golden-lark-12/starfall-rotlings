@@ -79,7 +79,7 @@ function BaseService.isLocked(baseId: number): boolean
 	if not lock then
 		return false
 	end
-	return os.clock() < lock.lockedUntil
+	return time() < lock.lockedUntil
 end
 
 function BaseService.lockRemaining(baseId: number): number
@@ -87,7 +87,7 @@ function BaseService.lockRemaining(baseId: number): number
 	if not lock then
 		return 0
 	end
-	return math.max(0, lock.lockedUntil - os.clock())
+	return math.max(0, lock.lockedUntil - time())
 end
 
 function BaseService.lockCooldownRemaining(baseId: number): number
@@ -95,7 +95,7 @@ function BaseService.lockCooldownRemaining(baseId: number): number
 	if not lock then
 		return 0
 	end
-	return math.max(0, lock.cooldownUntil - os.clock())
+	return math.max(0, lock.cooldownUntil - time())
 end
 
 -- Turn a player's base lock on. Returns (ok, message).
@@ -112,7 +112,7 @@ function BaseService.lockBase(player: Player): (boolean, string)
 		return false, "Lock recharges in " .. tostring(math.ceil(cooldown)) .. "s."
 	end
 	local duration = BaseService.lockDurationFor(player)
-	local now = os.clock()
+	local now = time()
 	State.locks[baseId].lockedUntil = now + duration
 	State.locks[baseId].cooldownUntil = now + duration + Config.LOCK_COOLDOWN
 	BaseService.setGateVisible(baseId, true)

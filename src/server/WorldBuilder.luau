@@ -127,15 +127,15 @@ local function buildBase(baseId: number)
 	local color = BASE_COLORS[baseId]
 
 	-- Platform.
-	part("BasePlatform", Enum.PartType.Block, Vector3.new(26, 2, 22), Color3.fromRGB(70, 60, 90), cf * CFrame.new(0, 0, 0))
+	part("BasePlatform", Enum.PartType.Block, Vector3.new(26, 2, 22), Color3.fromRGB(115, 100, 150), cf * CFrame.new(0, 0, 0))
 	-- Trim: a bright edge strip on the crater side.
 	local trim = part("BaseTrim", Enum.PartType.Block, Vector3.new(26, 0.6, 1), color, cf * CFrame.new(0, 1.1, -11))
 	baseTrims[baseId] = trim
 	-- Back wall so placed Rotlings read as "home".
-	local wall = part("BaseWall", Enum.PartType.Block, Vector3.new(26, 8, 1.5), Color3.fromRGB(50, 45, 70), cf * CFrame.new(0, 5, 10.5))
+	local wall = part("BaseWall", Enum.PartType.Block, Vector3.new(26, 8, 1.5), Color3.fromRGB(88, 78, 118), cf * CFrame.new(0, 5, 10.5))
 	wall.Transparency = 0.15
 	-- Banner pole + flag + sign.
-	local pole = part("BannerPole", Enum.PartType.Cylinder, Vector3.new(12, 1, 1), Color3.fromRGB(40, 35, 55), cf * CFrame.new(-11, 7, 9) * CFrame.Angles(0, 0, math.rad(90)))
+	local pole = part("BannerPole", Enum.PartType.Cylinder, Vector3.new(12, 1, 1), Color3.fromRGB(72, 62, 92), cf * CFrame.new(-11, 7, 9) * CFrame.Angles(0, 0, math.rad(90)))
 	pole.CanCollide = false
 	local flag = part("BannerFlag", Enum.PartType.Block, Vector3.new(0.4, 3.5, 5), color, cf * CFrame.new(-11, 11, 6.5))
 	flag.Material = Enum.Material.Neon
@@ -200,7 +200,7 @@ local function buildTrees()
 		local x = math.cos(angle) * radius
 		local z = math.sin(angle) * radius
 		local height = 6 + math.random() * 6
-		local trunk = part("TreeTrunk", Enum.PartType.Cylinder, Vector3.new(height * 0.5, 1.2, 1.2), Color3.fromRGB(90, 60, 110), CFrame.new(x, height * 0.25, z) * CFrame.Angles(0, 0, math.rad(90)))
+		local trunk = part("TreeTrunk", Enum.PartType.Cylinder, Vector3.new(height * 0.5, 1.2, 1.2), Color3.fromRGB(135, 100, 155), CFrame.new(x, height * 0.25, z) * CFrame.Angles(0, 0, math.rad(90)))
 		trunk.CanCollide = false
 		local canopyColor = Color3.fromRGB(120 + math.random(0, 80), 50 + math.random(0, 40), 170 + math.random(0, 60))
 		local canopy = part("TreeTop", Enum.PartType.Ball, Vector3.new(height * 0.9, height * 0.9, height * 0.9), canopyColor, CFrame.new(x, height * 0.75, z))
@@ -215,7 +215,7 @@ local function buildRocksAndMushrooms()
 		local x = math.cos(angle) * radius
 		local z = math.sin(angle) * radius
 		local s = 1.5 + math.random() * 3
-		local rock = part("Rock", Enum.PartType.Ball, Vector3.new(s, s * 0.7, s), Color3.fromRGB(95, 80, 115), CFrame.new(x, s * 0.3, z) * CFrame.Angles(math.random(), math.random(), math.random()))
+		local rock = part("Rock", Enum.PartType.Ball, Vector3.new(s, s * 0.7, s), Color3.fromRGB(145, 125, 170), CFrame.new(x, s * 0.3, z) * CFrame.Angles(math.random(), math.random(), math.random()))
 		rock.Material = Enum.Material.Slate
 	end
 	-- Glowing mushrooms ring the crater.
@@ -268,14 +268,14 @@ local function buildSkyDecor()
 		local angle = (i - 1) * (math.pi * 2 / 8)
 		local x = math.cos(angle) * 40
 		local z = math.sin(angle) * 40
-		local rock = part("FloatRock", Enum.PartType.Ball, Vector3.new(3, 2, 3), Color3.fromRGB(90, 80, 120), CFrame.new(x, 26 + math.random() * 8, z), Enum.Material.Slate)
+		local rock = part("FloatRock", Enum.PartType.Ball, Vector3.new(3, 2, 3), Color3.fromRGB(135, 120, 165), CFrame.new(x, 26 + math.random() * 8, z), Enum.Material.Slate)
 		rock.CanCollide = false
 		rock:SetAttribute("FloatSeed", i * 1.7)
 	end
 end
 
 function WorldBuilder.build()
-	math.randomseed(tick())
+	math.randomseed(os.time())
 	for baseId = 1, Config.BASE_COUNT do
 		buildBase(baseId)
 	end

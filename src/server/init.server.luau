@@ -42,6 +42,24 @@ end
 
 local function onCharacterAdded(player: Player, character: Model)
 	ShopService.applyWalkSpeed(player)
+	-- Spawn at your own base, facing the crater: stand beside the
+	-- platform's front corner, so the glowing pads are right beside you
+	-- and the crater is straight ahead. (The SpawnLocation alone can't
+	-- do this: it is one fixed spot, and your base depends on join order.)
+	local baseId = BaseService.getPlayerBase(player.UserId)
+	local baseCf = if baseId then WorldBuilder.baseCFrame(baseId) else nil
+	if baseCf then
+		local side = baseCf * CFrame.new(18, 0, -4)
+		local spawnPos = Vector3.new(side.Position.X, 3, side.Position.Z)
+		local spawnCf = CFrame.lookAt(spawnPos, Vector3.new(0, 3, 0))
+		local root = character:FindFirstChild("HumanoidRootPart")
+		if not root then
+			root = character:WaitForChild("HumanoidRootPart", 5)
+		end
+		if root then
+			character:PivotTo(spawnCf)
+		end
+	end
 	local humanoid = character:WaitForChild("Humanoid")
 	humanoid.Died:Connect(function()
 		-- Dying drops everything you were carrying into the crater.

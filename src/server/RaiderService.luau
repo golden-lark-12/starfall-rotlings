@@ -282,20 +282,20 @@ function RaiderService.spawnRaider(): Model?
 		targetBase = baseId,
 		targetPad = padIndex,
 		stolen = nil,
-		bornAt = os.clock(),
+		bornAt = time(),
 	}
 	-- Touching it bonks it (with a short debounce per raider).
 	local body = model.PrimaryPart
 	if body then
 		local lastBonk = 0
 		body.Touched:Connect(function(hit: BasePart)
-			if os.clock() - lastBonk < 1 then
+			if time() - lastBonk < 1 then
 				return
 			end
 			local character = hit.Parent
 			local player = character and Players:GetPlayerFromCharacter(character)
 			if player then
-				lastBonk = os.clock()
+				lastBonk = time()
 				RaiderService.bonkRaider(model, player)
 			end
 		end)
@@ -335,7 +335,7 @@ function RaiderService.spawnRaiderForTour(baseId: number, padIndex: number): Mod
 		targetBase = baseId,
 		targetPad = padIndex,
 		stolen = placed[padIndex],
-		bornAt = os.clock(),
+		bornAt = time(),
 	}
 	return model
 end

@@ -29,34 +29,40 @@ local running = false
 function StarfallService.getStatus()
 	return {
 		phase = phase,
-		secondsLeft = math.max(0, math.ceil(phaseEndsAt - os.clock())),
+		-- time() is wall-clock seconds since the server started. os.clock()
+		-- is CPU time: in a quiet Studio session it barely advances, so a
+		-- countdown built on it never moves and the storm never fires.
+		secondsLeft = math.max(0, math.ceil(phaseEndsAt - time())),
 	}
 end
 
 local function setPhase(newPhase: string, duration: number)
 	phase = newPhase
-	phaseEndsAt = os.clock() + duration
+	phaseEndsAt = time() + duration
 end
 
 -- Space-sunset palette: purple sky, orange storm light.
+-- These must match the bright base lighting in default.project.json
+-- (Brightness 3, ClockTime 17.0): a storm dims the sky a little, it
+-- never drops the world back to navy-black.
 local function dimSky()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
-		atmosphere.Density = 0.55
+		atmosphere.Density = 0.5
 		atmosphere.Color = Color3.fromRGB(255, 120, 60)
 	end
-	Lighting.ClockTime = 17.2
-	Lighting.Brightness = 1.4
+	Lighting.ClockTime = 16.8
+	Lighting.Brightness = 2.4
 end
 
 local function restoreSky()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
-		atmosphere.Density = 0.4
+		atmosphere.Density = 0.35
 		atmosphere.Color = Color3.fromRGB(218, 140, 242)
 	end
-	Lighting.ClockTime = 17.8
-	Lighting.Brightness = 2
+	Lighting.ClockTime = 17.0
+	Lighting.Brightness = 3
 end
 
 local function playAlarm()
@@ -96,7 +102,7 @@ end
 local function spawnMeteor()
 	local angle = math.random() * math.pi * 2
 	local radius = math.random() * Config.CRATER_RADIUS
-	local target = Vector3.new(math.cos(angle) * radius, 1, math.sin(angle) * radius)
+	local target = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
 	local start = target + Vector3.new(0, 120, 0)
 
 	local meteor = Instance.new("Part")
@@ -164,7 +170,7 @@ function StarfallService.start()
 		setPhase("calm", Config.STORM_PERIOD - Config.STORM_WARN - Config.STORM_DURATION)
 		while true do
 			-- Calm: the crater is safe, Rotlings spawn freely.
-			while os.clock() < phaseEndsAt do
+			while time() < phaseEndsAt do
 				task.wait(0.5)
 			end
 			-- Warning: the sky darkens, everyone gets the message.
@@ -172,13 +178,13 @@ function StarfallService.start()
 			dimSky()
 			playAlarm()
 			Remotes.bannerEvent():FireAllClients("METEOR STORM IN 10 SECONDS! Get home or drop your catch!", 10)
-			while os.clock() < phaseEndsAt do
+			while time() < phaseEndsAt do
 				task.wait(0.5)
 			end
 			-- Storm: meteors rain on the crater.
 			setPhase("storm", Config.STORM_DURATION)
 			Remotes.bannerEvent():FireAllClients("METEOR STORM! Stay out of the crater!", 8)
-			while os.clock() < phaseEndsAt do
+			while time() < phaseEndsAt do
 				spawnMeteor()
 				task.wait(Config.STORM_METEOR_INTERVAL)
 			end

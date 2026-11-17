@@ -42,35 +42,42 @@ function IncomeService.coinsPerSecond(player: Player): number
 end
 
 -- Send every player their current HUD numbers.
+-- Each player's send is protected: one bad profile or a dropped
+-- connection must never take the whole feed down with it.
 function IncomeService.broadcastHud()
 	local StarfallService = require(script.Parent.StarfallService)
 	local storm = StarfallService.getStatus()
 	for _, player in ipairs(Players:GetPlayers()) do
-		local profile = DataService.getProfile(player)
-		if profile then
-			local baseId = BaseService.getPlayerBase(player.UserId)
-			local found = 0
-			for _ in pairs(profile.index) do
-				found += 1
+		local ok, err = pcall(function()
+			local profile = DataService.getProfile(player)
+			if profile then
+				local baseId = BaseService.getPlayerBase(player.UserId)
+				local found = 0
+				for _ in pairs(profile.index) do
+					found += 1
+				end
+				Remotes.hudEvent():FireClient(player, {
+					coins = profile.coins,
+					cps = IncomeService.coinsPerSecond(player),
+					rebirths = profile.rebirths,
+					speedTier = profile.speedTier,
+					carryTier = profile.carryTier,
+					incomeTier = profile.incomeTier,
+					padsTier = profile.padsTier,
+					lockTier = profile.lockTier,
+					carried = #BaseService.getCarried(player),
+					carrySlots = BaseService.getCarrySlots(player),
+					lockRemaining = if baseId then BaseService.lockRemaining(baseId) else 0,
+					lockCooldown = if baseId then BaseService.lockCooldownRemaining(baseId) else 0,
+					stormPhase = storm.phase,
+					stormSeconds = storm.secondsLeft,
+					index = profile.index,
+					firstTime = profile.coins == 0 and profile.rebirths == 0 and found == 0,
+				})
 			end
-			Remotes.hudEvent():FireClient(player, {
-				coins = profile.coins,
-				cps = IncomeService.coinsPerSecond(player),
-				rebirths = profile.rebirths,
-				speedTier = profile.speedTier,
-				carryTier = profile.carryTier,
-				incomeTier = profile.incomeTier,
-				padsTier = profile.padsTier,
-				lockTier = profile.lockTier,
-				carried = #BaseService.getCarried(player),
-				carrySlots = BaseService.getCarrySlots(player),
-				lockRemaining = if baseId then BaseService.lockRemaining(baseId) else 0,
-				lockCooldown = if baseId then BaseService.lockCooldownRemaining(baseId) else 0,
-				stormPhase = storm.phase,
-				stormSeconds = storm.secondsLeft,
-				index = profile.index,
-				firstTime = profile.coins == 0 and profile.rebirths == 0 and found == 0,
-			})
+		end)
+		if not ok then
+			warn("Starfall broadcastHud failed for " .. player.Name .. ": " .. tostring(err))
 		end
 	end
 end
@@ -135,20 +142,28 @@ local function floatIncomeNumber()
 end
 
 -- Start the coin tick and the autosave loop.
+-- The tick is wrapped so one bad player or value can never kill the
+-- loop: a dead loop means the HUD (and the storm timer) freeze for
+-- everyone, with nothing in the Output to explain it.
 function IncomeService.start()
 	task.spawn(function()
 		while true do
 			task.wait(Config.TICK_INTERVAL)
-			for _, player in ipairs(Players:GetPlayers()) do
-				local profile = DataService.getProfile(player)
-				if profile then
-					profile.coins += IncomeService.coinsPerSecond(player)
-					local LeaderstatsService = require(script.Parent.LeaderstatsService)
-					LeaderstatsService.refresh(player)
+			local ok, err = pcall(function()
+				for _, player in ipairs(Players:GetPlayers()) do
+					local profile = DataService.getProfile(player)
+					if profile then
+						profile.coins += IncomeService.coinsPerSecond(player)
+						local LeaderstatsService = require(script.Parent.LeaderstatsService)
+						LeaderstatsService.refresh(player)
+					end
 				end
+				floatIncomeNumber()
+				IncomeService.broadcastHud()
+			end)
+			if not ok then
+				warn("Starfall income tick failed: " .. tostring(err))
 			end
-			floatIncomeNumber()
-			IncomeService.broadcastHud()
 		end
 	end)
 

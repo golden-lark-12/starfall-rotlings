@@ -246,7 +246,7 @@ function CarryService.scatterToCrater(model: Model)
 	unweld(model)
 	local angle = math.random() * math.pi * 2
 	local radius = math.random() * Config.CRATER_RADIUS * 0.8
-	local pos = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+	local pos = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
 	local lift = if def then def.size * 0.55 + 0.6 else 2.5
 	for _, part in ipairs(model:GetDescendants()) do

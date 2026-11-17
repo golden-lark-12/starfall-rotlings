@@ -320,7 +320,10 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	end
 	local body = makePart("Body", bodyShape, bodySize, bodyColor)
 	body.Material = if mutation == "Rainbow" or mutation == "Starstruck" then Enum.Material.Neon else Enum.Material.SmoothPlastic
-	body.CFrame = CFrame.new(position + Vector3.new(0, size * 0.55, 0))
+	-- Rest the body's bottom on the given surface: centre it half its
+	-- own height above the position, so no Rotling is ever sunk into the
+	-- crater disc or a pad by a fixed size*0.55 guess.
+	body.CFrame = CFrame.new(position + Vector3.new(0, bodySize.Y / 2 + 0.1, 0))
 	body.Anchored = true -- rests on the crater floor; carrying un-anchors it
 	body.Parent = model
 	model.PrimaryPart = body

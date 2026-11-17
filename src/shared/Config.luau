@@ -13,6 +13,7 @@ Config.BASE_RADIUS = 110
 Config.PADS_PER_BASE = 8 -- 6 open, 2 unlocked by the shop
 Config.PADS_OPEN = 6 -- pads a fresh base starts with
 Config.CRATER_RADIUS = 28
+Config.CRATER_FLOOR_Y = 0.4 -- top of the crater disc: Rotlings spawn and meteors land here
 Config.GROUND_SIZE = 480
 
 -- Spawning.
