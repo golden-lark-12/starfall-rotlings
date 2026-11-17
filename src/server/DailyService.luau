@@ -11,6 +11,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Formatting = require(ReplicatedStorage.Shared.Formatting)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local DataService = require(script.Parent.DataService)
+local FeedbackService = require(script.Parent.FeedbackService)
 
 local DailyService = {}
 
@@ -37,6 +38,7 @@ function DailyService.claimDaily(player: Player): (boolean, string)
 	profile.lastDailyClaim = os.time()
 	profile.coins += Config.DAILY_REWARD
 	DataService.saveProfile(player)
+	FeedbackService.celebrate(player)
 	return true, "🎁 Daily reward! +" .. Formatting.formatMoney(Config.DAILY_REWARD)
 end
 

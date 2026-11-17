@@ -12,6 +12,7 @@ local Formatting = require(ReplicatedStorage.Shared.Formatting)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local BaseService = require(script.Parent.BaseService)
 local DataService = require(script.Parent.DataService)
+local FeedbackService = require(script.Parent.FeedbackService)
 local WorldBuilder = require(script.Parent.WorldBuilder)
 
 local RebirthService = {}
@@ -56,6 +57,11 @@ function RebirthService.doRebirth(player: Player): (boolean, string)
 	DataService.saveProfile(player)
 	local LeaderstatsService = require(script.Parent.LeaderstatsService)
 	LeaderstatsService.refresh(player)
+	FeedbackService.celebrate(player)
+	local character = player.Character
+	if character then
+		FeedbackService.cashPopup(character, "Income x" .. string.format("%.2f", RebirthService.incomeMult(profile.rebirths)), Color3.fromRGB(255, 110, 180))
+	end
 	return true, "Rebirth " .. tostring(profile.rebirths) .. "! Income x"
 		.. string.format("%.2f", RebirthService.incomeMult(profile.rebirths))
 		.. " forever, and your base wears a new colour."

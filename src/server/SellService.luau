@@ -14,6 +14,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local CarryService = require(script.Parent.CarryService)
 local DataService = require(script.Parent.DataService)
+local FeedbackService = require(script.Parent.FeedbackService)
 local MissionService = require(script.Parent.MissionService)
 
 local SellService = {}
@@ -47,6 +48,11 @@ function SellService.sellCarried(player: Player): (boolean, string)
 	profile.coins += value
 	MissionService.addProgress(player, "earn", value)
 	DataService.saveProfile(player)
+	FeedbackService.playSound(player, 1.4, 0.7)
+	local character = player.Character
+	if character then
+		FeedbackService.cashPopup(character, "+" .. Formatting.formatMoney(value))
+	end
 	return true, "💰 Sold " .. def.name .. " for " .. Formatting.formatMoney(value) .. "!"
 end
 

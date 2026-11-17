@@ -16,7 +16,9 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local BaseService = require(script.Parent.BaseService)
 local DataService = require(script.Parent.DataService)
+local FeedbackService = require(script.Parent.FeedbackService)
 local IndexService = require(script.Parent.IndexService)
+local MissionService = require(script.Parent.MissionService)
 local MissionService = require(script.Parent.MissionService)
 local RotlingFactory = require(script.Parent.RotlingFactory)
 local State = require(script.Parent.State)
@@ -191,6 +193,8 @@ function CarryService.tryGrab(player: Player, model: Model)
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
 	if def then
 		IndexService.markFound(player, def.id)
+		-- Gold burst in the Rotling's rarity colour: the grab reads.
+		FeedbackService.burst(model, RarityConfig.rarityByName(def.rarity).color)
 		if RarityConfig.rarityTier(def.rarity) >= 4 then
 			Remotes.rarityPopupEvent():FireClient(player, def.name, def.rarity, model:GetAttribute("Mutation") :: string?, RotlingCatalog.baseCps(def, model:GetAttribute("Mutation") :: string?))
 		end

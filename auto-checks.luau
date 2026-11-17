@@ -1109,6 +1109,200 @@ do
 	end
 end
 
+-- -- (s) loop: grab -> carry -> place ----------------------------------------
+do
+	local spawnSrc = read("src/server/SpawnService.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	if not spawnSrc or not carrySrc or not mainSrc then
+		check("s", false, "could not verify the loop — SpawnService.luau, CarryService.luau or Main.server.luau missing")
+	else
+		local problems: { string } = {}
+		if not spawnSrc:find("CarryService%.tryGrab%(player, model%)") then
+			table.insert(problems, "crater prompt never calls CarryService.tryGrab")
+		end
+		if not carrySrc:find("CarryService%.carryRotling%(player, model%)") then
+			table.insert(problems, "tryGrab never carries the Rotling")
+		end
+		if not mainSrc:find("CarryService%.tryPlace%(player%)") then
+			table.insert(problems, "pad prompt never calls CarryService.tryPlace")
+		end
+		if not carrySrc:find("State%.placed%[baseId%]%[padIndex%] = model") then
+			table.insert(problems, "placeOnPad never records State.placed")
+		end
+		if #problems > 0 then
+			check("s", false, "the grab -> carry -> place loop is broken — " .. table.concat(problems, "; ") .. ". Parts: SpawnService.connectPrompt, CarryService.tryGrab/tryPlace/placeOnPad, Main.server pad wiring")
+		else
+			check("s", true, "loop step grab -> carry -> place is wired — crater prompt -> tryGrab -> carryRotling, pad prompt -> tryPlace -> placeOnPad -> State.placed")
+		end
+	end
+end
+
+-- -- (t) loop: placed Rotlings earn every second -------------------------------
+do
+	local incomeSrc = read("src/server/IncomeService.luau")
+	if not incomeSrc then
+		check("t", false, "could not verify earning — IncomeService.luau missing")
+	else
+		local problems: { string } = {}
+		if not incomeSrc:find("profile%.coins %+= gained") and not incomeSrc:find("profile%.coins %+= IncomeService%.coinsPerSecond") then
+			table.insert(problems, "income tick never adds coins")
+		end
+		if not incomeSrc:find("BaseService%.getPlacedForPlayer%(player%)") then
+			table.insert(problems, "coinsPerSecond never sums the placed Rotlings")
+		end
+		if #problems > 0 then
+			check("t", false, "placed Rotlings never earn — " .. table.concat(problems, "; ") .. ". Parts: IncomeService tick / coinsPerSecond")
+		else
+			check("t", true, "loop step earn works — 1/s tick pays coinsPerSecond from the placed Rotlings")
+		end
+	end
+end
+
+-- -- (u) loop: buy + upgrade in the shop ---------------------------------------
+do
+	local shopSrc = read("src/server/ShopService.luau")
+	local shopClient = read("src/client/ShopController.client.luau")
+	if not shopSrc or not shopClient then
+		check("u", false, "could not verify buying — ShopService.luau or ShopController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not shopSrc:find("writable%[tierKey%] = tier %+ 1") then
+			table.insert(problems, "buyItem never advances the tier")
+		end
+		if not shopSrc:find("Remotes%.buyFunction%(%)%.OnServerInvoke") then
+			table.insert(problems, "BuyItem remote never wired")
+		end
+		if not shopClient:find("Remotes%.buyFunction%(%)%:InvokeServer%(key%)") then
+			table.insert(problems, "shop buy button never invokes BuyItem")
+		end
+		if #problems > 0 then
+			check("u", false, "buying/upgrading is broken — " .. table.concat(problems, "; ") .. ". Parts: ShopService.buyItem, ShopController buy buttons")
+		else
+			check("u", true, "loop step buy + upgrade works — 5 shop ladders, buy buttons invoke BuyItem, tiers advance server-side")
+		end
+	end
+end
+
+-- -- (v) loop: rebirth + next tier ---------------------------------------------
+do
+	local rebirthSrc = read("src/server/RebirthService.luau")
+	local raritySrc = read("src/shared/RarityConfig.luau")
+	if not rebirthSrc or not raritySrc then
+		check("v", false, "could not verify rebirth — RebirthService.luau or RarityConfig.luau missing")
+	else
+		local problems: { string } = {}
+		if not rebirthSrc:find("profile%.coins = 0") then
+			table.insert(problems, "doRebirth never resets coins")
+		end
+		if not rebirthSrc:find("profile%.rebirths %+= 1") then
+			table.insert(problems, "doRebirth never counts the rebirth")
+		end
+		if not rebirthSrc:find("Remotes%.rebirthFunction%(%)%.OnServerInvoke") then
+			table.insert(problems, "DoRebirth remote never wired")
+		end
+		local names = 0
+		for _ in raritySrc:gmatch('name = "([%w]+)"') do
+			names += 1
+		end
+		if names < 6 then
+			table.insert(problems, "only " .. tostring(names) .. " rarities (need 6 for the next tier to exist)")
+		end
+		if #problems > 0 then
+			check("v", false, "rebirth / next tier is broken — " .. table.concat(problems, "; ") .. ". Parts: RebirthService.doRebirth, RarityConfig ladder")
+		else
+			check("v", true, "loop step rebirth + next tier works — DoRebirth wired (coins reset, +25% forever), 6-rarity ladder to climb")
+		end
+	end
+end
+
+-- -- (w) loop: feedback on every action ----------------------------------------
+do
+	local feedbackSrc = read("src/server/FeedbackService.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	local shopSrc = read("src/server/ShopService.luau")
+	local rebirthSrc = read("src/server/RebirthService.luau")
+	local sellSrc = read("src/server/SellService.luau")
+	local missionSrc = read("src/server/MissionService.luau")
+	local dailySrc = read("src/server/DailyService.luau")
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	if not feedbackSrc or not carrySrc or not shopSrc or not rebirthSrc or not sellSrc or not missionSrc or not dailySrc or not factorySrc then
+		check("w", false, "could not verify feedback — FeedbackService.luau or a caller module missing")
+	else
+		local problems: { string } = {}
+		for _, fn in ipairs({ "playSound", "burst", "cashPopup", "celebrate" }) do
+			if not feedbackSrc:find("function FeedbackService%." .. fn) then
+				table.insert(problems, "FeedbackService." .. fn .. " not found")
+			end
+		end
+		if not carrySrc:find("FeedbackService%.burst%(model") then
+			table.insert(problems, "grab never bursts")
+		end
+		if not factorySrc:find("function RotlingFactory%.placePop") then
+			table.insert(problems, "place has no placePop (burst + ding + bounce)")
+		end
+		if not shopSrc:find("FeedbackService%.celebrate%(player%)") then
+			table.insert(problems, "buy never celebrates")
+		end
+		if not rebirthSrc:find("FeedbackService%.celebrate%(player%)") then
+			table.insert(problems, "rebirth never celebrates")
+		end
+		if not sellSrc:find("FeedbackService%.cashPopup%(character") then
+			table.insert(problems, "sell never pops the cash")
+		end
+		if not missionSrc:find("FeedbackService%.celebrate%(player%)") then
+			table.insert(problems, "mission complete never celebrates")
+		end
+		if not dailySrc:find("FeedbackService%.celebrate%(player%)") then
+			table.insert(problems, "daily claim never celebrates")
+		end
+		if #problems > 0 then
+			check("w", false, "some action has no feedback — " .. table.concat(problems, "; ") .. ". Parts: FeedbackService (sound + burst + cash pop-up)")
+		else
+			check("w", true, "feedback on every action — sound + burst + cash pop-up on grab, place, buy, rebirth, sell, mission, daily")
+		end
+	end
+end
+
+-- -- (x) loop: tutorial arrows for a new player's first 60 seconds -----------
+do
+	local tutSrc = read("src/client/TutorialController.client.luau")
+	if not tutSrc then
+		check("x", false, "could not verify the tutorial — TutorialController.client.luau missing")
+	else
+		local problems: { string } = {}
+		local seconds = num(tutSrc:match("TUTORIAL_SECONDS%s*=%s*(%d+)"))
+		if not seconds then
+			table.insert(problems, "TUTORIAL_SECONDS not found")
+		elseif seconds ~= 60 then
+			table.insert(problems, "tutorial lasts " .. tostring(seconds) .. "s (must be 60)")
+		end
+		if not tutSrc:find('part%.Name = "TutorialArrow"') then
+			table.insert(problems, 'no "TutorialArrow" part')
+		end
+		if not tutSrc:find("data%.firstTime and not active") then
+			table.insert(problems, "tutorial is not gated on firstTime")
+		end
+		if not tutSrc:find("data%.carried > 0") then
+			table.insert(problems, "tutorial never stops when the player grabs")
+		end
+		local steps = 0
+		for _, label in ipairs({ '"1. Walk', '"2. Carry', '"3. Sell' }) do
+			if tutSrc:find(label, 1, true) then
+				steps += 1
+			end
+		end
+		if steps < 3 then
+			table.insert(problems, "fewer than 3 tutorial steps")
+		end
+		if #problems > 0 then
+			check("x", false, "tutorial arrows are missing or wrong — " .. table.concat(problems, "; ") .. ". Parts: TutorialController.client.luau")
+		else
+			check("x", true, "tutorial arrows work — gold arrow, 3 steps (crater -> base -> SELL), 60s, firstTime only, stops on first grab")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

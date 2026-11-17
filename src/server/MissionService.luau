@@ -13,6 +13,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Formatting = require(ReplicatedStorage.Shared.Formatting)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local DataService = require(script.Parent.DataService)
+local FeedbackService = require(script.Parent.FeedbackService)
 
 local MissionService = {}
 
@@ -59,6 +60,7 @@ function MissionService.addProgress(player: Player, kind: string, amount: number
 	profile.missionIndex = (profile.missionIndex % #Config.MISSIONS) + 1
 	profile.missionProgress = 0
 	DataService.saveProfile(player)
+	FeedbackService.celebrate(player)
 	local nextMission = MissionService.currentMission(player)
 	Remotes.bannerEvent():FireClient(player, "🎯 Mission complete! +" .. Formatting.formatMoney(mission.reward) .. " — next: " .. nextMission.text, 5)
 end

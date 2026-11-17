@@ -11,6 +11,7 @@ local Formatting = require(ReplicatedStorage.Shared.Formatting)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local BaseService = require(script.Parent.BaseService)
 local DataService = require(script.Parent.DataService)
+local FeedbackService = require(script.Parent.FeedbackService)
 
 export type ShopItem = {
 	label: string,
@@ -89,6 +90,7 @@ function ShopService.buyItem(player: Player, itemName: string): (boolean, string
 		BaseService.unlockPad(player)
 	end
 	DataService.saveProfile(player)
+	FeedbackService.celebrate(player)
 	return true, item.label .. " upgraded to tier " .. tostring(tier + 1) .. "!"
 end
 
