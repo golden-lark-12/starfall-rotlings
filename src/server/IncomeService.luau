@@ -101,7 +101,8 @@ function IncomeService.broadcastHud()
 	for _, other in ipairs(Players:GetPlayers()) do
 		local otherProfile = DataService.getProfile(other)
 		if otherProfile then
-			table.insert(top3, { name = other.Name, coins = otherProfile.coins })
+			-- Leaderboard ranks total wealth: wallet + uncollected base cash.
+			table.insert(top3, { name = other.Name, coins = otherProfile.coins + otherProfile.banked })
 		end
 	end
 	local RivalService = require(script.Parent.RivalService)
@@ -141,9 +142,11 @@ function IncomeService.broadcastHud()
 			local profile = DataService.getProfile(player)
 			if profile then
 				local baseId = BaseService.getPlayerBase(player.UserId)
-				-- The floating cash counter above the owner's base.
+				-- The floating cash counter above the owner's base: it
+				-- shows the BANKED cash (the money sitting at the base,
+				-- waiting to be collected), not the wallet.
 				if baseId then
-					WorldBuilder.setBaseCoins(baseId, profile.coins)
+					WorldBuilder.setBaseCoins(baseId, profile.banked)
 					-- The base level sign: 1 + Rotlings placed here.
 					WorldBuilder.setBaseLevel(baseId, 1 + #BaseService.getPlacedForPlayer(player))
 					-- The shield label: "SAFE (Ns)" while locked, "SAFE DOME"
@@ -175,6 +178,7 @@ function IncomeService.broadcastHud()
 				end
 				Remotes.hudEvent():FireClient(player, {
 					coins = profile.coins,
+					banked = profile.banked,
 					stardust = profile.stardust,
 					xp = profile.xp,
 					level = profile.level,
@@ -200,7 +204,7 @@ function IncomeService.broadcastHud()
 					indexCount = found,
 					indexTotal = #RotlingCatalog.DEFS,
 					top3 = top3,
-					firstTime = profile.coins == 0 and profile.rebirths == 0 and found == 0,
+					firstTime = profile.coins == 0 and profile.banked == 0 and profile.rebirths == 0 and found == 0,
 					missionText = mission.text,
 					missionProgress = MissionService.progress(player),
 					missionTarget = mission.target,
@@ -295,7 +299,10 @@ function IncomeService.start()
 					local profile = DataService.getProfile(player)
 					if profile then
 						local gained = IncomeService.coinsPerSecond(player)
-						profile.coins += gained
+						-- Banking: income accrues at the base, not in
+						-- the wallet — the player collects it with the
+						-- HUD Collect button (BankService).
+						profile.banked += gained
 						-- Bounty ledger: earnings during this storm.
 						State.stormEarnings[player.UserId] = (State.stormEarnings[player.UserId] or 0) + gained
 						MissionService.addProgress(player, "earn", gained)

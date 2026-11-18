@@ -26,6 +26,7 @@ local function step(name: string, fn: () -> ()): boolean
 end
 
 local BaseService = require(script.Parent.BaseService)
+local BankService = require(script.Parent.BankService)
 local BoostService = require(script.Parent.BoostService)
 local BuddyService = require(script.Parent.BuddyService)
 local CarryService = require(script.Parent.CarryService)
@@ -58,6 +59,7 @@ step("bases (BaseService.init)", BaseService.init)
 step("carry (CarryService.init)", CarryService.init)
 step("shop (ShopService.init)", ShopService.init)
 step("sell (SellService.init)", SellService.init)
+step("bank (BankService.init)", BankService.init)
 step("daily (DailyService.init)", DailyService.init)
 step("rebirth (RebirthService.init)", RebirthService.init)
 step("income (IncomeService.start)", IncomeService.start)

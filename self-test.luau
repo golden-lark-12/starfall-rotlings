@@ -143,8 +143,8 @@ do
 		step("earn", false, "IncomeService.luau missing")
 	else
 		local problems: { string } = {}
-		if not incomeSrc:find("profile%.coins %+= gained") and not incomeSrc:find("profile%.coins %+= IncomeService%.coinsPerSecond") then
-			table.insert(problems, "income tick never adds coins")
+		if not incomeSrc:find("profile%.banked %+= gained") then
+			table.insert(problems, "income tick never banks the earnings at the base")
 		end
 		if not incomeSrc:find("BaseService%.getPlacedForPlayer%(player%)") then
 			table.insert(problems, "coinsPerSecond never sums the placed Rotlings")
@@ -158,7 +158,7 @@ do
 		if #problems > 0 then
 			step("earn", false, table.concat(problems, "; "))
 		else
-			step("earn", true, "1/s tick pays coinsPerSecond (placed Rotlings x rebirth/shop mult) + floating +$N")
+			step("earn", true, "1/s tick banks coinsPerSecond at the base (placed Rotlings x rebirth/shop mult) + floating +$N")
 		end
 	end
 end
@@ -837,6 +837,38 @@ do
 			step("offline", false, table.concat(problems, "; "))
 		else
 			step("offline", true, "lastSeen stamped on every save, cps x away time capped at 8h, WHILE YOU WERE AWAY popup on join")
+		end
+	end
+end
+
+-- 25. Banking: income banks at the base, Collect moves it to the wallet.
+do
+	local bankSrc = read("src/server/BankService.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	if not bankSrc or not incomeSrc or not hudSrc then
+		step("banking", false, "BankService.luau, IncomeService.luau or HUDController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not incomeSrc:find("profile%.banked %+= gained") then
+			table.insert(problems, "income tick never banks the earnings")
+		end
+		if not bankSrc:find("function BankService%.collectBank") then
+			table.insert(problems, "no collectBank")
+		end
+		if not bankSrc:find("profile%.coins %+= amount") then
+			table.insert(problems, "collecting never pays the wallet")
+		end
+		if not hudSrc:find("CollectButton") then
+			table.insert(problems, "no Collect button in the HUD")
+		end
+		if not hudSrc:find("At base: ") then
+			table.insert(problems, 'no "At base: $X" display')
+		end
+		if #problems > 0 then
+			step("banking", false, table.concat(problems, "; "))
+		else
+			step("banking", true, "income banks at the base, HUD shows At base vs Wallet, Collect moves it all into the wallet")
 		end
 	end
 end

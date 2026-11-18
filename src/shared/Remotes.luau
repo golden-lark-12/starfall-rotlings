@@ -8,7 +8,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 export type HudData = {
-	coins: number,
+	coins: number, -- wallet: spendable cash
+	banked: number, -- cash sitting at the base, waiting to be collected
 	stardust: number,
 	xp: number,
 	level: number,
@@ -129,6 +130,10 @@ end
 
 function Remotes.offlineEvent(): RemoteEvent
 	return Remotes.getFolder():WaitForChild("OfflineEarnings") :: RemoteEvent
+end
+
+function Remotes.collectBankFunction(): RemoteFunction
+	return Remotes.getFolder():WaitForChild("CollectBank") :: RemoteFunction
 end
 
 return Remotes

@@ -32,6 +32,7 @@ function DataService.defaultProfile(): State.Profile
 	return {
 		version = Config.SAVE_VERSION,
 		coins = 0,
+		banked = 0,
 		stardust = 0,
 		xp = 0,
 		level = 1,
@@ -90,6 +91,10 @@ local function reconcile(data: any): State.Profile
 	-- Offline earnings: old saves never recorded a last-seen time.
 	if profile.lastSeen == nil then
 		profile.lastSeen = 0
+	end
+	-- Banking: old saves never banked anything.
+	if profile.banked == nil then
+		profile.banked = 0
 	end
 	return profile
 end

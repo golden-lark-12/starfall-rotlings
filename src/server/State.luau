@@ -12,7 +12,8 @@ export type PlacedEntry = {
 
 export type Profile = {
 	version: number,
-	coins: number,
+	coins: number, -- wallet: spendable cash (shop, rebirths, rerolls)
+	banked: number, -- coins earned at the base, not yet collected into the wallet
 	stardust: number, -- second currency: eggs + daily rewards; spent on mutations and boosts
 	xp: number, -- player XP: +10 per grab, +15 per place
 	level: number, -- 1 + floor(xp / XP_PER_LEVEL)

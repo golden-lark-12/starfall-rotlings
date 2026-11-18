@@ -1205,14 +1205,16 @@ do
 end
 
 -- -- (t) loop: placed Rotlings earn every second -------------------------------
+-- Banking: the 1/s tick pays coinsPerSecond into the base vault
+-- (profile.banked), and the player Collects it into the wallet.
 do
 	local incomeSrc = read("src/server/IncomeService.luau")
 	if not incomeSrc then
 		check("t", false, "could not verify earning — IncomeService.luau missing")
 	else
 		local problems: { string } = {}
-		if not incomeSrc:find("profile%.coins %+= gained") and not incomeSrc:find("profile%.coins %+= IncomeService%.coinsPerSecond") then
-			table.insert(problems, "income tick never adds coins")
+		if not incomeSrc:find("profile%.banked %+= gained") then
+			table.insert(problems, "income tick never banks the earnings at the base")
 		end
 		if not incomeSrc:find("BaseService%.getPlacedForPlayer%(player%)") then
 			table.insert(problems, "coinsPerSecond never sums the placed Rotlings")
@@ -1220,7 +1222,7 @@ do
 		if #problems > 0 then
 			check("t", false, "placed Rotlings never earn — " .. table.concat(problems, "; ") .. ". Parts: IncomeService tick / coinsPerSecond")
 		else
-			check("t", true, "loop step earn works — 1/s tick pays coinsPerSecond from the placed Rotlings")
+			check("t", true, "loop step earn works — 1/s tick banks coinsPerSecond from the placed Rotlings")
 		end
 	end
 end
@@ -2727,6 +2729,73 @@ do
 			check("az", false, "offline earnings are missing — " .. table.concat(problems, "; ") .. ". Parts: lastSeen (DataService), payout (OfflineService.luau), popup (OfflineController), wiring (Main.server.luau)")
 		else
 			check("az", true, "offline earnings: lastSeen stamped on every save, cps x away time capped at 8h, WHILE YOU WERE AWAY popup on join")
+		end
+	end
+end
+
+-- -- (ba) banking ----------------------------------------------------------------
+-- Step 5: income banks at the base and must be collected. The tick pays
+-- into profile.banked, the HUD shows "At base: $X" vs the wallet, a
+-- Collect button moves it all into the wallet, and the base sign shows
+-- the banked cash. Direct payouts (missions, daily, sell, bounty,
+-- offline, index) still land in the wallet.
+do
+	local bankSrc = read("src/server/BankService.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local dataSrc = read("src/server/DataService.luau")
+	local stateSrc = read("src/server/State.luau")
+	local baseSrc = read("src/server/BaseService.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	local projectSrc = read("default.project.json")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	if not bankSrc or not incomeSrc or not hudSrc or not dataSrc or not stateSrc or not baseSrc or not mainSrc or not projectSrc or not remotesSrc then
+		check("ba", false, "could not verify banking — BankService.luau, IncomeService.luau, HUDController.client.luau, DataService.luau, State.luau, BaseService.luau, Main.server.luau, default.project.json or Remotes.luau missing")
+	else
+		local problems: { string } = {}
+		if not stateSrc:find("banked: number") then
+			table.insert(problems, "no banked field in the Profile type")
+		end
+		if not dataSrc:find("banked = 0") then
+			table.insert(problems, "no banked = 0 in the default profile")
+		end
+		if not incomeSrc:find("profile%.banked %+= gained") then
+			table.insert(problems, "the income tick never banks the earnings at the base")
+		end
+		if not bankSrc:find("function BankService%.collectBank") then
+			table.insert(problems, "no collectBank in BankService")
+		end
+		if not bankSrc:find("profile%.banked = 0") then
+			table.insert(problems, "collecting never empties the banked balance")
+		end
+		if not bankSrc:find("profile%.coins %+= amount") then
+			table.insert(problems, "collecting never pays the banked cash into the wallet")
+		end
+		if not mainSrc:find("BankService%.init") then
+			table.insert(problems, "BankService is never initialised in Main")
+		end
+		if not projectSrc:find('"CollectBank"') then
+			table.insert(problems, "no CollectBank remote in default.project.json")
+		end
+		if not remotesSrc:find("collectBankFunction") then
+			table.insert(problems, "no collectBankFunction accessor in Remotes")
+		end
+		if not hudSrc:find("CollectButton") then
+			table.insert(problems, "no Collect button in the HUD")
+		end
+		if not hudSrc:find("At base: ") then
+			table.insert(problems, 'no "At base: $X" display in the HUD')
+		end
+		if not incomeSrc:find("setBaseCoins%(baseId, profile%.banked%)") then
+			table.insert(problems, "the base sign does not show the banked cash")
+		end
+		if not baseSrc:find("setBaseCoins%(baseId, if profile then profile%.banked else 0%)") then
+			table.insert(problems, "the base sign is not initialised from the banked balance")
+		end
+		if #problems > 0 then
+			check("ba", false, "banking is missing — " .. table.concat(problems, "; ") .. ". Parts: banked profile (State/DataService), tick (IncomeService.luau), collect (BankService.luau), HUD (HUDController)")
+		else
+			check("ba", true, "banking: income banks at the base, HUD shows At base vs Wallet, Collect moves it all into the wallet, base sign shows the banked cash")
 		end
 	end
 end

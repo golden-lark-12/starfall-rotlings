@@ -81,7 +81,7 @@ local coinsLabel = GuiKit.makeLabel(gui, "Coins", "$0", UDim2.new(0, 220, 0, 48)
 coinsLabel.AnchorPoint = Vector2.new(0.5, 0)
 -- Stardust (the second currency) sits right of the coins, same row.
 local stardustLabel = GuiKit.makeLabel(gui, "Stardust", "💎 0", UDim2.new(0, 130, 0, 40), UDim2.new(0.5, 130, 0, 40), 24, Color3.fromRGB(160, 225, 255))
-local cpsLabel = GuiKit.makeLabel(gui, "Cps", "+$0/s", UDim2.new(0, 480, 0, 26), UDim2.new(0.5, 0, 0, 88), 20, GuiKit.COLORS.Green)
+local cpsLabel = GuiKit.makeLabel(gui, "Cps", "+$0/s", UDim2.new(0, 680, 0, 26), UDim2.new(0.5, 0, 0, 88), 20, GuiKit.COLORS.Green)
 cpsLabel.AnchorPoint = Vector2.new(0.5, 0)
 
 -- Top-left buttons at y=60: below Roblox's own top-left menu (which
@@ -242,6 +242,11 @@ boostRow.Position = UDim2.new(0, 12, 1, -100)
 boostRow.BackgroundTransparency = 1
 boostRow.Parent = gui
 
+-- Collect button (banking): bottom-left, above the boost chips. Moves
+-- everything banked at the base into the wallet. Bright while there is
+-- cash to collect, dimmed when the base is empty.
+local collectButton = GuiKit.makeButton(gui, "CollectButton", "💰 Collect", UDim2.new(0, 200, 0, 48), UDim2.new(0, 12, 1, -160), GuiKit.COLORS.Buy)
+
 -- -- Rebirth panel ------------------------------------------------------------
 
 local rebirthPanel = GuiKit.makePanel(gui, "RebirthPanel", UDim2.new(0, 420, 0, 260), UDim2.new(0.5, -210, 0.5, -130))
@@ -253,6 +258,7 @@ local rebirthBuy = GuiKit.makeButton(rebirthPanel, "RebirthBuy", "Rebirth!", UDi
 
 local hud = {
 	coins = 0,
+	banked = 0,
 	stardust = 0,
 	xp = 0,
 	level = 1,
@@ -291,6 +297,10 @@ upgradeButton.MouseButton1Click:Connect(function()
 end)
 dailyButton.MouseButton1Click:Connect(function()
 	local ok, message = Remotes.dailyFunction():InvokeServer()
+	GuiKit.showBanner(gui, message, 4)
+end)
+collectButton.MouseButton1Click:Connect(function()
+	local ok, message = Remotes.collectBankFunction():InvokeServer()
 	GuiKit.showBanner(gui, message, 4)
 end)
 
@@ -355,6 +365,7 @@ end)
 local hudEventReceived = false
 local function onHudData(data: Remotes.HudData)
 	hud.coins = data.coins
+	hud.banked = data.banked or 0
 	hud.stardust = data.stardust or 0
 	hud.xp = data.xp or 0
 	hud.level = data.level or 1
@@ -391,11 +402,13 @@ local function onHudData(data: Remotes.HudData)
 
 	coinsLabel.Text = Formatting.formatMoney(hud.coins)
 	stardustLabel.Text = "💎 " .. tostring(hud.stardust)
-	-- Income line: income/s, then the current rebirth tier and its
-	-- multiplier ("Rebirth 2 · x1.5 cash"), then the Index count.
+	-- Income line: income/s, the cash sitting at the base, the
+	-- current rebirth tier and its multiplier, then the Index count.
+	-- "At base" and the wallet are two different numbers on purpose:
+	-- income banks at the base until you Collect it.
 	local rebirthMult = 1 + 0.25 * hud.rebirths
 	local multText = string.format("%.2f", rebirthMult):gsub("0$", ""):gsub("%.$", "")
-	cpsLabel.Text = Formatting.formatCps(hud.cps) .. "  •  Rebirth " .. tostring(hud.rebirths) .. " · x" .. multText .. " cash  •  📖 " .. tostring(hud.indexCount) .. "/" .. tostring(hud.indexTotal)
+	cpsLabel.Text = Formatting.formatCps(hud.cps) .. "  •  🏦 At base: " .. Formatting.formatMoney(hud.banked) .. "  •  Rebirth " .. tostring(hud.rebirths) .. " · x" .. multText .. " cash  •  📖 " .. tostring(hud.indexCount) .. "/" .. tostring(hud.indexTotal)
 
 	-- XP bar: level + progress toward the next level.
 	local xpIntoLevel = hud.xp - (hud.level - 1) * 100
@@ -500,6 +513,16 @@ local function onHudData(data: Remotes.HudData)
 	else
 		dailyButton.Text = "🎁 Daily ✓"
 		dailyButton.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
+	end
+
+	-- Collect button: bright with the banked amount while the base
+	-- holds cash, dimmed when it is empty.
+	if hud.banked > 0 then
+		collectButton.Text = "💰 Collect " .. Formatting.formatMoney(hud.banked)
+		collectButton.BackgroundColor3 = GuiKit.COLORS.Buy
+	else
+		collectButton.Text = "💰 Collect"
+		collectButton.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
 	end
 
 	if rebirthPanel.Visible then

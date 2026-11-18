@@ -27,7 +27,7 @@ function BaseService.assignBase(player: Player): number?
 			local profile = DataService.getProfile(player)
 			State.unlockedPads[baseId] = Config.PADS_OPEN + (if profile then profile.padsTier else 0)
 			WorldBuilder.setBaseSign(baseId, player.DisplayName .. "'s Base")
-			WorldBuilder.setBaseCoins(baseId, if profile then profile.coins else 0)
+			WorldBuilder.setBaseCoins(baseId, if profile then profile.banked else 0)
 			if profile and profile.rebirths > 0 then
 				local RebirthService = require(script.Parent.RebirthService)
 				local color = RebirthService.COLORS[(profile.rebirths - 1) % #RebirthService.COLORS + 1]
