@@ -143,6 +143,14 @@ Config.RAIDER_INTERVAL = 45 -- seconds between raids (was 75)
 Config.RAIDER_LIFETIME = 90 -- seconds before a raider gives up and leaves
 Config.RAIDER_WALK_SPEED = 14
 
+-- Crater Guardian (THE CHASE): a space rock monster that chases
+-- anyone who grabs a Brainrot from the crater. Speed by the grabbed
+-- Brainrot's rarity tier: Common is slow, Legendary and up are nearly
+-- as fast as the player (walk 16). Cosmic is the fastest guardian.
+Config.GUARDIAN_SPEED = { [1] = 7, [2] = 9, [3] = 11, [4] = 13, [5] = 14.5, [6] = 15.5 }
+Config.GUARDIAN_CATCH_RADIUS = 5 -- studs: this close and it catches you
+Config.GUARDIAN_GIVEUP_TIME = 25 -- seconds: a chase that drags on ends on its own
+
 -- Rival bots (item 7): 3-4 named rivals that own the other bases,
 -- run to the crater, grab Rotlings, carry them home and earn. They show
 -- on the leaderboard and compete for the storm bounty.

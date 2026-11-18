@@ -49,6 +49,7 @@ export type HudData = {
 	eventSeconds: number,
 	buddyName: string?,
 	eggCarried: boolean, -- carrying a meteor egg (walk slower)
+	guardianActive: boolean, -- a Crater Guardian is chasing this player (THE CHASE)
 }
 
 local Remotes = {}

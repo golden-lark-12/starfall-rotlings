@@ -40,7 +40,12 @@ function IndexService.markFound(player: Player, defId: string)
 	if setComplete and profile.indexRewards[def.rarity] == nil then
 		profile.indexRewards[def.rarity] = true
 		profile.coins += Config.INDEX_RARITY_REWARD
-		Remotes.bannerEvent():FireClient(player, "Index: every " .. def.rarity .. " found! +" .. Formatting.formatMoney(Config.INDEX_RARITY_REWARD) .. "!", 4)
+		-- THE CHASE goal: a BIG celebration when a rarity tier is
+		-- completed — long banner + a bright chime, not just the
+		-- small text the old code showed.
+		Remotes.bannerEvent():FireClient(player, "🎉 " .. def.rarity:upper() .. " SET COMPLETE! Every " .. def.rarity .. " Brainrot found! +" .. Formatting.formatMoney(Config.INDEX_RARITY_REWARD) .. "! 🎉", 6)
+		local FeedbackService = require(script.Parent.FeedbackService)
+		FeedbackService.playSound(player, 1.8, 0.9)
 	end
 	-- All twenty found? Pay the big reward once.
 	if not profile.indexFullRewarded then
@@ -51,7 +56,9 @@ function IndexService.markFound(player: Player, defId: string)
 		if found >= #RotlingCatalog.DEFS then
 			profile.indexFullRewarded = true
 			profile.coins += Config.INDEX_FULL_REWARD
-			Remotes.bannerEvent():FireClient(player, "INDEX COMPLETE! All 12 Brainrots found! +" .. Formatting.formatMoney(Config.INDEX_FULL_REWARD) .. "!", 6)
+			Remotes.bannerEvent():FireClient(player, "🏆 INDEX COMPLETE! All 20 Brainrots found! +" .. Formatting.formatMoney(Config.INDEX_FULL_REWARD) .. "! 🏆", 6)
+			local FeedbackService = require(script.Parent.FeedbackService)
+			FeedbackService.playSound(player, 2.0, 1.0)
 		end
 	end
 end

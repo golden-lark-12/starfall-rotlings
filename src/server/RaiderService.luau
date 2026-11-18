@@ -387,6 +387,168 @@ local function runRaid(model: Model)
 	RaiderService.despawnRaider(model)
 end
 
+-- Crater raid (THE CHASE): a raider snatches a FREE Brainrot off the
+-- belt and runs for the edge, so the guardian chases it and players
+-- can bonk it to steal the Brainrot back. Same steal-and-run as a base
+-- raid, but the loot comes from the crater, not a pad.
+local function runCraterRaid(model: Model)
+	local raider = State.raiders[model]
+	if not raider then
+		return
+	end
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if not humanoid then
+		return
+	end
+	local target = raider.targetFree
+	if not target or not target.Parent or target:GetAttribute("State") ~= "free" then
+		RaiderService.despawnRaider(model)
+		return
+	end
+	-- A storm means cover first: shelter on the nearest base until
+	-- it passes, then resume the raid.
+	shelterIfStorm(model)
+	if not model.Parent or State.raiders[model] == nil then
+		return
+	end
+	-- Hunt: walk to the free Brainrot on the belt.
+	local body = target.PrimaryPart
+	if not body then
+		RaiderService.despawnRaider(model)
+		return
+	end
+	if not walkTo(model, body.Position, 40, function()
+		return raider.phase == "flee"
+	end) then
+		if raider.phase == "flee" then
+			fleeAndDespawn(model)
+		else
+			RaiderService.despawnRaider(model)
+		end
+		return
+	end
+	-- Grab it: stop the idle bob, weld it to the raider, mark carried.
+	local stolen = target
+	if not stolen.Parent or stolen:GetAttribute("State") ~= "free" then
+		RaiderService.despawnRaider(model)
+		return
+	end
+	local SpawnService = require(script.Parent.SpawnService)
+	SpawnService.unregister(stolen)
+	raider.stolen = stolen
+	raider.phase = "carry"
+	local raiderBody = model.PrimaryPart
+	local stolenBody = stolen.PrimaryPart
+	if raiderBody and stolenBody then
+		for _, part in ipairs(stolen:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.Anchored = false
+			end
+		end
+		local weld = Instance.new("Weld")
+		weld.Name = "StolenWeld"
+		weld.Part0 = raiderBody
+		weld.Part1 = stolenBody
+		weld.C0 = CFrame.new(0, 3.2, -1.5)
+		weld.Parent = stolenBody
+		stolen:SetAttribute("State", "carried")
+	end
+	-- The guardian wakes: it chases whoever grabs from the crater,
+	-- raider included. Everyone sees the chase start.
+	local def = RotlingCatalog.getDef(stolen:GetAttribute("DefId") :: string)
+	local name = if def then def.name else "a Brainrot"
+	for _, player in ipairs(Players:GetPlayers()) do
+		Remotes.bannerEvent():FireClient(player, "🚨 " .. raider.name .. " snatched " .. name .. " from the crater! The Guardian is after it — bonk the raider to steal it back!", 5)
+	end
+	local GuardianService = require(script.Parent.GuardianService)
+	GuardianService.onRaiderGrab(model, stolen)
+	-- A storm mid-carry means cover first (it keeps the loot).
+	shelterIfStorm(model)
+	if not model.Parent or State.raiders[model] == nil then
+		return
+	end
+	-- Carry: run for the crater edge. If it gets there, the loot is gone.
+	local angle = math.random() * math.pi * 2
+	local exit = Vector3.new(math.cos(angle) * (Config.CRATER_RADIUS + 30), 0, math.sin(angle) * (Config.CRATER_RADIUS + 30))
+	walkTo(model, exit, 40, function()
+		return raider.phase == "flee"
+	end)
+	if not model.Parent or State.raiders[model] == nil then
+		return
+	end
+	if raider.phase == "flee" then
+		fleeAndDespawn(model)
+		return
+	end
+	if raider.phase == "carry" and raider.stolen then
+		raider.stolen:Destroy()
+		raider.stolen = nil
+		for _, player in ipairs(Players:GetPlayers()) do
+			Remotes.bannerEvent():FireClient(player, raider.name .. " escaped with " .. name .. "!", 4)
+		end
+	end
+	RaiderService.despawnRaider(model)
+end
+
+-- Spawn a crater raider: it targets a free Brainrot on the belt.
+-- Spawns at the crater entrance gap (+Z side) so it walks straight in
+-- through the gap instead of climbing the rim wall.
+function RaiderService.spawnCraterRaider(): Model?
+	local free: { Model } = {}
+	for _, descendant in ipairs(workspace:GetDescendants()) do
+		if descendant:IsA("Model") and descendant:GetAttribute("State") == "free" then
+			table.insert(free, descendant)
+		end
+	end
+	if #free == 0 then
+		return nil
+	end
+	local target = free[math.random(1, #free)]
+	-- Entrance gap side (+Z): walk straight in, no rim climb.
+	local spawnPos = Vector3.new(0, 8, 45)
+	local model = buildRaider(spawnPos)
+	model.Parent = workspace
+	State.raiders[model] = {
+		model = model,
+		name = model:GetAttribute("RaiderName") :: string,
+		phase = "hunt",
+		targetBase = 0,
+		targetPad = 0,
+		targetFree = target,
+		stolen = nil,
+		bornAt = time(),
+	}
+	-- Touching it bonks it (same as a base raider).
+	local body = model.PrimaryPart
+	if body then
+		local lastBonk = 0
+		body.Touched:Connect(function(hit: BasePart)
+			if time() - lastBonk < 1 then
+				return
+			end
+			local character = hit.Parent
+			local player = character and Players:GetPlayerFromCharacter(character)
+			if player then
+				lastBonk = time()
+				RaiderService.bonkRaider(model, player)
+			end
+		end)
+		local prompt = body:FindFirstChildOfClass("ProximityPrompt")
+		if prompt then
+			prompt.Triggered:Connect(function(player: Player)
+				RaiderService.bonkRaider(model, player)
+			end)
+		end
+	end
+	task.spawn(runCraterRaid, model)
+	task.delay(Config.RAIDER_LIFETIME, function()
+		if State.raiders[model] ~= nil then
+			RaiderService.despawnRaider(model)
+		end
+	end)
+	return model
+end
+
 -- Spawn one raider at the crater edge, targeting a random stocked base.
 -- Fix 4: prefer a REAL player's base over a rival's — the one clear
 -- rival behaviour is a raider coming for YOUR Rotlings, not a bot
@@ -539,7 +701,18 @@ function RaiderService.start()
 	task.spawn(function()
 		task.wait(Config.RAIDER_FIRST)
 		while true do
-			RaiderService.spawnRaider()
+			-- Half the raids are crater grabs (THE CHASE): a raider
+			-- snatches a free Brainrot off the belt and runs, so the
+			-- guardian chases it and players can bonk it to steal it
+			-- back. Only when free Brainrots exist; otherwise a base
+			-- raid as before.
+			local didCrater = false
+			if math.random() < 0.5 then
+				didCrater = RaiderService.spawnCraterRaider() ~= nil
+			end
+			if not didCrater then
+				RaiderService.spawnRaider()
+			end
 			task.wait(Config.RAIDER_INTERVAL)
 		end
 	end)

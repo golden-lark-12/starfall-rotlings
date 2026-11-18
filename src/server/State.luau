@@ -40,6 +40,7 @@ export type Raider = {
 	phase: string, -- "hunt" | "carry" | "flee"
 	targetBase: number,
 	targetPad: number,
+	targetFree: Model?, -- THE CHASE: a free Brainrot on the belt (crater raid, not a base raid)
 	stolen: Model?,
 	bornAt: number,
 }

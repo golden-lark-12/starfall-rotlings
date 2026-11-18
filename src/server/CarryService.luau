@@ -252,6 +252,10 @@ function CarryService.tryGrab(player: Player, model: Model)
 		return
 	end
 	CarryService.carryRotling(player, model)
+	-- THE CHASE: grabbing a Brainrot from the crater wakes the Crater
+	-- Guardian. Deferred require: GuardianService requires this module.
+	local GuardianService = require(script.Parent.GuardianService)
+	GuardianService.onGrab(player, model)
 	MissionService.addProgress(player, "grab", 1)
 	addXp(player, Config.XP_GRAB)
 	playPickupSound(player)

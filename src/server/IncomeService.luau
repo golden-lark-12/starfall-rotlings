@@ -296,6 +296,13 @@ function IncomeService.broadcastHud()
 					eventSeconds = eventSeconds,
 					buddyName = BuddyService.buddyName(player),
 					eggCarried = State.eggCarriedByUser[player.UserId] ~= nil,
+					-- THE CHASE: a guardian is hunting this player now.
+					-- Deferred require: GuardianService requires
+					-- CarryService, which this module also requires.
+					guardianActive = (function()
+						local GuardianService = require(script.Parent.GuardianService)
+						return GuardianService.isChasing(player)
+					end)(),
 				})
 			end
 		end)

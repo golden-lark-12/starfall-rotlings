@@ -140,6 +140,16 @@ Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 		startPulse()
 		countdownLabel.Visible = false
 		setEdgesSteady()
+	elseif data.guardianActive then
+		-- THE CHASE: a Crater Guardian is hunting this player. Same
+		-- red-edge treatment as the storm warning, so the threat
+		-- reads even when the player is not looking at the bar.
+		-- The storm branches above take precedence when both are on.
+		stopPulse()
+		warnBar.Visible = true
+		warnLabel.Text = "🪨 THE GUARDIAN IS AWAKE! RUN! 🪨"
+		countdownLabel.Visible = false
+		startEdgePulse()
 	else
 		stopPulse()
 		warnBar.Visible = false
