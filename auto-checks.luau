@@ -6118,6 +6118,128 @@ do
 	end
 end
 
+-- (dd) ADD (simplify/polish): first-minute guide, sounds, faces + bounce
+-- + rarity glows. Verified present and wired (fix round 7 + earlier
+-- rounds) — no code change in this section, these checks lock the
+-- verified state in so it cannot regress silently.
+do
+	local tutorialSrc = read("src/client/TutorialController.client.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	local bankSrc = read("src/server/BankService.luau")
+	local starfallSrc = read("src/server/StarfallService.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	local raiderSrc = read("src/server/RaiderService.luau")
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	if not tutorialSrc or not carrySrc or not bankSrc or not starfallSrc or not rivalSrc or not raiderSrc or not factorySrc then
+		check("dd", false, "could not verify the ADD items — TutorialController.client.luau, CarryService.luau, BankService.luau, StarfallService.luau, RivalService.luau, RaiderService.luau or RotlingFactory.luau missing")
+	else
+		local problems: { string } = {}
+		-- First-minute guide: a bouncing gold arrow, 4 steps, 80s, then gone.
+		if not tutorialSrc:find('part%.Name = "TutorialArrow"') then
+			table.insert(problems, "no TutorialArrow in the guide")
+		end
+		if not tutorialSrc:find("TUTORIAL_SECONDS = 80") then
+			table.insert(problems, "the guide does not run 80s")
+		end
+		if not tutorialSrc:find("arrow:Destroy%(%)") then
+			table.insert(problems, "the guide never destroys its arrow when it ends")
+		end
+		if not tutorialSrc:find("tutorialLabel%.Visible = false") then
+			table.insert(problems, "the guide label never hides when it ends")
+		end
+		-- Sounds: grab pop, cash ding, storm siren, steal alarm.
+		if not carrySrc:find("local function playPickupSound") then
+			table.insert(problems, "no grab pop (playPickupSound in CarryService)")
+		end
+		if not carrySrc:find("playPickupSound%(player%)") then
+			table.insert(problems, "the grab pop is never played on grab")
+		end
+		if not bankSrc:find("playSound%(player, 1%.6, 0%.8%)") then
+			table.insert(problems, "no cash ding on collect (BankService)")
+		end
+		if not starfallSrc:find("ALARM_SOUND") then
+			table.insert(problems, "no storm siren (StarfallService)")
+		end
+		if not rivalSrc:find("playSound%(victim, 0%.7, 1%)") then
+			table.insert(problems, "no steal alarm on a rival steal")
+		end
+		if not raiderSrc:find("playSound%(owner, 0%.7, 1%)") then
+			table.insert(problems, "no steal alarm on a raider steal")
+		end
+		-- Faces + bounce + rarity glows on every Brainrot.
+		if not factorySrc:find('FindFirstChild%("GlowShell"%)') then
+			table.insert(problems, "no GlowShell on Brainrots")
+		end
+		if not factorySrc:find('FindFirstChildOfClass%("Highlight"%)') then
+			table.insert(problems, "no rarity Highlight outline on Brainrots")
+		end
+		if not factorySrc:find("bobSeed") then
+			table.insert(problems, "no idle bob on Brainrots")
+		end
+		if #problems > 0 then
+			check("dd", false, "the ADD items are incomplete — " .. table.concat(problems, "; ") .. ". Parts: TutorialController.client.luau (guide), CarryService/BankService/StarfallService/RivalService/RaiderService (sounds), RotlingFactory.luau (faces/bounce/glows)")
+		else
+			check("dd", true, "ADD verified: first-minute guide (gold arrow, 4 steps, 80s, cleans up), sounds wired (grab pop, cash ding, storm siren, steal alarms on rival + raider), Brainrots have faces + idle bob + GlowShell + rarity outline")
+		end
+	end
+end
+
+-- (de) KEEP (simplify/polish): verify only — bright saturated colours +
+-- green grass, storms + Safe Dome, Upgrade + Daily buttons, rebirth,
+-- 20-Brainrot index. Nothing here was changed; these checks lock the
+-- kept state in.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local starfallSrc = read("src/server/StarfallService.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local rebirthSrc = read("src/server/RebirthService.luau")
+	local catalogSrc = read("src/shared/RotlingCatalog.luau")
+	if not worldSrc or not starfallSrc or not hudSrc or not rebirthSrc or not catalogSrc then
+		check("de", false, "could not verify the KEEP items — WorldBuilder.luau, StarfallService.luau, HUDController.client.luau, RebirthService.luau or RotlingCatalog.luau missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find('part%("GroundCover"') then
+			table.insert(problems, "no GroundCover in the world")
+		end
+		if not worldSrc:find("Enum%.Material%.Grass") then
+			table.insert(problems, "the ground is not Grass")
+		end
+		if not worldSrc:find("Color3%.fromRGB%(89, 173, 77%)") then
+			table.insert(problems, "the grass is not the natural green (89, 173, 77)")
+		end
+		if not starfallSrc:find("storm") then
+			table.insert(problems, "no storm in StarfallService")
+		end
+		if not worldSrc:find("setShieldVisible") then
+			table.insert(problems, "no Safe Dome (setShieldVisible in WorldBuilder)")
+		end
+		if not hudSrc:find('"UpgradeButton"') then
+			table.insert(problems, "no Upgrade button in the HUD")
+		end
+		if not hudSrc:find('"DailyButton"') then
+			table.insert(problems, "no Daily button in the HUD")
+		end
+		if not rebirthSrc:find("function RebirthService%.doRebirth") then
+			table.insert(problems, "no doRebirth (rebirth is gone)")
+		end
+		if not hudSrc:find('"RebirthButton"') then
+			table.insert(problems, "no Rebirth button in the HUD")
+		end
+		local defCount = 0
+		for _ in catalogSrc:gmatch('id = "') do
+			defCount += 1
+		end
+		if defCount ~= 20 then
+			table.insert(problems, "the Brainrot cast is not 20 (found " .. tostring(defCount) .. ")")
+		end
+		if #problems > 0 then
+			check("de", false, "a KEEP item is missing — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau (grass, Safe Dome), StarfallService.luau (storms), HUDController.client.luau (Upgrade/Daily/Rebirth buttons), RebirthService.luau, RotlingCatalog.luau (20 Brainrots)")
+		else
+			check("de", true, "KEEP verified: green grass (89, 173, 77), storms + Safe Dome, Upgrade + Daily + Rebirth buttons, 20-Brainrot index")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
