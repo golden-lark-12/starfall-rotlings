@@ -278,229 +278,259 @@ end
 
 -- One rival's life: a state machine that walks, grabs, carries home,
 -- earns, and occasionally steals or chases.
+-- One tick of a rival's behaviour (fix round 4, item 5): extracted
+-- so runRival can pcall-guard it. The whole step used to run
+-- unguarded inside runRival's loop, so any error (a nil getStatus,
+-- a failed walkTo, a missing pad) froze that rival forever with no
+-- log. Now a failed step warns and the rival keeps going next tick.
+local function stepRival(rival: State.Rival, model: Model)
+	task.wait(0.5)
+	-- Storm cover (fix 2): when a storm runs, a rival runs home
+	-- to its own base and waits there until the storm ends, then
+	-- resumes. Bots that ignore the storm look dead; bots that
+	-- run for cover look alive.
+	local StarfallService = require(script.Parent.StarfallService)
+	if StarfallService.getStatus().phase == "storm" then
+		local homeCf = WorldBuilder.baseCFrame(rival.baseId)
+		if homeCf then
+			walkTo(model, homeCf.Position, 30)
+		end
+		while StarfallService.getStatus().phase == "storm" do
+			task.wait(1)
+			if not model.Parent then
+				return
+			end
+		end
+		rival.phase = "idle"
+	end
+	-- Slap-back: a real player crowding the rival gets slapped.
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if root and time() >= rival.slapReadyAt then
+		for _, player in ipairs(Players:GetPlayers()) do
+			local character = player.Character
+			local playerRoot = character and character:FindFirstChild("HumanoidRootPart")
+			if playerRoot and (playerRoot.Position - root.Position).Magnitude <= 6 then
+				rival.slapReadyAt = time() + Config.RIVAL_SLAP_COOLDOWN
+				local SlapService = require(script.Parent.SlapService)
+				SlapService.applySlapFromRival(rival, player)
+				break
+			end
+		end
+	end
+
+	if rival.phase == "idle" then
+		task.wait(math.random(1, 3))
+		if rival.carried then
+			rival.phase = "toBase"
+		elseif math.random() < Config.RIVAL_STEAL_CHANCE then
+			local victim, victimBase = pickVictim()
+			if victim and victimBase then
+				rival.phase = "steal"
+				rival.targetUserId = victim.UserId
+				rival.targetBase = victimBase
+				setThiefSign(model, true)
+				Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " is sneaking to your base! Lock it (L)!", 4)
+				-- [Rival] log (fix round 4, item 5): the alert fires
+				-- but the thief then did nothing, so the steal must
+				-- prove it started — victim, base, and the walk that
+				-- follows.
+				print("[Rival] " .. rival.name .. " stealing from " .. victim.Name .. " (base " .. tostring(victimBase) .. ")")
+			else
+				rival.phase = "toCrater"
+			end
+		else
+			rival.phase = "toCrater"
+		end
+	elseif rival.phase == "toCrater" then
+		-- Walk to a spot on the belt, then grab the nearest free
+		-- Rotling within reach. The spot sits ON the crater floor
+		-- (fix round 2, fix 4): the old y=0 aimed below the floor,
+		-- so the rival pushed against the rim instead of walking
+		-- in to the belt.
+		local spot = Vector3.new((math.random() * 2 - 1) * 20, Config.CRATER_FLOOR_Y, (math.random() * 2 - 1) * 2)
+		if walkTo(model, spot, 30) then
+			local best: Model? = nil
+			local bestDist = Config.RIVAL_GRAB_RADIUS
+			for _, descendant in ipairs(workspace:GetDescendants()) do
+				if descendant:IsA("Model") and descendant:GetAttribute("State") == "free" then
+					local body = descendant.PrimaryPart
+					if body then
+						local dist = (body.Position - spot).Magnitude
+						if dist < bestDist then
+							bestDist = dist
+							best = descendant
+						end
+					end
+				end
+			end
+			if best then
+				carryModel(rival, best)
+				rival.phase = "toBase"
+			else
+				task.wait(1)
+				rival.phase = "idle"
+			end
+		else
+			rival.phase = "idle"
+		end
+	elseif rival.phase == "toBase" then
+		local baseId = rival.baseId
+		local padIndex = BaseService.freePad(baseId)
+		if not padIndex then
+			-- Base full: drop the catch back in the crater.
+			RivalService.dropCarried(rival)
+			rival.phase = "idle"
+		else
+			local padCf = WorldBuilder.padCFrame(baseId, padIndex)
+			if padCf and walkTo(model, padCf.Position, 40) then
+				local carried = rival.carried
+				rival.carried = nil
+				if carried then
+					local body = carried.PrimaryPart
+					if body then
+						local weld = body:FindFirstChild("CarryWeld")
+						if weld then
+							weld:Destroy()
+						end
+					end
+					-- Place it on the pad, rival-owned (players can
+					-- steal it back: rival bases are never locked).
+					local CarryService2 = require(script.Parent.CarryService)
+					-- Place by hand: anchored, full size, on the pad.
+					RotlingFactory.setCarriedVisual(carried, false)
+					RotlingFactory.setModelScale(carried, 1)
+					RotlingFactory.refreshLabelOffset(carried)
+					local def = RotlingCatalog.getDef(carried:GetAttribute("DefId") :: string)
+					local liftBody = carried.PrimaryPart
+					local lift = if liftBody and liftBody:IsA("BasePart")
+						then liftBody.Size.Y / 2 + 0.3 + (if def then def.size * 0.05 else 0.15)
+						elseif def then def.size * 0.55 + 0.6
+						else 2.5
+					for _, part in ipairs(carried:GetDescendants()) do
+						if part:IsA("BasePart") then
+							part.Anchored = true
+						end
+					end
+					carried:PivotTo(padCf * CFrame.new(0, lift, 0))
+					carried:SetAttribute("State", "placed")
+					carried:SetAttribute("OwnerUserId", -rival.baseId)
+					carried:SetAttribute("BaseId", baseId)
+					carried:SetAttribute("PadIndex", padIndex)
+					if not State.placed[baseId] then
+						State.placed[baseId] = {}
+					end
+					State.placed[baseId][padIndex] = carried
+					CarryService2.setPromptState(carried)
+					RotlingFactory.setRestPose(carried)
+				end
+			end
+			rival.phase = "idle"
+		end
+	elseif rival.phase == "steal" then
+		local victim = if rival.targetUserId then Players:GetPlayerByUserId(rival.targetUserId) else nil
+		local victimBase = rival.targetBase
+		if not victim or not victimBase then
+			setThiefSign(model, false)
+			rival.phase = "idle"
+		elseif BaseService.isLocked(victimBase) then
+			-- Locked mid-sneak: give up and go home.
+			setThiefSign(model, false)
+			rival.phase = "toBase"
+		else
+			local placed = State.placed[victimBase]
+			local padIndex: number? = nil
+			if placed then
+				for index in pairs(placed) do
+					padIndex = index
+					break
+				end
+			end
+			if not padIndex then
+				setThiefSign(model, false)
+				rival.phase = "idle"
+			else
+				local padCf = WorldBuilder.padCFrame(victimBase, padIndex)
+				-- 60s timeout (fix round 4, item 5): the walk to a
+				-- victim's pad crosses the whole map, and 40s was
+				-- cutting it short — the rival gave up mid-walk and
+				-- the steal never happened.
+				if padCf and walkTo(model, padCf.Position, 60) then
+					if BaseService.isLocked(victimBase) then
+						setThiefSign(model, false)
+						rival.phase = "toBase"
+					else
+						local stolen = BaseService.removePlaced(victimBase, padIndex)
+						if stolen then
+							carryModel(rival, stolen)
+							local stolenDef = RotlingCatalog.getDef(stolen:GetAttribute("DefId") :: string)
+							local stolenName = if stolenDef then stolenDef.name else "Brainrot"
+							Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " stole your " .. stolenName .. "! Slap them to get it back!", 5)
+							print("[Rival] " .. rival.name .. " stole " .. stolenName .. " from " .. victim.Name .. " — carrying it home")
+							rival.phase = "toBase"
+						else
+							rival.phase = "idle"
+						end
+						setThiefSign(model, false)
+					end
+				else
+					-- The walk failed (or the pad vanished): log it,
+					-- or the next playtest cannot tell a failed walk
+					-- from a frozen rival.
+					print("[Rival] " .. rival.name .. " could not reach " .. victim.Name .. "'s base (pad " .. tostring(padIndex) .. ") — steal aborted")
+					setThiefSign(model, false)
+					rival.phase = "idle"
+				end
+			end
+		end
+	elseif rival.phase == "chase" then
+		-- Chase the egg carrier: "THIEF ON YOUR TAIL!" with a live
+		-- distance readout. A touch makes the carrier drop the egg.
+		local victim = if rival.targetUserId then Players:GetPlayerByUserId(rival.targetUserId) else nil
+		local character = victim and victim.Character
+		local victimRoot = character and character:FindFirstChild("HumanoidRootPart")
+		local MeteorEggService = require(script.Parent.MeteorEggService)
+		if not victim or not victimRoot or not State.eggCarriedByUser[victim.UserId] then
+			rival.phase = "idle"
+			rival.targetUserId = nil
+		else
+			local dist = (root.Position - victimRoot.Position).Magnitude
+			if dist <= 4 then
+				MeteorEggService.dropEgg(victim)
+				Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " tagged you — you dropped the meteor egg!", 4)
+				rival.phase = "flee"
+				rival.targetUserId = nil
+			else
+				if math.random() < 0.5 then
+					Remotes.bannerEvent():FireClient(victim, "🚨 THIEF ON YOUR TAIL! " .. rival.name .. " is " .. tostring(math.floor(dist)) .. " studs behind you — sprint home!", 2)
+				end
+				-- Re-path toward the carrier every tick.
+				local humanoid = model:FindFirstChildOfClass("Humanoid")
+				if humanoid then
+					humanoid:MoveTo(victimRoot.Position)
+				end
+				task.wait(1)
+			end
+		end
+	elseif rival.phase == "flee" then
+		local angle = math.random() * math.pi * 2
+		local exit = Vector3.new(math.cos(angle) * (Config.CRATER_RADIUS + 30), 0, math.sin(angle) * (Config.CRATER_RADIUS + 30))
+		walkTo(model, exit, 30)
+		rival.phase = "idle"
+	else
+		rival.phase = "idle"
+	end
+end
+
+-- The rival's loop (fix round 4, item 5): every tick is pcall-guarded,
+-- so an error in one step warns and the rival keeps going next tick
+-- instead of freezing forever with no log.
 local function runRival(rival: State.Rival)
 	local model = rival.model
 	while model.Parent do
 		task.wait(0.5)
-		-- Storm cover (fix 2): when a storm runs, a rival runs home
-		-- to its own base and waits there until the storm ends, then
-		-- resumes. Bots that ignore the storm look dead; bots that
-		-- run for cover look alive.
-		local StarfallService = require(script.Parent.StarfallService)
-		if StarfallService.getStatus().phase == "storm" then
-			local homeCf = WorldBuilder.baseCFrame(rival.baseId)
-			if homeCf then
-				walkTo(model, homeCf.Position, 30)
-			end
-			while StarfallService.getStatus().phase == "storm" do
-				task.wait(1)
-				if not model.Parent then
-					return
-				end
-			end
-			rival.phase = "idle"
-		end
-		-- Slap-back: a real player crowding the rival gets slapped.
-		local root = model:FindFirstChild("HumanoidRootPart")
-		if root and time() >= rival.slapReadyAt then
-			for _, player in ipairs(Players:GetPlayers()) do
-				local character = player.Character
-				local playerRoot = character and character:FindFirstChild("HumanoidRootPart")
-				if playerRoot and (playerRoot.Position - root.Position).Magnitude <= 6 then
-					rival.slapReadyAt = time() + Config.RIVAL_SLAP_COOLDOWN
-					local SlapService = require(script.Parent.SlapService)
-					SlapService.applySlapFromRival(rival, player)
-					break
-				end
-			end
-		end
-
-		if rival.phase == "idle" then
-			task.wait(math.random(1, 3))
-			if rival.carried then
-				rival.phase = "toBase"
-			elseif math.random() < Config.RIVAL_STEAL_CHANCE then
-				local victim, victimBase = pickVictim()
-				if victim and victimBase then
-					rival.phase = "steal"
-					rival.targetUserId = victim.UserId
-					rival.targetBase = victimBase
-					setThiefSign(model, true)
-					Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " is sneaking to your base! Lock it (L)!", 4)
-				else
-					rival.phase = "toCrater"
-				end
-			else
-				rival.phase = "toCrater"
-			end
-		elseif rival.phase == "toCrater" then
-			-- Walk to a spot on the belt, then grab the nearest free
-			-- Rotling within reach. The spot sits ON the crater floor
-			-- (fix round 2, fix 4): the old y=0 aimed below the floor,
-			-- so the rival pushed against the rim instead of walking
-			-- in to the belt.
-			local spot = Vector3.new((math.random() * 2 - 1) * 20, Config.CRATER_FLOOR_Y, (math.random() * 2 - 1) * 2)
-			if walkTo(model, spot, 30) then
-				local best: Model? = nil
-				local bestDist = Config.RIVAL_GRAB_RADIUS
-				for _, descendant in ipairs(workspace:GetDescendants()) do
-					if descendant:IsA("Model") and descendant:GetAttribute("State") == "free" then
-						local body = descendant.PrimaryPart
-						if body then
-							local dist = (body.Position - spot).Magnitude
-							if dist < bestDist then
-								bestDist = dist
-								best = descendant
-							end
-						end
-					end
-				end
-				if best then
-					carryModel(rival, best)
-					rival.phase = "toBase"
-				else
-					task.wait(1)
-					rival.phase = "idle"
-				end
-			else
-				rival.phase = "idle"
-			end
-		elseif rival.phase == "toBase" then
-			local baseId = rival.baseId
-			local padIndex = BaseService.freePad(baseId)
-			if not padIndex then
-				-- Base full: drop the catch back in the crater.
-				RivalService.dropCarried(rival)
-				rival.phase = "idle"
-			else
-				local padCf = WorldBuilder.padCFrame(baseId, padIndex)
-				if padCf and walkTo(model, padCf.Position, 40) then
-					local carried = rival.carried
-					rival.carried = nil
-					if carried then
-						local body = carried.PrimaryPart
-						if body then
-							local weld = body:FindFirstChild("CarryWeld")
-							if weld then
-								weld:Destroy()
-							end
-						end
-						-- Place it on the pad, rival-owned (players can
-						-- steal it back: rival bases are never locked).
-						local CarryService2 = require(script.Parent.CarryService)
-						-- Place by hand: anchored, full size, on the pad.
-						RotlingFactory.setCarriedVisual(carried, false)
-						RotlingFactory.setModelScale(carried, 1)
-						RotlingFactory.refreshLabelOffset(carried)
-						local def = RotlingCatalog.getDef(carried:GetAttribute("DefId") :: string)
-						local liftBody = carried.PrimaryPart
-						local lift = if liftBody and liftBody:IsA("BasePart")
-							then liftBody.Size.Y / 2 + 0.3 + (if def then def.size * 0.05 else 0.15)
-							elseif def then def.size * 0.55 + 0.6
-							else 2.5
-						for _, part in ipairs(carried:GetDescendants()) do
-							if part:IsA("BasePart") then
-								part.Anchored = true
-							end
-						end
-						carried:PivotTo(padCf * CFrame.new(0, lift, 0))
-						carried:SetAttribute("State", "placed")
-						carried:SetAttribute("OwnerUserId", -rival.baseId)
-						carried:SetAttribute("BaseId", baseId)
-						carried:SetAttribute("PadIndex", padIndex)
-						if not State.placed[baseId] then
-							State.placed[baseId] = {}
-						end
-						State.placed[baseId][padIndex] = carried
-						CarryService2.setPromptState(carried)
-						RotlingFactory.setRestPose(carried)
-					end
-				end
-				rival.phase = "idle"
-			end
-		elseif rival.phase == "steal" then
-			local victim = if rival.targetUserId then Players:GetPlayerByUserId(rival.targetUserId) else nil
-			local victimBase = rival.targetBase
-			if not victim or not victimBase then
-				setThiefSign(model, false)
-				rival.phase = "idle"
-			elseif BaseService.isLocked(victimBase) then
-				-- Locked mid-sneak: give up and go home.
-				setThiefSign(model, false)
-				rival.phase = "toBase"
-			else
-				local placed = State.placed[victimBase]
-				local padIndex: number? = nil
-				if placed then
-					for index in pairs(placed) do
-						padIndex = index
-						break
-					end
-				end
-				if not padIndex then
-					setThiefSign(model, false)
-					rival.phase = "idle"
-				else
-					local padCf = WorldBuilder.padCFrame(victimBase, padIndex)
-					if padCf and walkTo(model, padCf.Position, 40) then
-						if BaseService.isLocked(victimBase) then
-							setThiefSign(model, false)
-							rival.phase = "toBase"
-						else
-							local stolen = BaseService.removePlaced(victimBase, padIndex)
-							if stolen then
-								carryModel(rival, stolen)
-								local stolenDef = RotlingCatalog.getDef(stolen:GetAttribute("DefId") :: string)
-								local stolenName = if stolenDef then stolenDef.name else "Brainrot"
-								Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " stole your " .. stolenName .. "! Slap them to get it back!", 5)
-								rival.phase = "toBase"
-							else
-								rival.phase = "idle"
-							end
-							setThiefSign(model, false)
-						end
-					else
-						setThiefSign(model, false)
-						rival.phase = "idle"
-					end
-				end
-			end
-		elseif rival.phase == "chase" then
-			-- Chase the egg carrier: "THIEF ON YOUR TAIL!" with a live
-			-- distance readout. A touch makes the carrier drop the egg.
-			local victim = if rival.targetUserId then Players:GetPlayerByUserId(rival.targetUserId) else nil
-			local character = victim and victim.Character
-			local victimRoot = character and character:FindFirstChild("HumanoidRootPart")
-			local MeteorEggService = require(script.Parent.MeteorEggService)
-			if not victim or not victimRoot or not State.eggCarriedByUser[victim.UserId] then
-				rival.phase = "idle"
-				rival.targetUserId = nil
-			else
-				local dist = (root.Position - victimRoot.Position).Magnitude
-				if dist <= 4 then
-					MeteorEggService.dropEgg(victim)
-					Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " tagged you — you dropped the meteor egg!", 4)
-					rival.phase = "flee"
-					rival.targetUserId = nil
-				else
-					if math.random() < 0.5 then
-						Remotes.bannerEvent():FireClient(victim, "🚨 THIEF ON YOUR TAIL! " .. rival.name .. " is " .. tostring(math.floor(dist)) .. " studs behind you — sprint home!", 2)
-					end
-					-- Re-path toward the carrier every tick.
-					local humanoid = model:FindFirstChildOfClass("Humanoid")
-					if humanoid then
-						humanoid:MoveTo(victimRoot.Position)
-					end
-					task.wait(1)
-				end
-			end
-		elseif rival.phase == "flee" then
-			local angle = math.random() * math.pi * 2
-			local exit = Vector3.new(math.cos(angle) * (Config.CRATER_RADIUS + 30), 0, math.sin(angle) * (Config.CRATER_RADIUS + 30))
-			walkTo(model, exit, 30)
-			rival.phase = "idle"
-		else
-			rival.phase = "idle"
+		local ok, err = pcall(stepRival, rival, model)
+		if not ok then
+			warn("[Rival] " .. rival.name .. " step failed: " .. tostring(err) .. " — continuing next tick")
 		end
 	end
 end

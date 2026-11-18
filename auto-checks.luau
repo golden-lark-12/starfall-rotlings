@@ -101,6 +101,9 @@
 --   (bv) the first storm drops no rocks (resetStormEarnings or
 --       spawnEggsForStorm can still abort the storm before the rain
 --       loop, because neither is wrapped in its own pcall)
+--   (bw) the thief alerts but never steals (runRival's loop body is
+--       not pcall-guarded, the steal is not logged, or the steal walk
+--       timeout is still 40s)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -4119,6 +4122,55 @@ do
 			check("bv", false, "the storm fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: StarfallService.luau, StormWarningController.client.luau")
 		else
 			check("bv", true, "storm hardened: resetStormEarnings + spawnEggsForStorm each in their own pcall (a failure warns, rain still falls); rain every 0.45s + 3 hero meteors, 10s countdown, siren, red edges/sky")
+		end
+	end
+end
+
+-- -- (bw) the thief actually steals (fix round 4, item 5) --
+-- Playtest 4: "Nova is sneaking to your base!" showed but the thief
+-- did nothing. The alert fires when a rival enters the steal phase,
+-- but runRival was NOT pcall-guarded — any error in the loop (a nil
+-- getStatus, a failed walkTo, a missing pad) froze that rival forever
+-- with no log, and the 40s walk timeout was cutting the cross-map walk
+-- short. The fix: the loop body is extracted into stepRival and every
+-- tick is pcall-guarded (warn + continue), the steal logs its start
+-- (victim + base), its walk failure, and its success, and the steal
+-- walk timeout is 40 -> 60s. Lock (L) still blocks it (isLocked check
+-- before the walk and before the grab); slap still gets it back.
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	if not rivalSrc then
+		check("bw", false, "could not verify the thief fix — RivalService.luau missing")
+	else
+		local problems: { string } = {}
+		if not rivalSrc:find("local function stepRival%(rival: State%.Rival, model: Model%)") then
+			table.insert(problems, "runRival's loop body is not extracted into stepRival")
+		end
+		if not rivalSrc:find("pcall%(stepRival, rival, model%)") then
+			table.insert(problems, "runRival does not pcall-guard stepRival each tick — one error still freezes the rival")
+		end
+		if not rivalSrc:find('%[Rival%] " %.%. rival%.name %.%. " step failed') then
+			table.insert(problems, "no [Rival] warn on a failed step")
+		end
+		if not rivalSrc:find('%[Rival%] " %.%. rival%.name %.%. " stealing from') then
+			table.insert(problems, "no [Rival] log when the steal phase starts")
+		end
+		if not rivalSrc:find('%[Rival%] " %.%. rival%.name %.%. " could not reach') then
+			table.insert(problems, "no [Rival] log when the steal walk fails")
+		end
+		if not rivalSrc:find('%[Rival%] " %.%. rival%.name %.%. " stole') then
+			table.insert(problems, "no [Rival] log on a successful steal")
+		end
+		if not rivalSrc:find("walkTo%(model, padCf%.Position, 60%)") then
+			table.insert(problems, "steal walk timeout is still 40s, not 60s")
+		end
+		if not rivalSrc:find("isLocked%(victimBase%)") then
+			table.insert(problems, "Lock (L) no longer blocks the steal")
+		end
+		if #problems > 0 then
+			check("bw", false, "the thief fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau")
+		else
+			check("bw", true, "thief works: stepRival pcall-guarded per tick (warn + continue), steal logs start/walk-fail/success, steal walk 60s, Lock still blocks it")
 		end
 	end
 end
