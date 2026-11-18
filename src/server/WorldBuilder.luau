@@ -882,52 +882,22 @@ local function buildHills()
 	end
 end
 
--- The ground is textured, not one flat purple plane. A sand ring
--- circles the crater, and a grid of large ground tiles in varied warm
--- colours and materials covers the map — paths, rocks, hills and props
--- break it up further. The base Ground part underneath stays (project
--- file, warm sand tone), but the eye reads the tiles and the ring.
+-- The ground is ONE consistent material, not a patchwork. It used to
+-- be a sand disc under the crater plus an 8x8 grid of tiles in random
+-- warm colours and random materials (Sand / Slate / SmoothPlastic /
+-- Grass) — a visible patchwork of clashing squares. Now it is a single
+-- large Grass cover in one natural grass green, laid just above the
+-- base Ground part underneath, so the whole map reads as one lawn.
+-- The crater floor (dark Slate disc, top ~0.4) pokes through the
+-- cover, so the crater still reads as a distinct dark bowl in the
+-- middle of the grass.
 local function buildGroundDetail()
-	-- Sand ring: a warm sand disc under the crater, wider than the
-	-- crater floor, so the crater sits in a sandy bowl, not a bare
-	-- purple field. The crater floor (56 wide) sits on top of it.
-	local sandRing = part("SandRing", Enum.PartType.Cylinder, Vector3.new(0.2, 90, 90), Color3.fromRGB(200, 175, 130), CFrame.new(0, 0.05, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Sand)
-	sandRing.CanCollide = false
-	sandRing.CastShadow = false
-	-- Ground tiles: an 8x8 grid of 60-stud tiles, each a different warm
-	-- colour and material, laid just above the base ground. Tiles
-	-- inside the sand ring are skipped (the ring covers them).
-	local tileColors = {
-		Color3.fromRGB(205, 180, 135), -- sand
-		Color3.fromRGB(200, 180, 220), -- soft lilac
-		Color3.fromRGB(140, 200, 130), -- grass green
-		Color3.fromRGB(180, 158, 140), -- warm stone
-		Color3.fromRGB(220, 200, 160), -- light sand
-		Color3.fromRGB(150, 205, 150), -- pale grass
-	}
-	local tileMaterials = {
-		Enum.Material.Sand,
-		Enum.Material.Slate,
-		Enum.Material.SmoothPlastic,
-		Enum.Material.Grass,
-	}
-	local rng = Random.new(20261117)
-	for row = 1, 8 do
-		for col = 1, 8 do
-			local x = -210 + (col - 1) * 60 + 30
-			local z = -210 + (row - 1) * 60 + 30
-			-- Skip tiles under the sand ring (radius 45) so the ring
-			-- reads cleanly and no tile pokes through it.
-			if math.sqrt(x * x + z * z) < 50 then
-				continue
-			end
-			local color = tileColors[rng:NextInteger(1, #tileColors)]
-			local material = tileMaterials[rng:NextInteger(1, #tileMaterials)]
-			local tile = part("GroundTile", Enum.PartType.Block, Vector3.new(60, 0.1, 60), color, CFrame.new(x, 0.02, z), material)
-			tile.CanCollide = false
-			tile.CastShadow = false
-		end
-	end
+	-- One ground cover: a single Grass part, natural grass green,
+	-- 500 studs square, laid just above the base ground. No rings,
+	-- no tiles, no random colours — one material, one colour.
+	local ground = part("GroundCover", Enum.PartType.Block, Vector3.new(500, 0.1, 500), Color3.fromRGB(89, 173, 77), CFrame.new(0, 0.02, 0), Enum.Material.Grass)
+	ground.CanCollide = false
+	ground.CastShadow = false
 end
 
 local function buildCrystals()
