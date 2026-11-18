@@ -22,7 +22,7 @@ function BaseService.assignBase(player: Player): number?
 			State.baseOwner[baseId] = player.UserId
 			State.playerBase[player.UserId] = baseId
 			State.placed[baseId] = {}
-			State.locks[baseId] = { lockedUntil = 0, cooldownUntil = 0 }
+			State.locks[baseId] = { lockedUntil = 0, cooldownUntil = 0, gateShown = false }
 			local DataService = require(script.Parent.DataService)
 			local profile = DataService.getProfile(player)
 			State.unlockedPads[baseId] = Config.PADS_OPEN + (if profile then profile.padsTier else 0)
@@ -118,6 +118,7 @@ function BaseService.lockBase(player: Player): (boolean, string)
 	State.locks[baseId].lockedUntil = now + duration
 	State.locks[baseId].cooldownUntil = now + duration + Config.LOCK_COOLDOWN
 	BaseService.setGateVisible(baseId, true)
+	State.locks[baseId].gateShown = true
 	-- The shield dome shows too, with its SAFE countdown label
 	-- (cheap win 5) — the lock is visible in the world, not just a
 	-- timer in the HUD. The label is refreshed every income broadcast

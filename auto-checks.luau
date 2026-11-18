@@ -5603,6 +5603,50 @@ do
 	end
 end
 
+-- (cv) Lock-gate expiry (rev 76): the red LockGate is solid while
+-- locked and vanishes the moment the lock ends. The shield dome
+-- already cleared via setShieldLabel in the income broadcast; the
+-- gate had no expiry path at all (setGateVisible was only ever
+-- called with true), so it stayed solid forever and blocked the
+-- owner and every thief — which is why nobody entered his base.
+do
+	local baseSrc = read("src/server/BaseService.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	local stateSrc = read("src/server/State.luau")
+	if not baseSrc or not incomeSrc or not mainSrc or not stateSrc then
+		check("cv", false, "could not verify the lock-gate expiry — BaseService.luau, IncomeService.luau, Main.server.luau or State.luau missing")
+	else
+		local problems: { string } = {}
+		if not stateSrc:find("gateShown") then
+			table.insert(problems, "the lock record does not track gateShown")
+		end
+		if not baseSrc:find("gateShown = true") then
+			table.insert(problems, "lockBase does not record that the gate is shown")
+		end
+		if not incomeSrc:find("setGateVisible%(baseId, false%)") then
+			table.insert(problems, "the income broadcast never hides the gate when the lock expires")
+		end
+		if not incomeSrc:find("lock%.gateShown") then
+			table.insert(problems, "the broadcast does not check the gateShown transition (it would rescan the workspace every tick)")
+		end
+		if not mainSrc:find("if not BaseService%.isLocked%(baseId%) then\n\t\tBaseService%.setGateVisible%(baseId, false%)") then
+			table.insert(problems, "join does not clear a stuck gate for an unlocked base")
+		end
+		if not baseSrc:find("descendant%.Transparency = if visible then 0%.3 else 1") then
+			table.insert(problems, "setGateVisible does not hide the gate (Transparency 1)")
+		end
+		if not baseSrc:find("descendant%.CanCollide = visible") then
+			table.insert(problems, "setGateVisible does not uncollide the hidden gate")
+		end
+		if #problems > 0 then
+			check("cv", false, "the lock-gate expiry is incomplete — " .. table.concat(problems, "; ") .. ". Parts: BaseService.luau, IncomeService.luau, Main.server.luau, State.luau")
+		else
+			check("cv", true, "the lock gate expires: lockBase records gateShown, the income broadcast hides the gate (and uncollides it) the moment lockRemaining hits 0, and a rejoining player with an expired lock gets the gate cleared on join; the shield dome already cleared via setShieldLabel (it was never solid — CanCollide false)")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

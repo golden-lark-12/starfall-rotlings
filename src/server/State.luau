@@ -99,8 +99,11 @@ State.placed = {} :: { [number]: { [number]: Model } }
 -- Rotlings being carried: [userId] = {Model, ...}.
 State.carried = {} :: { [number]: { Model } }
 
--- Base locks: [baseId] = { lockedUntil = number, cooldownUntil = number }.
-State.locks = {} :: { [number]: { lockedUntil: number, cooldownUntil: number } }
+-- Base locks: [baseId] = { lockedUntil = number, cooldownUntil = number, gateShown = boolean }.
+-- gateShown tracks whether the red LockGate is currently visible: the
+-- gate must vanish the moment the lock expires (rev 76 — it used to
+-- stay solid forever, blocking the owner and every thief).
+State.locks = {} :: { [number]: { lockedUntil: number, cooldownUntil: number, gateShown: boolean } }
 
 -- Pads a base has unlocked: [baseId] = count (6 open, up to 8).
 State.unlockedPads = {} :: { [number]: number }

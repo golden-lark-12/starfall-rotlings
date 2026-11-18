@@ -129,6 +129,12 @@ local function onPlayerAdded(player: Player)
 		player:Kick("Starfall Brainrots is full! All 8 bases are taken. Try again soon.")
 		return
 	end
+	-- Stuck-gate clear on join (rev 76): if this base's lock already
+	-- expired (the player locked, left, and came back), hide the gate
+	-- now instead of waiting for the next income broadcast.
+	if not BaseService.isLocked(baseId) then
+		BaseService.setGateVisible(baseId, false)
+	end
 	local profile = DataService.getProfile(player)
 	if profile then
 		-- Profile-load observability (fix round 6, item 1): a fresh

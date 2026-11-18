@@ -194,6 +194,21 @@ function IncomeService.broadcastHud()
 					-- The shield label: "SAFE (Ns)" while locked, "SAFE DOME"
 					-- in green while the storm passes (every base is safe).
 					WorldBuilder.setShieldLabel(baseId, BaseService.lockRemaining(baseId), storm.phase == "storm")
+					-- Lock-gate expiry (rev 76): the red gate is solid
+					-- while locked and MUST vanish the moment the lock
+					-- ends, or it blocks the owner and every thief
+					-- forever (the old code never called
+					-- setGateVisible(false) anywhere). The shield dome
+					-- already clears via setShieldLabel above; the gate
+					-- had no expiry path at all. Only touch it on the
+					-- locked -> unlocked transition (gateShown flag),
+					-- not every tick.
+					local lock = State.locks[baseId]
+					if lock and lock.gateShown and BaseService.lockRemaining(baseId) <= 0 then
+						BaseService.setGateVisible(baseId, false)
+						lock.gateShown = false
+						print("[BaseService] lock expired on base " .. tostring(baseId) .. " — gate hidden")
+					end
 				end
 				local found = 0
 				for _ in pairs(profile.index) do
