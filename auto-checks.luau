@@ -1682,20 +1682,31 @@ do
 		check("af", false, "could not verify the ground — WorldBuilder.luau or default.project.json missing")
 	else
 		local problems: { string } = {}
-		-- A sand ring circles the crater, and a grid of ground tiles
-		-- textures the map. Both are built by buildGroundDetail, called
-		-- from WorldBuilder.build().
+		-- The ground is ONE consistent material (fix round 3, item 7):
+		-- a single Grass ground cover in one natural grass green, built
+		-- by buildGroundDetail, called from WorldBuilder.build(). The
+		-- old patchwork (SandRing disc + 8x8 random-colour tiles) is
+		-- gone: no SandRing, no GroundTile.
 		if not worldSrc:find("function buildGroundDetail%(%)") then
 			table.insert(problems, "buildGroundDetail() not found in WorldBuilder.luau")
 		end
 		if not worldSrc:find("buildGroundDetail%(%)") then
 			table.insert(problems, "buildGroundDetail() is never called")
 		end
-		if not worldSrc:find('part%("SandRing"') then
-			table.insert(problems, 'no "SandRing" part in WorldBuilder.luau')
+		if not worldSrc:find('part%("GroundCover"') then
+			table.insert(problems, 'no "GroundCover" part in WorldBuilder.luau')
 		end
-		if not worldSrc:find('part%("GroundTile"') then
-			table.insert(problems, 'no "GroundTile" parts in WorldBuilder.luau')
+		if not worldSrc:find("Enum.Material.Grass") then
+			table.insert(problems, "GroundCover is not Grass material")
+		end
+		if not worldSrc:find("89, 173, 77") then
+			table.insert(problems, "GroundCover is not the natural grass green (89, 173, 77)")
+		end
+		if worldSrc:find('part%("SandRing"') then
+			table.insert(problems, 'the old "SandRing" part is still in WorldBuilder.luau')
+		end
+		if worldSrc:find('part%("GroundTile"') then
+			table.insert(problems, 'the old "GroundTile" parts are still in WorldBuilder.luau')
 		end
 		-- The base ground itself is warm sand, not purple: its blue
 		-- channel must be lower than its red channel.
@@ -1708,9 +1719,9 @@ do
 			table.insert(problems, "Ground Color (" .. tostring(groundColor[1]) .. ", " .. tostring(groundColor[2]) .. ", " .. tostring(groundColor[3]) .. ") is purple (blue >= red), not warm sand")
 		end
 		if #problems > 0 then
-			check("af", false, "the ground is one flat purple plane — " .. table.concat(problems, "; ") .. ". Parts: buildGroundDetail / SandRing / GroundTile (WorldBuilder.luau), Ground (default.project.json)")
+			check("af", false, "the ground is not one consistent lawn — " .. table.concat(problems, "; ") .. ". Parts: buildGroundDetail / GroundCover (WorldBuilder.luau), Ground (default.project.json)")
 		else
-			check("af", true, "ground is textured — sand ring + ground-tile grid, base ground warm sand (" .. tostring(groundColor[1]) .. ", " .. tostring(groundColor[2]) .. ", " .. tostring(groundColor[3]) .. ")")
+			check("af", true, "ground is one consistent Grass lawn — single GroundCover (89, 173, 77), base ground warm sand (" .. tostring(groundColor[1]) .. ", " .. tostring(groundColor[2]) .. ", " .. tostring(groundColor[3]) .. ")")
 		end
 	end
 end
@@ -2355,10 +2366,12 @@ end
 
 -- -- (as) Malek's items 2-5 ---------------------------------------------------------
 -- Item 2: the beam is thin (1.5 studs) and semi-transparent (0.6) with
--- a dim light. Item 3: the ground tiles are a soft lilac/grass mix, no
--- loud saturated purple. Item 4: the lamp bulbs are small and dim.
--- Item 5: the carried Rotling rides at CARRY_Z <= -3 in front of the
--- chest and keeps its rarity highlight while carried.
+-- a dim light. Item 3: the ground is ONE consistent Grass lawn (fix
+-- round 3, item 7) — a single GroundCover in natural grass green, no
+-- loud saturated purple, no patchwork tiles. Item 4: the lamp bulbs
+-- are small and dim. Item 5: the carried Rotling rides at CARRY_Z <=
+-- -3 in front of the chest and keeps its rarity highlight while
+-- carried.
 do
 	local configSrc = read("src/shared/Config.luau")
 	local worldSrc = read("src/server/WorldBuilder.luau")
@@ -2382,11 +2395,16 @@ do
 		if worldSrc:find("165, 148, 190") then
 			table.insert(problems, "the loud muted-purple tile colour (165, 148, 190) is still in the ground")
 		end
-		if not worldSrc:find("200, 180, 220") then
-			table.insert(problems, "no soft lilac in the ground tiles")
+		-- Item 3 (fix round 3): the ground is one consistent Grass
+		-- lawn, not a patchwork of tiles.
+		if not worldSrc:find('part%("GroundCover"') then
+			table.insert(problems, 'no "GroundCover" part in WorldBuilder.luau')
 		end
-		if not worldSrc:find("140, 200, 130") then
-			table.insert(problems, "no grass green in the ground tiles")
+		if not worldSrc:find("89, 173, 77") then
+			table.insert(problems, "GroundCover is not the natural grass green (89, 173, 77)")
+		end
+		if worldSrc:find('part%("GroundTile"') then
+			table.insert(problems, 'the old "GroundTile" patchwork is still in WorldBuilder.luau')
 		end
 		local bulbSize = worldSrc:match('PlazaLampBulb", Enum.PartType.Ball, Vector3.new%(([0-9%.]+),')
 		if not bulbSize then
@@ -2398,9 +2416,9 @@ do
 			table.insert(problems, "the rarity highlight is not kept on while carried (RotlingFactory.setCarriedVisual)")
 		end
 		if #problems > 0 then
-			check("as", false, "items 2-5 are not fixed — " .. table.concat(problems, "; ") .. ". Parts: beam/lamps/tiles (WorldBuilder.luau), CARRY_Z (Config.luau), setCarriedVisual (RotlingFactory.luau)")
+			check("as", false, "items 2-5 are not fixed — " .. table.concat(problems, "; ") .. ". Parts: beam/lamps/ground (WorldBuilder.luau), CARRY_Z (Config.luau), setCarriedVisual (RotlingFactory.luau)")
 		else
-			check("as", true, "beam thin + semi-transparent, ground soft lilac/grass, lamps small and dim, carried Rotling at CARRY_Z " .. tostring(carryZ) .. " with its highlight on")
+			check("as", true, "beam thin + semi-transparent, ground one Grass lawn, lamps small and dim, carried Rotling at CARRY_Z " .. tostring(carryZ) .. " with its highlight on")
 		end
 	end
 end
