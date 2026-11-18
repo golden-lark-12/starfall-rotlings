@@ -5723,16 +5723,22 @@ do
 	end
 end
 
--- (cw) Brainrot-carrier chase (rev 77): carrying a Brainrot is
--- dangerous — nearby rivals give chase and tag the carrier, who
--- drops the haul. Before this, rivals only chased egg carriers, so
--- carrying a Brainrot was risk-free and the core loop had no teeth.
+-- (cw) Brainrot-carrier chase (rev 77, rebuilt fix round 8 item 8):
+-- carrying a Brainrot is dangerous — the NEAREST rivals give chase
+-- and tag the carrier, who drops the haul. The old design only woke
+-- rivals within 30 studs, but rivals sit at their bases at radius
+-- 110 — so a grab in the crater almost never had a rival in range
+-- and Malek was never chased. Now the nearest 2 available rivals
+-- chase at 19 (faster than a walk, slower than a sprint), follow a
+-- computed path (no straight line into the rim), survive storms, and
+-- log the chase start + end so the F9 trail proves it happened.
 do
 	local stateSrc = read("src/server/State.luau")
 	local carrySrc = read("src/server/CarryService.luau")
 	local rivalSrc = read("src/server/RivalService.luau")
-	if not stateSrc or not carrySrc or not rivalSrc then
-		check("cw", false, "could not verify the Brainrot-carrier chase — State.luau, CarryService.luau or RivalService.luau missing")
+	local configSrc = read("src/shared/Config.luau")
+	if not stateSrc or not carrySrc or not rivalSrc or not configSrc then
+		check("cw", false, "could not verify the Brainrot-carrier chase — State.luau, CarryService.luau, RivalService.luau or Config.luau missing")
 	else
 		local problems: { string } = {}
 		if not stateSrc:find("brainrotCarriedByUser") then
@@ -5742,7 +5748,7 @@ do
 			table.insert(problems, "a grab does not flag the player as a Brainrot carrier")
 		end
 		if not carrySrc:find("notifyBrainrotCarrier%(player%)") then
-			table.insert(problems, "a grab does not notify nearby rivals")
+			table.insert(problems, "a grab does not notify rivals")
 		end
 		if not carrySrc:find("State%.brainrotCarriedByUser%[player%.UserId%] = nil") then
 			table.insert(problems, "the carrier flag is never cleared when the player stops carrying")
@@ -5756,10 +5762,37 @@ do
 		if not rivalSrc:find("dropAllCarried%(victim%)") then
 			table.insert(problems, "a tag does not make the carrier drop the Brainrots")
 		end
+		if rivalSrc:find("RIVAL_CHASE_RADIUS") then
+			table.insert(problems, "the 30-stud chase radius is still in use — rivals at radius 110 never qualify")
+		end
+		if not configSrc:find("RIVAL_CHASE_MAX = 2") then
+			table.insert(problems, "no RIVAL_CHASE_MAX = 2 (up to 2 chasers per carrier)")
+		end
+		if not configSrc:find("RIVAL_CHASE_SPEED = 19") then
+			table.insert(problems, "no RIVAL_CHASE_SPEED = 19 (a chaser must outrun a walking carrier)")
+		end
+		if not rivalSrc:find("table%.sort%(candidates") then
+			table.insert(problems, "the chase does not pick the NEAREST rivals (no distance sort)")
+		end
+		if not rivalSrc:find("PathfindingService:CreatePath") then
+			table.insert(problems, "the chase does not pathfind — a straight MoveTo still pushes rivals into the rim")
+		end
+		if not rivalSrc:find("chasing \" %.%. player%.Name") then
+			table.insert(problems, "the chase start is not logged (no proof it fired)")
+		end
+		if not rivalSrc:find("studs away") then
+			table.insert(problems, "the chase start log does not carry the distance")
+		end
+		if not rivalSrc:find("chase ended") then
+			table.insert(problems, "the chase end is not logged (no proof why it stopped)")
+		end
+		if not rivalSrc:find('phase ~= "chase" and rival%.phase ~= "steal"') then
+			table.insert(problems, "storm cover still abandons a chase/steal mid-storm")
+		end
 		if #problems > 0 then
-			check("cw", false, "the Brainrot-carrier chase is incomplete — " .. table.concat(problems, "; ") .. ". Parts: State.luau, CarryService.luau, RivalService.luau")
+			check("cw", false, "the Brainrot-carrier chase is incomplete — " .. table.concat(problems, "; ") .. ". Parts: State.luau, CarryService.luau, RivalService.luau, Config.luau")
 		else
-			check("cw", true, "carrying a Brainrot is dangerous: a grab flags the carrier and notifies nearby rivals (30-stud chase radius), the chase phase follows Brainrot carriers as well as egg carriers, and a tag drops the haul (scatter to the crater) while the rival flees; reaching base clears the flag and ends the chase")
+			check("cw", true, "carrying a Brainrot is dangerous: a grab flags the carrier and wakes the nearest 2 rivals (any distance), they chase at 19 on a computed path (storm-proof), and a tag drops the haul while the rival flees; chase start + end are logged with distances; reaching base clears the flag and ends the chase")
 		end
 	end
 end

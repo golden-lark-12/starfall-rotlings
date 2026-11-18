@@ -6,12 +6,16 @@
 -- leaderboard, so the competition is visible in every shot. Every so
 -- often a rival sneaks to a real player's unlocked base to steal a
 -- Rotling (red alert + a THIEF sign over its head; Lock Base blocks
--- it), and when a player carries a meteor egg, nearby rivals chase
--- them — "THIEF ON YOUR TAIL!" with a live distance readout — and a
--- touch makes the carrier drop the egg. Slap a rival and it drops what
--- it carries and flees; rivals slap back. Real players can steal from
--- rivals' bases too (their pads are never locked).
+-- it), and when a player carries a meteor egg or a Brainrot, the
+-- NEAREST rivals chase them — "THIEF ON YOUR TAIL!" with a live
+-- distance readout — and a touch makes the carrier drop what they
+-- carry (fix round 8, item 8: the chase used to need a rival within
+-- 30 studs, but rivals sit at radius 110, so nobody ever chased).
+-- Slap a rival and it drops what it carries and flees; rivals slap
+-- back. Real players can steal from rivals' bases too (their pads
+-- are never locked).
 
+local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -398,43 +402,56 @@ function RivalService.isRival(model: Model): boolean
 	return State.rivals[model] ~= nil
 end
 
--- A player grabbed a meteor egg: nearby rivals turn and chase them.
-function RivalService.notifyEggCarrier(player: Player)
+-- Wake the NEAREST rivals to chase a carrier (fix round 8, item 8):
+-- the old code only woke rivals within 30 studs, but rivals sit at
+-- their bases at radius 110 — so a grab in the crater almost never
+-- had a rival in range and Malek was never chased ("STILL not chased
+-- by anyone", playtest 9). Now the nearest RIVAL_CHASE_MAX (2)
+-- available rivals chase, any distance, and the start is logged with
+-- the distance so the F9 trail proves it fired.
+local function notifyCarrier(player: Player, kind: string)
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	if not root then
 		return
 	end
+	local candidates: { { rival: State.Rival, dist: number } } = {}
 	for _, rival in pairs(State.rivals) do
 		local rivalRoot = rival.model:FindFirstChild("HumanoidRootPart")
-		if rivalRoot and rival.phase ~= "chase" and rival.phase ~= "steal" then
-			if (rivalRoot.Position - root.Position).Magnitude <= Config.RIVAL_CHASE_RADIUS then
-				rival.phase = "chase"
-				rival.targetUserId = player.UserId
-			end
+		if rivalRoot and rival.phase ~= "chase" and rival.phase ~= "steal" and rival.phase ~= "flee" then
+			table.insert(candidates, { rival = rival, dist = (rivalRoot.Position - root.Position).Magnitude })
 		end
+	end
+	table.sort(candidates, function(a, b)
+		return a.dist < b.dist
+	end)
+	local woken = 0
+	for _, entry in ipairs(candidates) do
+		if woken >= Config.RIVAL_CHASE_MAX then
+			break
+		end
+		entry.rival.phase = "chase"
+		entry.rival.targetUserId = player.UserId
+		entry.rival.chaseWaypoints = {}
+		entry.rival.chaseWpIndex = 1
+		entry.rival.chasePathTarget = nil
+		entry.rival.chaseRepathAt = 0
+		woken += 1
+		print("[Rival] " .. entry.rival.name .. " chasing " .. player.Name .. " (" .. kind .. " carrier, " .. tostring(math.floor(entry.dist)) .. " studs away)")
 	end
 end
 
--- A player grabbed a Brainrot: nearby rivals give chase, same as an
+-- A player grabbed a meteor egg: the nearest rivals turn and chase them.
+function RivalService.notifyEggCarrier(player: Player)
+	notifyCarrier(player, "egg")
+end
+
+-- A player grabbed a Brainrot: the nearest rivals give chase, same as an
 -- egg carrier (rev 77). Carrying was risk-free before this — rivals
 -- only chased egg carriers, so the core loop (grab, run home, don't
 -- get tagged) had no teeth for Brainrots.
 function RivalService.notifyBrainrotCarrier(player: Player)
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not root then
-		return
-	end
-	for _, rival in pairs(State.rivals) do
-		local rivalRoot = rival.model:FindFirstChild("HumanoidRootPart")
-		if rivalRoot and rival.phase ~= "chase" and rival.phase ~= "steal" then
-			if (rivalRoot.Position - root.Position).Magnitude <= Config.RIVAL_CHASE_RADIUS then
-				rival.phase = "chase"
-				rival.targetUserId = player.UserId
-			end
-		end
-	end
+	notifyCarrier(player, "Brainrot")
 end
 
 -- Pick a victim: a real player with Rotlings on an unlocked base.
@@ -498,9 +515,12 @@ local function stepRival(rival: State.Rival, model: Model)
 	-- Storm cover (fix 2): when a storm runs, a rival runs home
 	-- to its own base and waits there until the storm ends, then
 	-- resumes. Bots that ignore the storm look dead; bots that
-	-- run for cover look alive.
+	-- run for cover look alive. A rival MID-CHASE or MID-STEAL
+	-- does NOT run for cover (fix round 8, item 8): abandoning a
+	-- chase the moment a storm starts reads as "the thief did
+	-- nothing" — the chase outlives the storm.
 	local StarfallService = require(script.Parent.StarfallService)
-	if StarfallService.getStatus().phase == "storm" then
+	if StarfallService.getStatus().phase == "storm" and rival.phase ~= "chase" and rival.phase ~= "steal" then
 		local homeCf = WorldBuilder.baseCFrame(rival.baseId)
 		if homeCf then
 			walkTo(model, homeCf.Position, 30)
@@ -526,6 +546,15 @@ local function stepRival(rival: State.Rival, model: Model)
 				break
 			end
 		end
+	end
+	-- Chase speed (fix round 8, item 8): a chasing rival runs at
+	-- RIVAL_CHASE_SPEED (19 — faster than a walking carrier at 16,
+	-- slower than a sprint at 26), every other phase walks at 16.
+	-- Synced every tick so the speed is right however the phase
+	-- changed (chase start, tag, slap, storm cover, give-up).
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.WalkSpeed = if rival.phase == "chase" then Config.RIVAL_CHASE_SPEED else Config.RIVAL_WALK_SPEED
 	end
 
 	if rival.phase == "idle" then
@@ -789,6 +818,7 @@ local function stepRival(rival: State.Rival, model: Model)
 		local carryingEgg = victim and State.eggCarriedByUser[victim.UserId] ~= nil
 		local carryingBrainrot = victim and State.brainrotCarriedByUser[victim.UserId] ~= nil
 		if not victim or not victimRoot or (not carryingEgg and not carryingBrainrot) then
+			print("[Rival] " .. rival.name .. " chase ended — " .. (if not victim then "victim left" else "victim stopped carrying"))
 			rival.phase = "idle"
 			rival.targetUserId = nil
 		else
@@ -802,16 +832,65 @@ local function stepRival(rival: State.Rival, model: Model)
 					CarryService.dropAllCarried(victim)
 					Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " tagged you — you dropped your Brainrots!", 4)
 				end
+				print("[Rival] " .. rival.name .. " tagged " .. victim.Name .. " — they dropped everything")
 				rival.phase = "flee"
 				rival.targetUserId = nil
 			else
 				if math.random() < 0.5 then
 					Remotes.bannerEvent():FireClient(victim, "🚨 THIEF ON YOUR TAIL! " .. rival.name .. " is " .. tostring(math.floor(dist)) .. " studs behind you — sprint home!", 2)
 				end
-				-- Re-path toward the carrier every tick.
-				local humanoid = model:FindFirstChildOfClass("Humanoid")
-				if humanoid then
-					humanoid:MoveTo(victimRoot.Position)
+				-- Path-based chase (fix round 8, item 8): a straight
+				-- MoveTo from a base at radius 110 to the crater
+				-- crosses the tiered rim and the rival pushes
+				-- against it until it stalls. The path routes
+				-- around the rim through the entrance gap; it is
+				-- recomputed toward the carrier's live position
+				-- whenever the target moved far or 1.5s passed.
+				local chaseHumanoid = model:FindFirstChildOfClass("Humanoid")
+				if chaseHumanoid and root then
+					local now = time()
+					local targetPos = victimRoot.Position
+					if #rival.chaseWaypoints == 0 or now - rival.chaseRepathAt >= 1.5 or (rival.chasePathTarget and (targetPos - rival.chasePathTarget).Magnitude > 12) then
+						local path = PathfindingService:CreatePath({
+							AgentRadius = 3,
+							AgentHeight = 5,
+							AgentCanJump = true,
+							AgentMaxSlope = 45,
+						})
+						local computed = pcall(function()
+							path:ComputeAsync(root.Position, targetPos)
+						end)
+						if computed and path.Status == Enum.PathStatus.Success then
+							local wps: { { pos: Vector3, jump: boolean } } = {}
+							for _, wp in ipairs(path:GetWaypoints()) do
+								table.insert(wps, { pos = wp.Position, jump = wp.Action == Enum.PathWaypointAction.Jump })
+							end
+							rival.chaseWaypoints = wps
+							rival.chaseWpIndex = 2
+							rival.chasePathTarget = targetPos
+							rival.chaseRepathAt = now
+						else
+							rival.chaseWaypoints = {}
+							rival.chasePathTarget = nil
+						end
+					end
+					local steered = false
+					while rival.chaseWpIndex <= #rival.chaseWaypoints do
+						local wp = rival.chaseWaypoints[rival.chaseWpIndex]
+						if (wp.pos - root.Position).Magnitude <= 3 then
+							rival.chaseWpIndex += 1
+						else
+							if wp.jump then
+								chaseHumanoid.Jump = true
+							end
+							chaseHumanoid:MoveTo(wp.pos)
+							steered = true
+							break
+						end
+					end
+					if not steered then
+						chaseHumanoid:MoveTo(targetPos)
+					end
 				end
 				task.wait(1)
 			end
@@ -886,6 +965,10 @@ local function spawnRival(index: number)
 		targetBase = nil,
 		lastThiefBannerAt = 0,
 		bornAt = time(),
+		chaseWaypoints = {},
+		chaseWpIndex = 1,
+		chasePathTarget = nil,
+		chaseRepathAt = 0,
 	}
 	State.rivals[model] = rival
 	-- Knocked out: a meteor (or anything else) that kills the rival

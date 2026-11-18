@@ -69,6 +69,14 @@ export type Rival = {
 	targetBase: number?,
 	lastThiefBannerAt: number, -- last "is IN your base" repeat banner (fix round 7, item 7)
 	bornAt: number,
+	-- Chase path state (fix round 8, item 8): the chase follows a
+	-- computed path to the carrier's live position (waypoints with a
+	-- jump flag), repathed every chase tick — a straight-line MoveTo
+	-- pushes the rival into the crater rim and it stalls there.
+	chaseWaypoints: { { pos: Vector3, jump: boolean } },
+	chaseWpIndex: number,
+	chasePathTarget: Vector3?,
+	chaseRepathAt: number,
 }
 
 export type Boost = {

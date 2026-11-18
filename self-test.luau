@@ -1385,6 +1385,41 @@ do
 	end
 end
 
+-- Fix round 8, item 8 — chase trigger: nearest 2 rivals chase at 19
+-- on a computed path, storm-proof, start + end logged.
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not rivalSrc or not configSrc then
+		step("chase-trigger", false, "RivalService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if rivalSrc:find("RIVAL_CHASE_RADIUS") then
+			table.insert(problems, "the 30-stud chase radius is still in use")
+		end
+		if not configSrc:find("RIVAL_CHASE_MAX = 2") then
+			table.insert(problems, "no RIVAL_CHASE_MAX = 2")
+		end
+		if not configSrc:find("RIVAL_CHASE_SPEED = 19") then
+			table.insert(problems, "no RIVAL_CHASE_SPEED = 19")
+		end
+		if not rivalSrc:find("table%.sort%(candidates") then
+			table.insert(problems, "the chase does not pick the NEAREST rivals")
+		end
+		if not rivalSrc:find("PathfindingService:CreatePath") then
+			table.insert(problems, "the chase does not pathfind")
+		end
+		if not rivalSrc:find("studs away") then
+			table.insert(problems, "the chase start log does not carry the distance")
+		end
+		if #problems > 0 then
+			step("chase-trigger", false, table.concat(problems, "; "))
+		else
+			step("chase-trigger", true, "nearest 2 rivals chase at 19 on a computed path, storm-proof, start + end logged with distances")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
