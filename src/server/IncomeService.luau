@@ -158,8 +158,18 @@ end
 -- Send every player their current HUD numbers.
 -- Each player's send is protected: one bad profile or a dropped
 -- connection must never take the whole feed down with it.
+-- Fix round 6, item 1: getStatus() used to run unprotected at the
+-- top, so a throw there failed the WHOLE broadcast for everyone and
+-- the HUD froze at its initial $0/+$0/s/Lv 1 values. It now falls
+-- back to a calm status so the feed never dies on the storm's account.
 function IncomeService.broadcastHud()
-	local storm = StarfallService.getStatus()
+	local okStatus, stormOrErr = pcall(function()
+		return StarfallService.getStatus()
+	end)
+	local storm = if okStatus then stormOrErr else { phase = "calm", secondsLeft = 0, danger = 0 }
+	if not okStatus then
+		warn("Starfall broadcastHud: getStatus failed, using calm fallback: " .. tostring(stormOrErr))
+	end
 	-- Leaderboard top 3 by coins, computed once per broadcast (cheap:
 	-- a handful of players) so every client's HUD can show it. Rivals
 	-- compete too: their coins count alongside real players.
@@ -299,9 +309,19 @@ function IncomeService.broadcastHud()
 					-- THE CHASE: a guardian is hunting this player now.
 					-- Deferred require: GuardianService requires
 					-- CarryService, which this module also requires.
+					-- Pcall-guarded (fix round 6, item 1): a throw in
+					-- isChasing used to kill this player's whole HUD
+					-- send, freezing their HUD at $0/+$0/s/Lv 1.
 					guardianActive = (function()
-						local GuardianService = require(script.Parent.GuardianService)
-						return GuardianService.isChasing(player)
+						local okChase, chasing = pcall(function()
+							local GuardianService = require(script.Parent.GuardianService)
+							return GuardianService.isChasing(player)
+						end)
+						if not okChase then
+							warn("Starfall broadcastHud: isChasing failed for " .. player.Name .. ": " .. tostring(chasing))
+							return false
+						end
+						return chasing
 					end)(),
 				})
 			end
@@ -384,7 +404,14 @@ end
 -- silence the feed. A diagnostic line every 30s prints each player's
 -- coins / banked / cps / placed count, so the Output proves the money
 -- is flowing (or shows exactly where it sticks).
+-- Fix round 6, item 1 (money still $0): the 30s diagnostic and the
+-- 5-tick heartbeat ran OUTSIDE any pcall — a single throw in
+-- coinsPerSecond or getStatus there killed the WHOLE loop forever,
+-- freezing money and the HUD at $0/+$0/s with no further warning.
+-- Both are pcall-guarded now, and the loop logs its own start so a
+-- dead tick is visible in Output instead of silent.
 function IncomeService.start()
+	print("[Starfall] income tick started (interval " .. tostring(Config.TICK_INTERVAL) .. "s)")
 	local tickCount = 0
 	task.spawn(function()
 		while true do
@@ -405,6 +432,13 @@ function IncomeService.start()
 						MissionService.addProgress(player, "earn", gained)
 						local LeaderstatsService = require(script.Parent.LeaderstatsService)
 						LeaderstatsService.refresh(player)
+						-- Self-check (fix round 6, item 1): placed
+						-- Brainrots that earn $0 are the money bug —
+						-- say so loudly instead of banking $0 forever.
+						local placedCount = #BaseService.getPlacedForPlayer(player)
+						if placedCount > 0 and gained <= 0 then
+							warn("[Starfall] money stuck for " .. player.Name .. ": " .. tostring(placedCount) .. " placed but cps=0 (check DefId/baseCps on the placed models)")
+						end
 					end
 				end)
 				if not ok then
@@ -432,12 +466,20 @@ function IncomeService.start()
 			-- proves the money is flowing (or shows exactly where
 			-- it sticks). This is the evidence the playtest asked
 			-- for: action | HUD said | actually added.
+			-- Pcall-guarded (fix round 6, item 1): this used to run
+			-- unprotected, so a throw in coinsPerSecond killed the
+			-- whole income loop and froze money + HUD at $0 forever.
 			if tickCount % 30 == 0 then
-				for _, player in ipairs(Players:GetPlayers()) do
-					local profile = DataService.getProfile(player)
-					if profile then
-						print("[Starfall] money " .. player.Name .. ": coins=" .. tostring(profile.coins) .. " banked=" .. tostring(profile.banked) .. " cps=" .. tostring(IncomeService.coinsPerSecond(player)) .. " placed=" .. tostring(#BaseService.getPlacedForPlayer(player)))
+				local okDiag, errDiag = pcall(function()
+					for _, player in ipairs(Players:GetPlayers()) do
+						local profile = DataService.getProfile(player)
+						if profile then
+							print("[Starfall] money " .. player.Name .. ": coins=" .. tostring(profile.coins) .. " banked=" .. tostring(profile.banked) .. " cps=" .. tostring(IncomeService.coinsPerSecond(player)) .. " placed=" .. tostring(#BaseService.getPlacedForPlayer(player)))
+						end
 					end
+				end)
+				if not okDiag then
+					warn("Starfall money diagnostic failed: " .. tostring(errDiag))
 				end
 			end
 			-- Storm heartbeat (every 5 ticks): proves the loop is alive
@@ -445,11 +487,18 @@ function IncomeService.start()
 			-- Also the storm watchdog: if the phase machine ever stalls,
 			-- ensureRunning restarts it, so a dead storm thread can
 			-- never leave the countdown ticking to zero with no storm.
+			-- Pcall-guarded (fix round 6, item 1): same as above — a
+			-- throw in getStatus/ensureRunning used to kill the loop.
 			if tickCount % 5 == 0 then
-				local status = StarfallService.getStatus()
-				local playerCount = #Players:GetPlayers()
-				print("[Starfall] tick " .. tostring(tickCount) .. ": storm phase=" .. tostring(status.phase) .. " secondsLeft=" .. tostring(math.ceil(status.secondsLeft)) .. " players=" .. tostring(playerCount))
-				StarfallService.ensureRunning()
+				local okBeat, errBeat = pcall(function()
+					local status = StarfallService.getStatus()
+					local playerCount = #Players:GetPlayers()
+					print("[Starfall] tick " .. tostring(tickCount) .. ": storm phase=" .. tostring(status.phase) .. " secondsLeft=" .. tostring(math.ceil(status.secondsLeft)) .. " players=" .. tostring(playerCount))
+					StarfallService.ensureRunning()
+				end)
+				if not okBeat then
+					warn("Starfall storm heartbeat failed: " .. tostring(errBeat))
+				end
 			end
 		end
 	end)

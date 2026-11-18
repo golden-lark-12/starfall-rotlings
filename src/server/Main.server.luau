@@ -127,6 +127,18 @@ local function onPlayerAdded(player: Player)
 	end
 	local profile = DataService.getProfile(player)
 	if profile then
+		-- Profile-load observability (fix round 6, item 1): a fresh
+		-- profile on a returning player means the DataStore load
+		-- failed — log it, with how many placed Brainrots were
+		-- restored, so the next F9 proves whether the profile (and
+		-- the money) is loading at all.
+		local loaded = State.datastoreOk[player.UserId] == true
+		local placedCount = #profile.placed
+		local indexCount = 0
+		for _ in pairs(profile.index) do
+			indexCount += 1
+		end
+		print("[Starfall] join " .. player.Name .. ": profile " .. (if loaded then "loaded from DataStore" else "FRESH (DataStore load failed or first join)") .. " coins=" .. tostring(profile.coins) .. " banked=" .. tostring(profile.banked) .. " xp=" .. tostring(profile.xp) .. " level=" .. tostring(profile.level) .. " rebirths=" .. tostring(profile.rebirths) .. " index=" .. tostring(indexCount) .. " placedSaved=" .. tostring(placedCount))
 		CarryService.restorePlaced(player, profile.placed)
 		-- Offline earnings: paid from the restored pads, so the
 		-- away-time coins match what the base actually earns.

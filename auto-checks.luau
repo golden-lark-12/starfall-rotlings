@@ -4647,6 +4647,57 @@ do
 	end
 end
 
+-- -- (ce) Money cannot silently read $0 (fix round 6, item 1) --
+-- Malek's screenshot (v55): Brainrots on his base, but the HUD showed
+-- cash $0, +$0/s, Lv 1, 0 XP, NEXT REBIRTH $0/$10,000 — the HUD's
+-- initial values, as if no UpdateHud ever arrived. The income path is
+-- sound on paper (tick banks coinsPerSecond, broadcastHud sends it),
+-- but three spots could kill it silently: the 30s diagnostic and the
+-- 5-tick heartbeat ran OUTSIDE any pcall, so one throw in
+-- coinsPerSecond/getStatus killed the whole loop forever; getStatus()
+-- at the top of broadcastHud ran unprotected, so one throw failed the
+-- whole broadcast for everyone; and the guardianActive IIFE could kill
+-- a single player's whole HUD send. All three are pcall-guarded now,
+-- the tick logs its own start, a placed-but-earning-$0 player warns
+-- loudly, and on join the server logs whether the profile loaded from
+-- DataStore or fell back to fresh (with index + placed counts) — so
+-- the next F9 proves whether the profile or the tick is the culprit.
+do
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	if not incomeSrc or not mainSrc then
+		check("ce", false, "could not verify the money hardening — IncomeService.luau or Main.server.luau missing")
+	else
+		local problems: { string } = {}
+		if not incomeSrc:find("income tick started") then
+			table.insert(problems, "the income tick does not log its own start — a dead loop is silent")
+		end
+		if not incomeSrc:find("money stuck for") then
+			table.insert(problems, "no placed-but-earning-$0 self-check in the tick — the money bug stays silent")
+		end
+		if not incomeSrc:find("money diagnostic failed") then
+			table.insert(problems, "the 30s diagnostic is not pcall-guarded — a throw there kills the whole income loop")
+		end
+		if not incomeSrc:find("storm heartbeat failed") then
+			table.insert(problems, "the 5-tick heartbeat is not pcall-guarded — a throw in getStatus/ensureRunning kills the whole income loop")
+		end
+		if not incomeSrc:find("getStatus failed, using calm fallback") then
+			table.insert(problems, "broadcastHud's getStatus has no calm fallback — one throw fails the whole broadcast for everyone")
+		end
+		if not incomeSrc:find("isChasing failed for") then
+			table.insert(problems, "the guardianActive check is not pcall-guarded — a throw kills that player's whole HUD send")
+		end
+		if not mainSrc:find("loaded from DataStore") then
+			table.insert(problems, "onPlayerAdded does not log the profile load source — a fresh-profile fallback is invisible in F9")
+		end
+		if #problems > 0 then
+			check("ce", false, "the money hardening is incomplete — " .. table.concat(problems, "; ") .. ". Parts: IncomeService.luau, Main.server.luau")
+		else
+			check("ce", true, "money cannot silently read $0: tick + heartbeat pcall-guarded with a start log, placed-but-$0 warns, broadcastHud falls back to calm on a getStatus failure, isChasing is guarded, joins log the profile load source + index + placed counts")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
