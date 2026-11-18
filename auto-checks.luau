@@ -1372,7 +1372,12 @@ do
 	end
 end
 
--- -- (x) loop: tutorial arrows for a new player's first 60 seconds -----------
+-- -- (x) loop: tutorial arrows for a new player's first 80 seconds -----------
+-- (fix round 7, item 5) Four steps over 80 seconds, not three over 60:
+-- the old tutorial stopped the moment the player grabbed their first
+-- Rotling, so BONK was never explained. Step 4 explains Bonk in
+-- plain words, and the tutorial now stops early only when the player
+-- actually bonks a thief.
 do
 	local tutSrc = read("src/client/TutorialController.client.luau")
 	if not tutSrc then
@@ -1382,8 +1387,8 @@ do
 		local seconds = num(tutSrc:match("TUTORIAL_SECONDS%s*=%s*(%d+)"))
 		if not seconds then
 			table.insert(problems, "TUTORIAL_SECONDS not found")
-		elseif seconds ~= 60 then
-			table.insert(problems, "tutorial lasts " .. tostring(seconds) .. "s (must be 60)")
+		elseif seconds ~= 80 then
+			table.insert(problems, "tutorial lasts " .. tostring(seconds) .. "s (must be 80)")
 		end
 		if not tutSrc:find('part%.Name = "TutorialArrow"') then
 			table.insert(problems, 'no "TutorialArrow" part')
@@ -1391,22 +1396,25 @@ do
 		if not tutSrc:find("data%.firstTime and not active") then
 			table.insert(problems, "tutorial is not gated on firstTime")
 		end
-		if not tutSrc:find("data%.carried > 0") then
-			table.insert(problems, "tutorial never stops when the player grabs")
+		if tutSrc:find("if data%.carried > 0 then") then
+			table.insert(problems, "tutorial still stops on the first grab — the Bonk step is never shown")
+		end
+		if not tutSrc:find("slapEffectEvent%(%)%.OnClientEvent") then
+			table.insert(problems, "tutorial never stops when the player bonks a thief")
 		end
 		local steps = 0
-		for _, label in ipairs({ '"1. Walk', '"2. Carry', '"3. Sell' }) do
+		for _, label in ipairs({ '"1. Walk', '"2. Carry', '"3. Sell', '"4. See a thief' }) do
 			if tutSrc:find(label, 1, true) then
 				steps += 1
 			end
 		end
-		if steps < 3 then
-			table.insert(problems, "fewer than 3 tutorial steps")
+		if steps < 4 then
+			table.insert(problems, "fewer than 4 tutorial steps")
 		end
 		if #problems > 0 then
 			check("x", false, "tutorial arrows are missing or wrong — " .. table.concat(problems, "; ") .. ". Parts: TutorialController.client.luau")
 		else
-			check("x", true, "tutorial arrows work — gold arrow, 3 steps (crater -> base -> SELL), 60s, firstTime only, stops on first grab")
+			check("x", true, "tutorial arrows work — gold arrow, 4 steps (crater -> base -> SELL -> BONK), 80s, firstTime only, stops early on a successful bonk")
 		end
 	end
 end
@@ -2254,8 +2262,8 @@ do
 		if not slapClient:find("KeyCode.F") then
 			table.insert(problems, "no F keybind for the slap bat")
 		end
-		if not slapClient:find("SLAP") then
-			table.insert(problems, "no on-screen SLAP button")
+		if not slapClient:find("BONK") then
+			table.insert(problems, "no on-screen BONK button")
 		end
 		if not slapClient:find("SlapBat") then
 			table.insert(problems, "no visible bat part while swinging")
@@ -5104,6 +5112,55 @@ do
 			check("cm", false, "the sound fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: GuardianService.luau, StarfallService.luau, BankService.luau, RivalService.luau, RaiderService.luau, CarryService.luau, RotlingFactory.luau, MeteorEggService.luau")
 		else
 			check("cm", true, "the game makes sound: roar 0.4, storm alarm 0.8 (3x per warning), rumble 0.35/0.6, thunder 0.4, grab pop + place ding at 0.8, collect cash ding, steal alarms on rival + raider warnings, hatch celebration — all the one built-in ping, no new assets")
+		end
+	end
+end
+
+-- -- (cn) a new player learns what BONK means (fix round 7, item 5)
+-- Malek: "idk like hwta does bonk even mean - imagine a person that
+-- knows nothing - he wont know anything". The old tutorial had three
+-- steps and stopped the moment the player grabbed their first
+-- Rotling, so BONK was never explained — and the button just said
+-- "SLAP" with no explanation. Now the tutorial runs four steps over
+-- 80 seconds, step 4 explains Bonk in plain words ("See a thief in
+-- your base? Press F (or BONK) — hit them and they drop your
+-- Brainrot!") with the arrow on the player's base (where thieves
+-- sneak in), and it only stops early when the player actually bonks
+-- a thief — never on the first grab. The button says BONK and
+-- carries a plain label under it: "Hit a thief — they drop your
+-- Brainrot".
+do
+	local tutorialSrc = read("src/client/TutorialController.client.luau")
+	local slapClient = read("src/client/SlapController.client.luau")
+	if not tutorialSrc or not slapClient then
+		check("cn", false, "could not verify the onboarding fix — TutorialController.client.luau or SlapController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not tutorialSrc:find("TUTORIAL_SECONDS = 80") then
+			table.insert(problems, "the tutorial is still 60 seconds — the Bonk step never gets its 20 seconds")
+		end
+		if not tutorialSrc:find("math%.min%(4,") then
+			table.insert(problems, "the tutorial still has only 3 steps — no Bonk step")
+		end
+		if not tutorialSrc:find("Press F %(or BONK%)") then
+			table.insert(problems, "no step explains Bonk in plain words (F or BONK — hit them and they drop your Brainrot)")
+		end
+		if tutorialSrc:find("if data%.carried > 0 then") then
+			table.insert(problems, "the tutorial still stops on the first grab — the Bonk step is never shown")
+		end
+		if not tutorialSrc:find("slapEffectEvent%(%)%.OnClientEvent") then
+			table.insert(problems, "the tutorial does not stop early on a successful bonk — it has no early-stop that teaches the loop")
+		end
+		if not slapClient:find('"👊 BONK %(F%)"') then
+			table.insert(problems, "the button does not say BONK (F)")
+		end
+		if not slapClient:find("Hit a thief — they drop your Brainrot") then
+			table.insert(problems, "the button has no plain label explaining what Bonk does")
+		end
+		if #problems > 0 then
+			check("cn", false, "the onboarding fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: TutorialController.client.luau, SlapController.client.luau")
+		else
+			check("cn", true, "a new player learns what BONK means: 4-step 80s tutorial with a plain-words Bonk step (arrow on the player's base), stops early only on a successful bonk, button says BONK (F) with a plain label under it")
 		end
 	end
 end

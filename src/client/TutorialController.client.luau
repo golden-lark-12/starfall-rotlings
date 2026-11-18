@@ -1,12 +1,17 @@
 --!strict
 -- Starfall Rotlings: tutorial controller.
--- A new player's first 60 seconds: a bouncing gold arrow hovers over
--- the next thing to do, in three steps — crater, then your own base,
--- then the SELL pad — with a one-line instruction under it. The arrow
--- moves itself; the player only has to follow it. It stops the moment
--- the player grabs their first Rotling (the loop is learned) or after
--- 60 seconds, whichever comes first. Returning players never see it:
--- it only starts when the HUD feed says firstTime.
+-- A new player's first 80 seconds: a bouncing gold arrow hovers over
+-- the next thing to do, in four steps — crater, then your own base,
+-- then the SELL pad, then BONK — with a one-line instruction under
+-- it. The arrow moves itself; the player only has to follow it.
+-- (fix round 7, item 5) The old tutorial had three steps and stopped
+-- the moment the player grabbed their first Rotling — so a new player
+-- never learned what BONK means ("idk like hwta does bonk even mean
+-- - imagine a person that knows nothing"). Now the tutorial runs all
+-- four steps (80s) and only stops early when the player actually
+-- bonks a thief (the loop is learned) or after 80 seconds. Returning
+-- players never see it: it only starts when the HUD feed says
+-- firstTime.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -18,8 +23,8 @@ local GuiKit = require(script.Parent:WaitForChild("GuiKit"))
 local player = Players.LocalPlayer
 local gui = GuiKit.getGui()
 
--- First 60 seconds only, in three 20-second steps.
-local TUTORIAL_SECONDS = 60
+-- First 80 seconds only, in four 20-second steps.
+local TUTORIAL_SECONDS = 80
 local STEP_SECONDS = 20
 
 local tutorialLabel = GuiKit.makeLabel(gui, "Tutorial", "", UDim2.new(0, 620, 0, 30), UDim2.new(0.5, 0, 1, -80), 22, GuiKit.COLORS.Green)
@@ -57,8 +62,30 @@ local function stepTarget(step: number): (Vector3, string)
 			baseTarget = best or Vector3.new(110, 0, 0)
 		end
 		return baseTarget :: Vector3, "2. Carry it home — press E on a glowing pad to place it!"
-	else
+	elseif step == 3 then
 		return Vector3.new(62, 0, 0), "3. Sell extras at the gold SELL pad — or press B to shop and upgrade!"
+	else
+		-- Step 4: BONK, in plain words. Thieves sneak INTO your base,
+		-- so the arrow points at your base — that is where the bonk
+		-- matters. (fix round 7, item 5)
+		if not baseTarget then
+			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+			local best: Vector3? = nil
+			local bestDist = math.huge
+			if root then
+				for _, descendant in ipairs(workspace:GetDescendants()) do
+					if descendant:IsA("BasePart") and descendant.Name == "BasePlatform" then
+						local d = (descendant.Position - root.Position).Magnitude
+						if d < bestDist then
+							bestDist = d
+							best = descendant.Position
+						end
+					end
+				end
+			end
+			baseTarget = best or Vector3.new(110, 0, 0)
+		end
+		return baseTarget :: Vector3, "4. See a thief in your base? Press F (or BONK) — hit them and they drop your Brainrot!"
 	end
 end
 
@@ -128,7 +155,7 @@ local function startTutorial()
 			stopTutorial()
 			return
 		end
-		local step = math.min(3, math.floor(elapsed / STEP_SECONDS) + 1)
+		local step = math.min(4, math.floor(elapsed / STEP_SECONDS) + 1)
 		local target, text = stepTarget(step)
 		tutorialLabel.Text = text
 		-- Bob above the target: 8 studs up, ±1 stud of bounce.
@@ -138,13 +165,24 @@ local function startTutorial()
 end
 
 Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
-	if data.carried > 0 then
-		stopTutorial()
-		return
-	end
+	-- (fix round 7, item 5) The old rule stopped the tutorial the
+	-- moment the player grabbed their first Rotling — so the Bonk
+	-- step (step 4) was never shown. Now the tutorial runs all four
+	-- steps and only stops early when the player actually bonks a
+	-- thief (the hit effect fires to every client, including the
+	-- slapper) or after 80 seconds.
 	if data.firstTime and not active then
 		startTutorial()
 	elseif not data.firstTime then
+		stopTutorial()
+	end
+end)
+
+-- A successful bonk ends the tutorial early: the player has learned
+-- the whole loop (grab, place, bonk). The hit flag is what the
+-- slap effect carries since fix round 7, item 3.
+Remotes.slapEffectEvent().OnClientEvent:Connect(function(_position: Vector3, hit: boolean?)
+	if hit then
 		stopTutorial()
 	end
 end)

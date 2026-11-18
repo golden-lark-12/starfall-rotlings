@@ -1,10 +1,11 @@
 --!strict
 -- Starfall Rotlings: slap bat controller (client).
--- No guns — a bat. Press F (or the SLAP button on touch) to swing:
+-- No guns — a bat. Press F (or the BONK button on touch) to swing:
 -- the server decides what you hit (rival, raider or another player),
 -- knocks it back and makes it drop what it carries. The bat is a
--- visible part in your hand while you swing; a hit shows gold stars
--- and plays a bonk. Cooldown 2s, enforced on the server.
+-- visible part in your hand while you swing; a hit shows a shockwave
+-- ring + a "BONK!" burst and plays a low thud, a whiff shows only a
+-- faint swoosh. Cooldown 2s, enforced on the server.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -20,8 +21,14 @@ local bat: Part? = nil
 local batWeld: Weld? = nil
 local swinging = false
 
--- SLAP button, bottom-right above the Run button, touch + mouse.
-local slapButton = GuiKit.makeButton(gui, "SlapButton", "👋 SLAP (F)", UDim2.new(0, 130, 0, 56), UDim2.new(1, -146, 1, -252), GuiKit.COLORS.Red)
+-- BONK button, bottom-right above the Run button, touch + mouse.
+-- (fix round 7, item 5) The button used to say "SLAP" with no
+-- explanation — a new player did not know what "bonk" means or what
+-- the button does. It now says BONK and carries a plain label under
+-- it: hit a thief, they drop your Brainrot.
+local slapButton = GuiKit.makeButton(gui, "SlapButton", "👊 BONK (F)", UDim2.new(0, 130, 0, 56), UDim2.new(1, -146, 1, -252), GuiKit.COLORS.Red)
+local bonkLabel = GuiKit.makeLabel(gui, "BonkLabel", "Hit a thief — they drop your Brainrot", UDim2.new(0, 130, 0, 28), UDim2.new(1, -146, 1, -194), 13, GuiKit.COLORS.White)
+bonkLabel.TextWrapped = true
 
 local function attachBat(character: Model)
 	local arm = character:FindFirstChild("Right Arm") or character:FindFirstChild("RightHand")

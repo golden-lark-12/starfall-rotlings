@@ -420,7 +420,10 @@ do
 	end
 end
 
--- 11. Tutorial arrows: first 60 seconds, three steps, stops on grab.
+-- 11. Tutorial arrows: first 80 seconds, four steps, stops on a bonk.
+-- (fix round 7, item 5) The old tutorial stopped on the first grab,
+-- so BONK was never explained — now it runs all four steps and only
+-- stops early when the player actually bonks a thief.
 do
 	local tutSrc = read("src/client/TutorialController.client.luau")
 	if not tutSrc then
@@ -430,8 +433,8 @@ do
 		local seconds = num(tutSrc:match("TUTORIAL_SECONDS%s*=%s*(%d+)"))
 		if not seconds then
 			table.insert(problems, "TUTORIAL_SECONDS not found")
-		elseif seconds ~= 60 then
-			table.insert(problems, "tutorial lasts " .. tostring(seconds) .. "s (must be 60)")
+		elseif seconds ~= 80 then
+			table.insert(problems, "tutorial lasts " .. tostring(seconds) .. "s (must be 80)")
 		end
 		if not tutSrc:find('part%.Name = "TutorialArrow"') then
 			table.insert(problems, 'no "TutorialArrow" part')
@@ -439,22 +442,25 @@ do
 		if not tutSrc:find("data%.firstTime and not active") then
 			table.insert(problems, "tutorial is not gated on firstTime")
 		end
-		if not tutSrc:find("data%.carried > 0") then
-			table.insert(problems, "tutorial never stops when the player grabs")
+		if tutSrc:find("if data%.carried > 0 then") then
+			table.insert(problems, "tutorial still stops on the first grab — the Bonk step is never shown")
+		end
+		if not tutSrc:find("slapEffectEvent%(%)%.OnClientEvent") then
+			table.insert(problems, "tutorial never stops when the player bonks a thief")
 		end
 		local steps = 0
-		for _, label in ipairs({ '"1. Walk', '"2. Carry', '"3. Sell' }) do
+		for _, label in ipairs({ '"1. Walk', '"2. Carry', '"3. Sell', '"4. See a thief' }) do
 			if tutSrc:find(label, 1, true) then
 				steps += 1
 			end
 		end
-		if steps < 3 then
-			table.insert(problems, "fewer than 3 tutorial steps (" .. tostring(steps) .. " step labels found)")
+		if steps < 4 then
+			table.insert(problems, "fewer than 4 tutorial steps (" .. tostring(steps) .. " step labels found)")
 		end
 		if #problems > 0 then
 			step("tutorial", false, table.concat(problems, "; "))
 		else
-			step("tutorial", true, "gold arrow, 3 steps (crater -> base -> SELL), 60s, firstTime only, stops on first grab")
+			step("tutorial", true, "gold arrow, 4 steps (crater -> base -> SELL -> BONK), 80s, firstTime only, stops early on a successful bonk")
 		end
 	end
 end
