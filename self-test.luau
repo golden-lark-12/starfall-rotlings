@@ -904,8 +904,11 @@ do
 		if not hudSrc:find("DangerBar") then
 			table.insert(problems, "no Meteor Danger meter in the HUD")
 		end
-		if not hudSrc:find("BeltPanel") then
-			table.insert(problems, 'no "On the belt" list in the HUD')
+		-- THE BELT panel REMOVED (simplify/polish REMOVE): the left-side
+		-- list was cut off and nobody needs it. This step proves it is
+		-- GONE, not present.
+		if hudSrc:find("BeltPanel") then
+			table.insert(problems, 'the "On the belt" list is still in the HUD (must be removed per the simplify/polish pass)')
 		end
 		-- Title billboard REMOVED (fix round 2, fix 8): the giant sky
 		-- text filled the screen and its pitch line overlapped the

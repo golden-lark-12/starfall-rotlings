@@ -116,26 +116,13 @@ local missionLabel = GuiKit.makeLabel(missionBar, "MissionLabel", "🎯 Grab 3 B
 missionLabel.TextXAlignment = Enum.TextXAlignment.Left
 missionLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
--- XP bar (level + progress) right under the mission bar: grabbing and
--- placing earn XP, 100 XP per level. Below it, the NEXT REBIRTH
--- progress bar (coins / cost) — cheap win 2 — so the rebirth goal is
--- always visible, not hidden inside the panel.
-local xpBar = Instance.new("Frame")
-xpBar.Name = "XpBar"
-xpBar.Size = UDim2.new(1, 0, 0, 18)
-xpBar.Position = UDim2.new(0, 0, 0, 160)
-xpBar.BackgroundColor3 = Color3.fromRGB(20, 15, 40)
-xpBar.BackgroundTransparency = 0.3
-xpBar.BorderSizePixel = 0
-xpBar.Parent = gui
-local xpFill = Instance.new("Frame")
-xpFill.Name = "XpFill"
-xpFill.Size = UDim2.new(0, 0, 1, 0)
-xpFill.BackgroundColor3 = Color3.fromRGB(120, 160, 255)
-xpFill.BackgroundTransparency = 0.4
-xpFill.BorderSizePixel = 0
-xpFill.Parent = xpBar
-local xpLabel = GuiKit.makeLabel(xpBar, "XpLabel", "Lv 1 • 0/100 XP", UDim2.new(1, -16, 1, 0), UDim2.new(0, 8, 0, 0), 14, GuiKit.COLORS.White)
+-- XP display REMOVED (simplify/polish REMOVE): rebirth is the only
+-- progress system the player sees — no level/XP numbers anywhere.
+-- XP still exists internally (missions use it); the server still
+-- sends it and the client still stores it, it is just never shown.
+-- The NEXT REBIRTH progress bar (coins / cost) — cheap win 2 — sits
+-- right under the mission bar instead, so the rebirth goal is always
+-- visible, not hidden inside the panel.
 local rebirthBar = Instance.new("Frame")
 rebirthBar.Name = "RebirthBar"
 rebirthBar.Size = UDim2.new(1, 0, 0, 18)
@@ -244,17 +231,9 @@ for i = 1, 3 do
 	leaderboardRows[i] = row
 end
 
--- "On the belt" mini-list (cheap win 8): the top 5 free Rotlings on
--- the conveyor by income, left side under the Shop/Upgrade/Daily row.
-local beltPanel = GuiKit.makePanel(gui, "BeltPanel", UDim2.new(0, 210, 0, 150), UDim2.new(0, 12, 0, 112))
-local beltTitle = GuiKit.makeLabel(beltPanel, "BeltTitle", "🎰 ON THE BELT", UDim2.new(1, 0, 0, 24), UDim2.new(0, 0, 0, 4), 18, GuiKit.COLORS.Gold)
-local beltRows = {}
-for i = 1, 5 do
-	local row = GuiKit.makeLabel(beltPanel, "BeltRow" .. tostring(i), "", UDim2.new(1, -16, 0, 22), UDim2.new(0, 8, 0, 28 + (i - 1) * 24), 15, GuiKit.COLORS.White)
-	row.TextXAlignment = Enum.TextXAlignment.Left
-	beltRows[i] = row
-end
-
+-- THE BELT panel REMOVED (simplify/polish REMOVE): the left-side
+-- "ON THE BELT" list was cut off and nobody needs it — the belt
+-- itself is visible in the world, and the crater shows what is free.
 -- Active boost icons (item 11): bottom-left, one chip per active boost
 -- with its emoji and seconds left. Rebuilt on every HUD update.
 local boostRow = Instance.new("Frame")
@@ -460,11 +439,6 @@ local function onHudData(data: Remotes.HudData)
 		cpsLabel.Text = Formatting.formatCps(hud.cps) .. "  •  🏦 At base: " .. Formatting.formatMoney(hud.banked) .. "  •  Rebirth " .. tostring(hud.rebirths) .. " · x" .. multText .. " cash  •  📖 " .. tostring(hud.indexCount) .. "/" .. tostring(hud.indexTotal)
 	end
 
-	-- XP bar: level + progress toward the next level.
-	local xpIntoLevel = hud.xp - (hud.level - 1) * 100
-	xpFill.Size = UDim2.new(math.clamp(hud.xpProgress, 0, 1), 0, 1, 0)
-	xpLabel.Text = "Lv " .. tostring(hud.level) .. " • " .. tostring(xpIntoLevel) .. "/100 XP"
-
 	-- NEXT REBIRTH bar (cheap win 2): coins / cost.
 	rebirthFill.Size = UDim2.new(math.clamp(hud.rebirthProgress, 0, 1), 0, 1, 0)
 	-- READY state (fix round 4, item 3): at progress >= 1 the player
@@ -487,16 +461,6 @@ local function onHudData(data: Remotes.HudData)
 			leaderboardRows[i].Text = tostring(i) .. ". " .. entry.name .. " — " .. Formatting.formatMoney(entry.coins)
 		else
 			leaderboardRows[i].Text = ""
-		end
-	end
-
-	-- "On the belt" list: top 5 free Rotlings by income.
-	for i = 1, 5 do
-		local entry = hud.belt[i]
-		if entry then
-			beltRows[i].Text = entry.name .. " — " .. Formatting.formatMoney(entry.cps) .. "/s"
-		else
-			beltRows[i].Text = ""
 		end
 	end
 

@@ -2393,10 +2393,8 @@ do
 			{ "neon STAR SHOP sign", '"★ STAR SHOP ★"' },
 			{ "upgrade machines", '"UpgradeMachine"' },
 			{ "rebirth altar", '"AltarStone"' },
-			{ "index wall", '"IndexWallBoard"' },
 			{ "crashed spaceship", '"SpaceshipSaucer"' },
 			{ "moon", 'part%("Moon"' },
-			{ "mountains", 'part%("Mountain"' },
 			{ "signposts", '"Signpost"' },
 			{ "fences", '"FencePost"' },
 			{ "stone paths", '"StonePath"' },
@@ -2413,7 +2411,7 @@ do
 		if #problems > 0 then
 			check("aq", false, "the map is empty — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau")
 		else
-			check("aq", true, "map filled: Star Shop + keeper, upgrade machines, rebirth altar, index wall, spaceship, moon + mountains, signposts, fences, paths, critters")
+			check("aq", true, "map filled: Star Shop + keeper, upgrade machines, rebirth altar, spaceship, moon, signposts, fences, paths, critters (index wall + mountains removed in the simplify/polish pass — see check (cy))")
 		end
 	end
 end
@@ -2546,8 +2544,8 @@ do
 		if not hudSrc:find("Stardust") then
 			table.insert(problems, "no Stardust label in the HUD")
 		end
-		if not hudSrc:find("XpBar") then
-			table.insert(problems, "no XP bar in the HUD")
+		if hudSrc:find("XpBar") then
+			table.insert(problems, "the XP bar is still in the HUD (removed in the simplify/polish pass — rebirth is the only visible progress system)")
 		end
 		if not worldSrc:find("LogoStage") then
 			table.insert(problems, "no logo stage in the world (WorldBuilder.buildLogoStage)")
@@ -2556,9 +2554,9 @@ do
 			table.insert(problems, "no SPACE ROCK BRAINROTS title in the world")
 		end
 		if #problems > 0 then
-			check("at", false, "the last adds are missing — " .. table.concat(problems, "; ") .. ". Parts: catalog/mutations (Shared), Stardust + XP (HUDController), logo stage (WorldBuilder.luau)")
+			check("at", false, "the last adds are missing — " .. table.concat(problems, "; ") .. ". Parts: catalog/mutations (Shared), Stardust in the HUD + no XP bar (HUDController), logo stage (WorldBuilder.luau)")
 		else
-			check("at", true, tostring(defCount) .. " Rotlings, Diamond + Scorched mutations, Stardust + XP in the HUD, logo stage in the world")
+			check("at", true, tostring(defCount) .. " Rotlings, Diamond + Scorched mutations, Stardust in the HUD with no XP bar, logo stage in the world")
 		end
 	end
 end
@@ -2610,8 +2608,8 @@ do
 		if not hudSrc:find("DangerBar") then
 			table.insert(problems, "no Meteor Danger meter in the HUD")
 		end
-		if not hudSrc:find("BeltPanel") then
-			table.insert(problems, 'no "On the belt" list in the HUD')
+		if hudSrc:find("BeltPanel") then
+			table.insert(problems, 'the "On the belt" list is still in the HUD (removed in the simplify/polish pass)')
 		end
 		if catalogSrc:find('name = "Disco Pickle"') then
 			table.insert(problems, '"Disco Pickle" is still a Rotling name in the catalog (must be renamed)')
@@ -2622,7 +2620,7 @@ do
 		if #problems > 0 then
 			check("au", false, "cheap wins are missing — " .. table.concat(problems, "; ") .. ". Parts: tags (RotlingFactory.luau), HUD bars (HUDController), shop rows (ShopController), billboard/dome (WorldBuilder), events (GlobalEventService.luau)")
 		else
-			check("au", true, "cheap wins: multiplier in tags + index, NEXT REBIRTH bar, upgrade levels, no title billboard (removed per playtest), shield dome + SAFE label, pursuit banner, 2 global events, danger meter + belt list, Disco Donut")
+			check("au", true, "cheap wins: multiplier in tags + index, NEXT REBIRTH bar, upgrade levels, no title billboard (removed per playtest), shield dome + SAFE label, pursuit banner, 2 global events, danger meter, no belt list (removed in the simplify/polish pass), Disco Donut")
 		end
 	end
 end
@@ -3929,11 +3927,13 @@ do
 		if not worldSrc:find("Vector3%.new%(16, 0, 94%)") then
 			table.insert(problems, "Contract Board is not on the east side of the path (16, 0, 94)")
 		end
-		if not worldSrc:find("Vector3%.new%(48, 0, 58%)") then
-			table.insert(problems, "Index Wall is not moved away from spawn (48, 0, 58)")
+		-- REMOVE (simplify/polish): the world Index Wall is gone — the
+		-- Index lives in the HUD panel now. These prove it is GONE.
+		if worldSrc:find("IndexWallBoard") then
+			table.insert(problems, "the world Index Wall is still built (removed in the simplify/polish pass)")
 		end
-		if not worldSrc:find("BRAINROT INDEX") then
-			table.insert(problems, "Index Wall title is not 'BRAINROT INDEX'")
+		if worldSrc:find("BRAINROT INDEX") then
+			table.insert(problems, "the world Index Wall title is still in WorldBuilder (wall removed in the simplify/polish pass)")
 		end
 		if worldSrc:find("ROTLING INDEX") then
 			table.insert(problems, "'ROTLING INDEX' still in the world")
@@ -3970,7 +3970,7 @@ do
 		if #problems > 0 then
 			check("bq", false, "the layout + rename is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, HUDController.client.luau, IndexController.client.luau, CarryService.luau, SellService.luau")
 		else
-			check("bq", true, "layout fixed: sky billboard + slogan gone, Index Wall (48,58) and Contract Board (16,94) ~48 studs apart, storm panel 420px with a short warn line; every visible 'Rotling' is 'Brainrot'")
+			check("bq", true, "layout fixed: sky billboard + slogan gone, world Index Wall removed (HUD index kept), Contract Board (16,94) east of the path, storm panel 420px with a short warn line; every visible 'Rotling' is 'Brainrot'")
 		end
 	end
 end
@@ -4424,17 +4424,20 @@ do
 		if not worldSrc:find("Vector3%.new%(16, 0, 94%)") then
 			table.insert(problems, "Contract Board is not at (16, 0, 94)")
 		end
-		if not worldSrc:find("Vector3%.new%(48, 0, 58%)") then
-			table.insert(problems, "Index Wall is not at (48, 0, 58)")
+		-- REMOVE (simplify/polish): the world Index Wall is gone.
+		if worldSrc:find("IndexWallBoard") then
+			table.insert(problems, "the world Index Wall is still built (removed in the simplify/polish pass)")
 		end
 		if not worldSrc:find("UDim2%.fromOffset%(220, 110%)") then
 			table.insert(problems, "Contract Board gui is not 220x110")
 		end
-		if not worldSrc:find("spawnSignGui%.MaxDistance = 60") then
-			table.insert(problems, "Spawn sign view distance is not 60")
+		-- REMOVE (simplify/polish): the SPAWN sign and the Index Wall
+		-- title are gone with the things they belonged to.
+		if worldSrc:find("SpawnSign") then
+			table.insert(problems, "the SPAWN sign is still built (removed in the simplify/polish pass)")
 		end
-		if not worldSrc:find("titleGui%.MaxDistance = 60") then
-			table.insert(problems, "Index Wall title view distance is not 60")
+		if worldSrc:find("IndexWallTitle") then
+			table.insert(problems, "the Index Wall title is still built (wall removed in the simplify/polish pass)")
 		end
 		if not worldSrc:find("gui%.MaxDistance = 40") then
 			table.insert(problems, "Contract Board view distance is not 40")
@@ -4470,7 +4473,7 @@ do
 		if #problems > 0 then
 			check("bz", false, "the HUD/text fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: HUDController.client.luau, WorldBuilder.luau")
 		else
-			check("bz", true, "HUD fully on screen (24px margins, short storm text), signs ~48 studs apart with 220x110 Contract Board and 40 view distance; no player-visible 'Rotling' anywhere")
+			check("bz", true, "HUD fully on screen (24px margins, short storm text), Contract Board 220x110 at (16,94) with 40 view distance, world Index Wall + SPAWN sign removed; no player-visible 'Rotling' anywhere")
 		end
 	end
 end
@@ -5711,6 +5714,65 @@ do
 			check("cx", false, "the one-thief rule is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau")
 		else
 			check("cx", true, "one thief at a time per victim: tryStartSteal returns false while another rival is already stealing from the same victim, so thieves stagger (one comes, you bonk/lock, the next comes later) instead of a 4-thief swarm")
+		end
+	end
+end
+
+-- -- (cy) simplify/polish REMOVE: the clutter is really gone ------------------
+-- Decision log (the "black panels / big dark wall behind SPAWN" call):
+-- "black panels" = the world Index Wall (a 26x9 dark board + 20 dark
+-- panels, RGB 30,25,50 — dead black rectangles until found). Removed
+-- outright: the Index already lives in the HUD (IndexController), so
+-- no feature is lost. "Big dark wall behind SPAWN" = the five 80-tall
+-- dark Slate mountain wedges at the map edge (RGB 90,70,130) — they
+-- read as a black wall on the horizon, including behind spawn.
+-- Removed: the moon stays, and the sky keeps its planet, stars and
+-- meteor streak, so no shot has an empty horizon. Gems (Stardust) are
+-- KEPT — they buy boosts + mutation rerolls, so they are a real
+-- currency, not clutter. Bounty Board was already removed in v71;
+-- the buddy pet was already parked in rev 73.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local wallCtl = read("src/client/IndexWallController.client.luau")
+	if not worldSrc or not hudSrc then
+		check("cy", false, "could not verify the REMOVE section — WorldBuilder.luau or HUDController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if worldSrc:find("FloatingIsland") or worldSrc:find("IslandCrystal") or worldSrc:find("buildFloatingIslands") then
+			table.insert(problems, "floating islands are still built (dark balls + neon crystals hanging in the air)")
+		end
+		if worldSrc:find("registerFloat") or worldSrc:find("startFloatBob") then
+			table.insert(problems, "the float-bob loop is still there (island-only, dead without the islands)")
+		end
+		if worldSrc:find("IndexWallBoard") or worldSrc:find("IndexWall_") or worldSrc:find("buildIndexWall") then
+			table.insert(problems, "the world Index Wall is still built (the black panels)")
+		end
+		if wallCtl then
+			table.insert(problems, "IndexWallController.client.luau still exists (dead without the wall)")
+		end
+		if worldSrc:find('part%("Mountain"') then
+			table.insert(problems, "the mountain wedges are still built (the big dark wall behind SPAWN)")
+		end
+		if worldSrc:find("SpawnSign") then
+			table.insert(problems, "the SPAWN sign is still built (players spawn at their own base)")
+		end
+		if hudSrc:find("BeltPanel") then
+			table.insert(problems, 'the "On the belt" list is still in the HUD')
+		end
+		if hudSrc:find("XpBar") then
+			table.insert(problems, "the XP bar is still in the HUD (rebirth is the only visible progress system)")
+		end
+		if not hudSrc:find("Stardust") then
+			table.insert(problems, "Stardust is gone from the HUD — it must stay (it buys boosts + mutation rerolls)")
+		end
+		if not worldSrc:find('part%("Moon"') then
+			table.insert(problems, "the moon is gone — the sky needs it now the mountains are removed")
+		end
+		if #problems > 0 then
+			check("cy", false, "the REMOVE section is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, HUDController.client.luau, IndexWallController.client.luau (deleted)")
+		else
+			check("cy", true, "REMOVE done: floating islands + float loop, world Index Wall + controller, mountains, SPAWN sign, belt list and XP bar all gone; Stardust kept (real currency), moon kept, HUD index kept")
 		end
 	end
 end

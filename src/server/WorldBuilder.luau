@@ -71,12 +71,6 @@ local shieldDomes: { [number]: Part } = {}
 local shieldLabels: { [number]: TextLabel } = {}
 local shopCenterCf: CFrame? = nil
 
--- Parts that float (floating islands, crater rocks): base pose + seed,
--- bobbed by one shared loop so nothing needs its own heartbeat.
-type FloatEntry = { part: Part, base: CFrame, seed: number, amp: number }
-local floatParts: { FloatEntry } = {}
-local floatBobStarted = false
-
 function WorldBuilder.padCFrame(baseId: number, padIndex: number): CFrame?
 	local base = padCFrames[baseId]
 	if base then
@@ -275,34 +269,6 @@ local function part(name: string, shape: Enum.PartType, size: Vector3, color: Co
 	p.CFrame = cframe
 	p.Parent = workspace
 	return p
-end
-
--- Register a part for the shared float-bob loop. Parts of one island
--- share a seed so they bob together instead of drifting apart.
-local function registerFloat(p: Part, amp: number, seed: number?)
-	table.insert(floatParts, { part = p, base = p.CFrame, seed = seed or math.random() * 10, amp = amp })
-end
-
-local function startFloatBob()
-	if floatBobStarted then
-		return
-	end
-	floatBobStarted = true
-	task.spawn(function()
-		while true do
-			task.wait(0.15)
-			local now = time()
-			for i = #floatParts, 1, -1 do
-				local entry = floatParts[i]
-				if entry.part.Parent == nil then
-					table.remove(floatParts, i)
-				else
-					local bob = math.sin(now * 0.7 + entry.seed) * entry.amp
-					entry.part.CFrame = entry.base * CFrame.new(0, bob, 0)
-				end
-			end
-		end
-	end)
 end
 
 local function buildBase(baseId: number)
@@ -635,35 +601,18 @@ end
 
 local function buildSpawnArea()
 	-- Spawn platform: a warm stone disc the players start on, with a
-	-- gold rim, a floating "SPAWN" sign, and two warm lanterns flanking
-	-- the path so the first steps are lit and the crater is visible
-	-- ahead. The platform is the lobby: new players arrive here, see
-	-- the crater ahead, and walk in.
+	-- gold rim and two warm lanterns flanking the path so the first
+	-- steps are lit and the crater is visible ahead. The platform is
+	-- the lobby: new players arrive here, see the crater ahead, and
+	-- walk in. (The floating SPAWN sign was removed in the
+	-- simplify/polish pass — players spawn at their own base.)
 	part("SpawnPlatform", Enum.PartType.Cylinder, Vector3.new(2, 28, 28), Color3.fromRGB(115, 100, 150), CFrame.new(0, 1, 96) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate)
 	local spawnRing = part("SpawnRing", Enum.PartType.Cylinder, Vector3.new(0.4, 28.6, 28.6), Color3.fromRGB(255, 225, 90), CFrame.new(0, 2.15, 96) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Neon)
 	spawnRing.CanCollide = false
 	spawnRing.CastShadow = false
-	local spawnSign = part("SpawnSign", Enum.PartType.Block, Vector3.new(12, 4, 0.5), Color3.fromRGB(20, 15, 40), CFrame.new(0, 8, 106) * CFrame.Angles(0, math.rad(180), 0))
-	spawnSign.CanCollide = false
-	spawnSign.CastShadow = false
-	local spawnSignGui = Instance.new("BillboardGui")
-	spawnSignGui.Name = "SpawnSign"
-	spawnSignGui.Size = UDim2.fromOffset(240, 80)
-	spawnSignGui.StudsOffsetWorldSpace = Vector3.new(0, 0, 0)
-	spawnSignGui.AlwaysOnTop = true
-	spawnSignGui.LightInfluence = 0
-	spawnSignGui.MaxDistance = 60
-	spawnSignGui.Parent = spawnSign
-	local spawnLabel = Instance.new("TextLabel")
-	spawnLabel.Name = "SpawnLabel"
-	spawnLabel.Size = UDim2.new(1, 0, 1, 0)
-	spawnLabel.BackgroundTransparency = 1
-	spawnLabel.Text = "⭐ SPAWN ⭐"
-	spawnLabel.Font = Enum.Font.FredokaOne
-	spawnLabel.TextScaled = true
-	spawnLabel.TextColor3 = Color3.fromRGB(255, 225, 90)
-	spawnLabel.TextStrokeTransparency = 0.3
-	spawnLabel.Parent = spawnSignGui
+	-- SPAWN sign REMOVED (simplify/polish REMOVE): players spawn at
+	-- their own base, not at this platform — the floating dark sign
+	-- served no purpose. The platform, gold rim, path and lanterns stay.
 	-- Path: a warm stone walkway from the spawn platform to the crater
 	-- rim, so the first walk is guided, not a blind purple field.
 	-- Fix 5: the path used to stop at z=57, 18 studs short of the
@@ -968,29 +917,10 @@ local function buildCrystals()
 	end
 end
 
-local function buildFloatingIslands()
-	-- Floating islands: small rock islands with a crystal on top,
-	-- bobbing gently above the field. They share one float-bob loop
-	-- (startFloatBob) so nothing needs its own heartbeat.
-	local rng = Random.new(31337)
-	for i = 1, 6 do
-		local angle = rng:NextNumber(0, math.pi * 2)
-		local radius = rng:NextNumber(120, 180)
-		local x = math.cos(angle) * radius
-		local z = math.sin(angle) * radius
-		local y = rng:NextNumber(25, 45)
-		local size = rng:NextNumber(10, 18)
-		local island = part("FloatingIsland", Enum.PartType.Ball, Vector3.new(size, size * 0.5, size), Color3.fromRGB(85, 70, 120), CFrame.new(x, y, z), Enum.Material.Slate)
-		island.CanCollide = false
-		island.CastShadow = false
-		registerFloat(island, 1.5)
-		local crystal = part("IslandCrystal", Enum.PartType.Wedge, Vector3.new(2, 6, 2), Color3.fromRGB(120, 200, 255), CFrame.new(x, y + size * 0.25 + 3, z), Enum.Material.Neon)
-		crystal.CanCollide = false
-		crystal.Transparency = 0.15
-		registerFloat(crystal, 1.5, island.CFrame.Position.X + island.CFrame.Position.Z)
-	end
-	startFloatBob()
-end
+-- Floating islands REMOVED (simplify/polish REMOVE): the six dark
+-- purple balls + neon crystals hung in the air with no reason and read
+-- as floating blocks / purple orbs. The sky keeps its planet, moon,
+-- stars and meteor streak, so the horizon is not empty.
 
 local function buildSkyDecor()
 	-- A big planet hanging in the sky, a ring of distant stars, and a
@@ -1218,77 +1148,6 @@ local function buildRebirthAltar()
 end
 
 -- Index wall: a gallery wall near spawn (28, 0, 80) with one panel
--- per Rotling. Panels start dark; the client (IndexWallController)
--- lights a panel in its rarity colour once the Rotling is found.
-local function buildIndexWall()
-	-- Right side of the path, further from spawn (fix round 2, fix 8):
-	-- the wall used to sit at (28, 0, 80), close to spawn and ~14
-	-- studs from the Bounty Board, so its AlwaysOnTop title overlapped
-	-- both the Bounty Board and the SPAWN sign. Now it is at (35, 0,
-	-- 70) — further from spawn, further right, ~55 studs from the
-	-- Bounty Board on the opposite side of the path.
-	local wallCf = CFrame.lookAt(Vector3.new(48, 0, 58), Vector3.new(0, 0, 96))
-	local board = part("IndexWallBoard", Enum.PartType.Block, Vector3.new(26, 9, 0.6), Color3.fromRGB(40, 30, 70), wallCf * CFrame.new(0, 4.5, 0))
-	board.CanCollide = false
-	local titleGui = Instance.new("BillboardGui")
-	titleGui.Name = "IndexWallTitle"
-	titleGui.Size = UDim2.fromOffset(400, 50)
-	titleGui.StudsOffsetWorldSpace = Vector3.new(0, 5.4, 0)
-	titleGui.AlwaysOnTop = true
-	titleGui.LightInfluence = 0
-	titleGui.MaxDistance = 60
-	titleGui.Parent = board
-	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(1, 0, 1, 0)
-	titleLabel.BackgroundTransparency = 1
-	titleLabel.Text = "📖 BRAINROT INDEX"
-	titleLabel.Font = Enum.Font.FredokaOne
-	titleLabel.TextScaled = true
-	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	titleLabel.TextStrokeTransparency = 0.3
-	titleLabel.Parent = titleGui
-	for i, def in ipairs(RotlingCatalog.DEFS) do
-		local col = (i - 1) % 10
-		local row = math.floor((i - 1) / 10)
-		local panelCf = wallCf * CFrame.new(-11.5 + col * 2.55, 6.2 - row * 3.6, -0.5)
-		local panel = part("IndexWall_" .. def.id, Enum.PartType.Block, Vector3.new(2.3, 3.2, 0.4), Color3.fromRGB(30, 25, 50), panelCf)
-		panel.CanCollide = false
-		local gui = Instance.new("SurfaceGui")
-		gui.Name = "IndexPanelGui"
-		gui.Face = Enum.NormalId.Front
-		gui.AlwaysOnTop = true
-		gui.Parent = panel
-		local frame = Instance.new("Frame")
-		frame.Name = "PanelFrame"
-		frame.Size = UDim2.new(1, 0, 1, 0)
-		frame.BackgroundColor3 = Color3.fromRGB(30, 25, 50)
-		frame.BorderSizePixel = 0
-		frame.Parent = gui
-		local nameLabel = Instance.new("TextLabel")
-		nameLabel.Name = "PanelName"
-		nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
-		nameLabel.Position = UDim2.new(0, 0, 0.5, 0)
-		nameLabel.BackgroundTransparency = 1
-		nameLabel.Text = def.name
-		nameLabel.Font = Enum.Font.FredokaOne
-		nameLabel.TextScaled = true
-		nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-		nameLabel.TextStrokeTransparency = 0.3
-		nameLabel.Parent = frame
-		local rarityLabel = Instance.new("TextLabel")
-		rarityLabel.Name = "PanelRarity"
-		rarityLabel.Size = UDim2.new(1, 0, 0.3, 0)
-		rarityLabel.Position = UDim2.new(0, 0, 0.2, 0)
-		rarityLabel.BackgroundTransparency = 1
-		rarityLabel.Text = def.rarity
-		rarityLabel.Font = Enum.Font.FredokaOne
-		rarityLabel.TextScaled = true
-		rarityLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-		rarityLabel.TextStrokeTransparency = 0.3
-		rarityLabel.Parent = frame
-	end
-end
-
 -- Crashed spaceship: half-buried at the map edge (170, 0, -120), a
 -- tilted saucer with a dome, smoke, and a blinking red light — a
 -- landmark you can see from anywhere, so no horizon is ever empty.
@@ -1326,25 +1185,18 @@ local function buildSpaceship()
 	end)
 end
 
--- Background: a second sky ball (the moon) and five distant mountain
--- wedges at the map edge, so no shot ever has an empty horizon.
+-- Background: a second sky ball (the moon) high in the sky, so no
+-- shot ever has an empty horizon. (The mountain wedges were removed
+-- in the simplify/polish pass — they read as a big dark wall.)
 local function buildBackground()
 	local moon = part("Moon", Enum.PartType.Ball, Vector3.new(40, 40, 40), Color3.fromRGB(220, 220, 235), CFrame.new(-200, 150, 180), Enum.Material.SmoothPlastic)
 	moon.CanCollide = false
 	moon.CastShadow = false
 	moon.Anchored = true
-	local rng = Random.new(777)
-	for i = 1, 5 do
-		local angle = rng:NextNumber(0, math.pi * 2)
-		local x = math.cos(angle) * 225
-		local z = math.sin(angle) * 225
-		if math.abs(x) < 30 and z > 180 then
-			continue -- keep the spawn sightline clear
-		end
-		local mountain = part("Mountain", Enum.PartType.Wedge, Vector3.new(60, 80, 30), Color3.fromRGB(90, 70, 130), CFrame.new(x, 40, z) * CFrame.Angles(0, -angle + math.rad(90), 0), Enum.Material.Slate)
-		mountain.CanCollide = false
-		mountain.CastShadow = false
-	end
+	-- Mountains REMOVED (simplify/polish REMOVE): five 80-tall dark
+	-- Slate wedges read as a big dark wall on the horizon, including
+	-- behind SPAWN. The moon stays, and the sky keeps its planet,
+	-- stars and meteor streak, so no shot has an empty horizon.
 end
 
 -- Signposts, fences and paths: the world reads as a place, not a
@@ -1590,13 +1442,11 @@ function WorldBuilder.build()
 	buildHills()
 	buildGroundDetail()
 	buildCrystals()
-	buildFloatingIslands()
 	buildSkyDecor()
 	buildWind()
 	buildStarShop()
 	buildUpgradeMachines()
 	buildRebirthAltar()
-	buildIndexWall()
 	buildSpaceship()
 	buildBackground()
 	buildSignpostsAndFences()
