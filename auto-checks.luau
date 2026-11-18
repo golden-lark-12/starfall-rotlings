@@ -4901,15 +4901,16 @@ do
 	end
 end
 
--- -- (cj) eggs hatch slower the rarer they are (fix round 6, item 6)
+-- -- (cj) eggs hatch slower the rarer they are (fix round 6, item 6;
+-- roll moved to spawn time by fix round 7, item 6)
 -- Malek: "the egg to hatch has more time? Maybe on its rarity?"
--- The hatch was a flat 60s. Now the hatch is rolled at place time
+-- The hatch was a flat 60s. Now the hatch is rolled at spawn time
 -- and the wait scales with the rarity of what's inside: Common 60s,
 -- Rare 90s, Epic 120s, Legendary 180s, Mythic 240s, Cosmic 300s.
--- The result stays hidden until the hatch reveal (the banner shows
--- only the wait). rollHatchDef must be declared BEFORE placeEgg — a
--- local declared after its caller is invisible to it, the same class
--- of bug as fix round 3's calmDuration-after-getStatus.
+-- The result is shown on the egg (see check (co)) — the round-6
+-- hiding is overridden. rollHatchDef must be declared BEFORE its
+-- callers — a local declared after its caller is invisible to it,
+-- the same class of bug as fix round 3's calmDuration-after-getStatus.
 do
 	local eggSrc = read("src/server/MeteorEggService.luau")
 	local configSrc = read("src/shared/Config.luau")
@@ -4924,16 +4925,16 @@ do
 		if not eggSrc:find("hatchTimeForRarity") then
 			table.insert(problems, "no hatchTimeForRarity — the hatch wait cannot scale with rarity")
 		end
-		if not eggSrc:find("egg%.hatchDef = def%.id") or not eggSrc:find("egg%.hatchMutation = mutation") then
-			table.insert(problems, "placeEgg does not store the rolled hatch — the wait cannot scale with what's inside")
+		if not eggSrc:find("hatchDef = hatchDef%.id") or not eggSrc:find("hatchMutation = hatchMutation") then
+			table.insert(problems, "spawnEggsForStorm does not store the rolled hatch — the wait cannot scale with what's inside")
 		end
 		if not eggSrc:find("hatches in \" .. tostring%(hatchTime%)") then
 			table.insert(problems, "the incubator banner does not show the actual (rarity-scaled) wait")
 		end
 		local rollPos = eggSrc:find("local function rollHatchDef")
-		local placePos = eggSrc:find("function MeteorEggService%.placeEgg")
-		if not rollPos or not placePos or rollPos > placePos then
-			table.insert(problems, "rollHatchDef is not declared before placeEgg — placeEgg would call a nil global")
+		local spawnPos = eggSrc:find("function MeteorEggService%.spawnEggsForStorm")
+		if not rollPos or not spawnPos or rollPos > spawnPos then
+			table.insert(problems, "rollHatchDef is not declared before spawnEggsForStorm — the spawn would call a nil global")
 		end
 		if not stateSrc:find("hatchDef: string%?") or not stateSrc:find("hatchMutation: string%?") then
 			table.insert(problems, "the Egg record has no hatchDef/hatchMutation fields — the stored hatch has nowhere to live")
@@ -4941,7 +4942,7 @@ do
 		if #problems > 0 then
 			check("cj", false, "the egg hatch scaling is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau, Config.luau, State.luau")
 		else
-			check("cj", true, "eggs hatch slower the rarer they are: hatch rolled at place time and stored on the egg, wait scales Common 60s -> Cosmic 300s, banner shows the actual wait, roll declared before its caller")
+			check("cj", true, "eggs hatch slower the rarer they are: hatch rolled at spawn time and stored on the egg, wait scales Common 60s -> Cosmic 300s, banner shows the actual wait, roll declared before its callers")
 		end
 	end
 end
@@ -5161,6 +5162,54 @@ do
 			check("cn", false, "the onboarding fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: TutorialController.client.luau, SlapController.client.luau")
 		else
 			check("cn", true, "a new player learns what BONK means: 4-step 80s tutorial with a plain-words Bonk step (arrow on the player's base), stops early only on a successful bonk, button says BONK (F) with a plain label under it")
+		end
+	end
+end
+
+-- -- (co) the egg shows its rarity and a live countdown (fix round 7, item 6)
+-- Malek: "also the timer on the egg? whhere do i see its rarity?"
+-- Fix round 6 hid the rarity until the reveal and the banner showed
+-- only the wait — Malek overrides that. Now the hatch is rolled at
+-- spawn, the ground egg's label names its rarity ("🥚 LEGENDARY
+-- EGG") in the rarity colour with a rarity-tinted glow, the
+-- incubator banner names the rarity + wait, and the incubating egg's
+-- label counts down live every second ("🥚 LEGENDARY EGG — 173s").
+-- The player can look at an egg and know (a) how rare it is and (b)
+-- how long until it hatches.
+do
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	if not eggSrc then
+		check("co", false, "could not verify the egg rarity display — MeteorEggService.luau missing")
+	else
+		local problems: { string } = {}
+		if not eggSrc:find("local function rollHatchDef") then
+			table.insert(problems, "no rollHatchDef — the hatch cannot be rolled at spawn")
+		end
+		if not eggSrc:find("local hatchDef, hatchMutation = rollHatchDef%(%)") then
+			table.insert(problems, "the hatch is not rolled at spawn — the ground egg still has no rarity")
+		end
+		if not eggSrc:find('"🥚 " %.%. string%.upper%(rarity%) %.%. " EGG"') then
+			table.insert(problems, "the egg label does not name its rarity")
+		end
+		if not eggSrc:find("rarityColor = RarityConfig%.rarityByName%(rarity%)%.color") then
+			table.insert(problems, "the egg label/glow is not tinted to the rarity colour")
+		end
+		if not eggSrc:find("placedRarity") or not eggSrc:find('"🥚 " %.%. placedRarity %.%. " egg on the incubator') then
+			table.insert(problems, "the incubator banner does not name the rarity + wait")
+		end
+		if not eggSrc:find("local function setEggLabel") then
+			table.insert(problems, "no setEggLabel helper — the incubating label cannot be updated")
+		end
+		if not eggSrc:find('setEggLabel%(model, "🥚 " %.%. string%.upper%(rarity%) %.%. " EGG — " %.%. tostring%(remaining%) %.%. "s"%)') then
+			table.insert(problems, "the hatch loop does not update the incubating egg's label with a live countdown")
+		end
+		if eggSrc:find('"🥚 METEOR EGG"') then
+			table.insert(problems, "the generic 'METEOR EGG' label is still there — the rarity is hidden again")
+		end
+		if #problems > 0 then
+			check("co", false, "the egg rarity/timer fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau")
+		else
+			check("co", true, "the egg shows its rarity and a live countdown: rolled at spawn, ground label names the rarity in its colour with a rarity-tinted glow, incubator banner names rarity + wait, incubating label counts down live every second")
 		end
 	end
 end

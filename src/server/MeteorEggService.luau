@@ -52,7 +52,53 @@ local function eggPosition(): Vector3
 	return Vector3.new(0, 0, 50)
 end
 
-local function buildEgg(position: Vector3): Model
+-- Roll the hatch: a random Rotling, with a real chance of Epic or
+-- Legendary, and 15% Meteor-scorched. Common/Rare rolls get one bump
+-- chance toward Epic/Legendary so an egg never feels wasted.
+-- Declared BEFORE buildEgg and spawnEggsForStorm on purpose: the
+-- hatch is rolled at SPAWN time (fix round 7, item 6) so the ground
+-- egg can show its rarity, and a local declared after its caller is
+-- invisible to that caller — the same class of bug as fix round 3's
+-- calmDuration-after-getStatus.
+local function rollHatchDef(): (RotlingCatalog.RotlingDef, string?)
+	local rarityName = RarityConfig.rollRarity()
+	if RarityConfig.rarityTier(rarityName) < 3 and math.random() < 0.4 then
+		rarityName = if math.random() < 0.6 then "Epic" else "Legendary"
+	end
+	local defs = RotlingCatalog.defsOfRarity(rarityName)
+	local def = defs[math.random(1, #defs)]
+	local mutation: string? = nil
+	if math.random() < Config.EGG_SCORCHED_CHANCE then
+		mutation = "Scorched"
+	else
+		mutation = MutationConfig.rollMutation()
+	end
+	return def, mutation
+end
+
+-- (fix round 6, item 6) The hatch wait scales with the rarity of
+-- what's inside: Common 60s, Rare 90s, Epic 120s, Legendary 180s,
+-- Mythic 240s, Cosmic 300s. Rarer eggs take longer, so the wait itself
+-- tells the player something special is coming — and gives everyone
+-- (bots included) more time to race for the next egg.
+local function hatchTimeForRarity(rarity: string): number
+	local tier = RarityConfig.rarityTier(rarity)
+	return Config.EGG_HATCH_TIME[tier] or Config.EGG_HATCH_TIME[1]
+end
+
+-- Set an egg's label text (the EggLabel billboard on its shell).
+-- Used for the rarity at spawn and the live countdown while it
+-- incubates. (fix round 7, item 6)
+local function setEggLabel(model: Model, text: string)
+	local shell = model.PrimaryPart
+	local billboard = shell and shell:FindFirstChild("EggLabel")
+	local label = billboard and billboard:FindFirstChildOfClass("TextLabel")
+	if label then
+		label.Text = text
+	end
+end
+
+local function buildEgg(position: Vector3, rarity: string): Model
 	local model = Instance.new("Model")
 	model.Name = "Meteor Egg"
 	local shell = Instance.new("Part")
@@ -66,14 +112,21 @@ local function buildEgg(position: Vector3): Model
 	shell.CFrame = CFrame.new(position + Vector3.new(0, 100, 0))
 	shell.Parent = model
 	model.PrimaryPart = shell
+	-- (fix round 7, item 6) The egg SHOWS its rarity: the label
+	-- names it ("🥚 LEGENDARY EGG") in the rarity colour, and the
+	-- glow light is tinted to the rarity too — a Legendary egg glows
+	-- gold, a Cosmic egg glows cyan. The player can look at an egg
+	-- and know how rare it is. The rarity is rolled at spawn (see
+	-- spawnEggsForStorm), not hidden until the hatch reveal.
+	local rarityColor = RarityConfig.rarityByName(rarity).color
 	local light = Instance.new("PointLight")
-	light.Color = Color3.fromRGB(255, 160, 60)
+	light.Color = rarityColor
 	light.Brightness = 3
 	light.Range = 20
 	light.Parent = shell
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "EggLabel"
-	billboard.Size = UDim2.fromOffset(160, 40)
+	billboard.Size = UDim2.fromOffset(200, 40)
 	billboard.StudsOffsetWorldSpace = Vector3.new(0, 3.4, 0)
 	billboard.AlwaysOnTop = true
 	billboard.LightInfluence = 0
@@ -82,10 +135,10 @@ local function buildEgg(position: Vector3): Model
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
-	label.Text = "🥚 METEOR EGG"
+	label.Text = "🥚 " .. string.upper(rarity) .. " EGG"
 	label.Font = Enum.Font.FredokaOne
 	label.TextScaled = true
-	label.TextColor3 = Color3.fromRGB(255, 220, 120)
+	label.TextColor3 = rarityColor
 	label.TextStrokeTransparency = 0.3
 	label.Parent = billboard
 	local prompt = Instance.new("ProximityPrompt")
@@ -107,13 +160,22 @@ end
 function MeteorEggService.spawnEggsForStorm()
 	for _ = 1, Config.EGGS_PER_STORM do
 		local target = eggPosition()
-		local model = buildEgg(target)
+		-- (fix round 7, item 6) Roll the hatch NOW, at spawn — the
+		-- ground egg knows its rarity from the moment it lands, so
+		-- its label can show it ("🥚 LEGENDARY EGG") and the
+		-- incubator countdown can count from the same roll. The old
+		-- code rolled at place time and hid the rarity until the
+		-- reveal — Malek asked where the rarity is, so it is shown.
+		local hatchDef, hatchMutation = rollHatchDef()
+		local model = buildEgg(target, hatchDef.rarity)
 		State.eggs[model] = {
 			model = model,
 			phase = "falling",
 			carrier = nil,
 			baseId = nil,
 			hatchAt = nil,
+			hatchDef = hatchDef.id,
+			hatchMutation = hatchMutation,
 			bornAt = time(),
 		}
 		local shell = model.PrimaryPart
@@ -223,39 +285,6 @@ function MeteorEggService.dropEgg(player: Player)
 	BoostService.applyWalkSpeed(player)
 end
 
--- Roll the hatch: a random Rotling, with a real chance of Epic or
--- Legendary, and 15% Meteor-scorched. Common/Rare rolls get one bump
--- chance toward Epic/Legendary so an egg never feels wasted.
--- Declared BEFORE placeEgg on purpose: placeEgg rolls the hatch at
--- place time (fix round 6, item 6), and a local declared after its
--- caller is invisible to that caller — the same class of bug as fix
--- round 3's calmDuration-after-getStatus.
-local function rollHatchDef(): (RotlingCatalog.RotlingDef, string?)
-	local rarityName = RarityConfig.rollRarity()
-	if RarityConfig.rarityTier(rarityName) < 3 and math.random() < 0.4 then
-		rarityName = if math.random() < 0.6 then "Epic" else "Legendary"
-	end
-	local defs = RotlingCatalog.defsOfRarity(rarityName)
-	local def = defs[math.random(1, #defs)]
-	local mutation: string? = nil
-	if math.random() < Config.EGG_SCORCHED_CHANCE then
-		mutation = "Scorched"
-	else
-		mutation = MutationConfig.rollMutation()
-	end
-	return def, mutation
-end
-
--- (fix round 6, item 6) The hatch wait scales with the rarity of
--- what's inside: Common 60s, Rare 90s, Epic 120s, Legendary 180s,
--- Mythic 240s, Cosmic 300s. Rarer eggs take longer, so the wait itself
--- tells the player something special is coming — and gives everyone
--- (bots included) more time to race for the next egg.
-local function hatchTimeForRarity(rarity: string): number
-	local tier = RarityConfig.rarityTier(rarity)
-	return Config.EGG_HATCH_TIME[tier] or Config.EGG_HATCH_TIME[1]
-end
-
 -- Place a carried egg on your base's incubator: it hatches after a
 -- rarity-scaled wait (see hatchTimeForRarity).
 function MeteorEggService.placeEgg(player: Player)
@@ -292,25 +321,33 @@ function MeteorEggService.placeEgg(player: Player)
 		shell.Anchored = true
 		model:PivotTo(incubatorCf * CFrame.new(0, 2.2, 0))
 	end
-	-- (fix round 6, item 6) Roll the hatch NOW: the hatch time scales
-	-- with the rarity of what's inside (rarer = longer), so the wait
-	-- itself tells the player something special is coming. The result
-	-- stays hidden until the hatch reveal — the banner shows only the
-	-- wait, never the rarity.
+	-- (fix round 7, item 6) The hatch was rolled at SPAWN, so the
+	-- egg already knows its rarity — use the stored result. A fresh
+	-- roll is only the fallback for an egg placed before this change.
+	-- The banner and the egg's label now SHOW the rarity and the
+	-- wait (Malek: "whhere do i see its rarity?") — the round-6
+	-- hiding is overridden.
 	local hatchTime = Config.EGG_HATCH_TIME[1]
+	local placedRarity = "Common"
 	if egg then
 		egg.phase = "incubating"
 		egg.carrier = nil
 		egg.baseId = baseId
-		local def, mutation = rollHatchDef()
-		egg.hatchDef = def.id
-		egg.hatchMutation = mutation
-		hatchTime = hatchTimeForRarity(def.rarity)
+		local def: RotlingCatalog.RotlingDef? = if egg.hatchDef then RotlingCatalog.getDef(egg.hatchDef) else nil
+		if not def then
+			local freshDef, freshMutation = rollHatchDef()
+			def = freshDef
+			egg.hatchDef = freshDef.id
+			egg.hatchMutation = freshMutation
+		end
+		placedRarity = (def :: RotlingCatalog.RotlingDef).rarity
+		hatchTime = hatchTimeForRarity(placedRarity)
 		egg.hatchAt = time() + hatchTime
-		print("[MeteorEgg] " .. player.Name .. " placed an egg (" .. def.rarity .. ") — hatches in " .. tostring(hatchTime) .. "s")
+		setEggLabel(model, "🥚 " .. string.upper(placedRarity) .. " EGG — " .. tostring(hatchTime) .. "s")
+		print("[MeteorEgg] " .. player.Name .. " placed an egg (" .. placedRarity .. ") — hatches in " .. tostring(hatchTime) .. "s")
 	end
 	BoostService.applyWalkSpeed(player)
-	Remotes.bannerEvent():FireClient(player, "🥚 Egg on the incubator — hatches in " .. tostring(hatchTime) .. "s!", 4)
+	Remotes.bannerEvent():FireClient(player, "🥚 " .. placedRarity .. " egg on the incubator — hatches in " .. tostring(hatchTime) .. "s!", 4)
 end
 
 local function hatchEgg(model: Model)
@@ -380,13 +417,24 @@ local function hatchEgg(model: Model)
 end
 
 -- Hatch loop: eggs on incubators pop when their rarity-scaled hatch time is up.
+-- (fix round 7, item 6) The incubating egg's label shows a LIVE
+-- countdown, updated every second: "🥚 LEGENDARY EGG — 173s". The
+-- player can look at the egg and know both its rarity and how long
+-- until it hatches.
 function MeteorEggService.start()
 	task.spawn(function()
 		while true do
 			task.wait(1)
 			for model, egg in pairs(State.eggs) do
-				if egg.phase == "incubating" and egg.hatchAt and time() >= egg.hatchAt then
-					hatchEgg(model)
+				if egg.phase == "incubating" and egg.hatchAt then
+					if time() >= egg.hatchAt then
+						hatchEgg(model)
+					else
+						local def = if egg.hatchDef then RotlingCatalog.getDef(egg.hatchDef) else nil
+						local rarity = if def then def.rarity else "Common"
+						local remaining = math.max(0, math.ceil(egg.hatchAt - time()))
+						setEggLabel(model, "🥚 " .. string.upper(rarity) .. " EGG — " .. tostring(remaining) .. "s")
+					end
 				end
 			end
 		end
