@@ -31,7 +31,13 @@ ShopService.SHOP = {
 	Speed = {
 		label = "Speed Boots",
 		desc = "+2 WalkSpeed per tier",
-		tiers = { 200, 800, 4000 },
+		-- Fix round 8, item 10: 5 tiers (was 3). Speed Boots already
+		-- existed — Malek asked to buy speed, so either he did not
+		-- know or 3 tiers was not enough. Max +10 (walk 26, sprint
+		-- 36) outruns even a Cosmic guardian (24) and a chasing
+		-- rival (19), but it costs 47,000 coins in total — an
+		-- endgame escape, not a free one.
+		tiers = { 200, 800, 4000, 12000, 30000 },
 	},
 	Carry = {
 		label = "Extra Arms",

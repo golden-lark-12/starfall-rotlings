@@ -6539,6 +6539,35 @@ do
 	end
 end
 
+-- (dl) SPEED PURCHASE (fix round 8, item 10): Speed Boots already
+-- existed (3 tiers) — Malek asked to buy speed, so the ladder is
+-- extended to 5 tiers (200/800/4000/12000/30000). Max +10 WalkSpeed
+-- (walk 26, sprint 36) outruns even a Cosmic guardian (24) and a
+-- chasing rival (19).
+do
+	local shopSrc = read("src/server/ShopService.luau")
+	local shopUiSrc = read("src/client/ShopController.client.luau")
+	if not shopSrc or not shopUiSrc then
+		check("dl", false, "could not verify the speed purchase — ShopService.luau or ShopController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not shopSrc:find("tiers = { 200, 800, 4000, 12000, 30000 }") then
+			table.insert(problems, "the server Speed ladder is not 5 tiers (200/800/4000/12000/30000)")
+		end
+		if not shopUiSrc:find("tiers = { 200, 800, 4000, 12000, 30000 }") then
+			table.insert(problems, "the shop UI Speed ladder is not 5 tiers")
+		end
+		if not shopUiSrc:find('/5 — now %+" %.%. tostring%(2 %* tier%) %.%. " WalkSpeed"') then
+			table.insert(problems, "the Speed row does not show /5 tiers")
+		end
+		if #problems > 0 then
+			check("dl", false, "the speed purchase is incomplete — " .. table.concat(problems, "; ") .. ". Parts: ShopService.luau, ShopController.client.luau")
+		else
+			check("dl", true, "Speed Boots: 5 tiers (200/800/4000/12000/30000), max +10 WalkSpeed — walk 26 outruns a Cosmic guardian (24) and a chasing rival (19)")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

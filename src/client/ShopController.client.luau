@@ -20,7 +20,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local GuiKit = require(script.Parent:WaitForChild("GuiKit"))
 
 local SHOP_VIEW = {
-	Speed = { label = "Speed Boots", desc = "+2 WalkSpeed per tier", tiers = { 200, 800, 4000 } },
+	Speed = { label = "Speed Boots", desc = "+2 WalkSpeed per tier", tiers = { 200, 800, 4000, 12000, 30000 } },
 	Carry = { label = "Extra Arms", desc = "+1 Brainrot carried per tier", tiers = { 400, 2500 } },
 	Income = { label = "Golden Trough", desc = "+25% base income per tier", tiers = { 600, 2000, 8000 } },
 	Pads = { label = "Extra Pad", desc = "+1 base pad per tier (max 8)", tiers = { 1500, 6000 } },
@@ -57,7 +57,7 @@ local refreshShop: () -> ()
 -- level AND what it does right now, not just the next price.
 local function effectText(key: string, tier: number): string
 	if key == "Speed" then
-		return "Lv " .. tostring(tier) .. "/3 — now +" .. tostring(2 * tier) .. " WalkSpeed"
+		return "Lv " .. tostring(tier) .. "/5 — now +" .. tostring(2 * tier) .. " WalkSpeed"
 	elseif key == "Carry" then
 		return "Lv " .. tostring(tier) .. "/2 — carry " .. tostring(1 + tier) .. " at once"
 	elseif key == "Income" then

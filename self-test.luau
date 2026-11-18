@@ -1449,6 +1449,29 @@ do
 	end
 end
 
+-- Fix round 8, item 10 — speed purchase: Speed Boots extended to 5
+-- tiers (200/800/4000/12000/30000), max +10 WalkSpeed.
+do
+	local shopSrc = read("src/server/ShopService.luau")
+	local shopUiSrc = read("src/client/ShopController.client.luau")
+	if not shopSrc or not shopUiSrc then
+		step("speed-tiers", false, "ShopService.luau or ShopController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not shopSrc:find("tiers = { 200, 800, 4000, 12000, 30000 }") then
+			table.insert(problems, "the server Speed ladder is not 5 tiers")
+		end
+		if not shopUiSrc:find("tiers = { 200, 800, 4000, 12000, 30000 }") then
+			table.insert(problems, "the shop UI Speed ladder is not 5 tiers")
+		end
+		if #problems > 0 then
+			step("speed-tiers", false, table.concat(problems, "; "))
+		else
+			step("speed-tiers", true, "Speed Boots: 5 tiers (200/800/4000/12000/30000), max +10 WalkSpeed")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
