@@ -98,7 +98,7 @@ local function setEggLabel(model: Model, text: string)
 	end
 end
 
-local function buildEgg(position: Vector3, rarity: string): Model
+local function buildEgg(position: Vector3): Model
 	local model = Instance.new("Model")
 	model.Name = "Meteor Egg"
 	local shell = Instance.new("Part")
@@ -112,15 +112,16 @@ local function buildEgg(position: Vector3, rarity: string): Model
 	shell.CFrame = CFrame.new(position + Vector3.new(0, 100, 0))
 	shell.Parent = model
 	model.PrimaryPart = shell
-	-- (fix round 7, item 6) The egg SHOWS its rarity: the label
-	-- names it ("🥚 LEGENDARY EGG") in the rarity colour, and the
-	-- glow light is tinted to the rarity too — a Legendary egg glows
-	-- gold, a Cosmic egg glows cyan. The player can look at an egg
-	-- and know how rare it is. The rarity is rolled at spawn (see
-	-- spawnEggsForStorm), not hidden until the hatch reveal.
-	local rarityColor = RarityConfig.rarityByName(rarity).color
+	-- (v74, mystery eggs) The ground egg is a MYSTERY: every egg
+	-- looks identical — "🥚 METEOR EGG", same gold label, same
+	-- orange glow — no rarity name, no rarity-tinted colour. A
+	-- ground egg labelled "COMMON EGG" gets ignored; players only
+	-- chase the rare ones. The rarity is still rolled at spawn
+	-- (see spawnEggsForStorm) and revealed in the incubator
+	-- (placeEgg names it + the live countdown) — any egg could be
+	-- Legendary, so normal eggs stay worth grabbing.
 	local light = Instance.new("PointLight")
-	light.Color = rarityColor
+	light.Color = Color3.fromRGB(255, 140, 50)
 	light.Brightness = 3
 	light.Range = 20
 	light.Parent = shell
@@ -135,10 +136,10 @@ local function buildEgg(position: Vector3, rarity: string): Model
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
-	label.Text = "🥚 " .. string.upper(rarity) .. " EGG"
+	label.Text = "🥚 METEOR EGG"
 	label.Font = Enum.Font.FredokaOne
 	label.TextScaled = true
-	label.TextColor3 = rarityColor
+	label.TextColor3 = Color3.fromRGB(255, 220, 90)
 	label.TextStrokeTransparency = 0.3
 	label.Parent = billboard
 	local prompt = Instance.new("ProximityPrompt")
@@ -160,14 +161,14 @@ end
 function MeteorEggService.spawnEggsForStorm()
 	for _ = 1, Config.EGGS_PER_STORM do
 		local target = eggPosition()
-		-- (fix round 7, item 6) Roll the hatch NOW, at spawn — the
-		-- ground egg knows its rarity from the moment it lands, so
-		-- its label can show it ("🥚 LEGENDARY EGG") and the
-		-- incubator countdown can count from the same roll. The old
-		-- code rolled at place time and hid the rarity until the
-		-- reveal — Malek asked where the rarity is, so it is shown.
+		-- (v74, mystery eggs) Roll the hatch NOW, at spawn — the
+		-- ground egg knows its rarity from the moment it lands, but
+		-- it does NOT show it: every ground egg is a mystery
+		-- ("🥚 METEOR EGG"). The incubator reveals it (placeEgg
+		-- names the rarity + the live countdown) — any egg could be
+		-- Legendary, so normal eggs stay worth grabbing.
 		local hatchDef, hatchMutation = rollHatchDef()
-		local model = buildEgg(target, hatchDef.rarity)
+		local model = buildEgg(target)
 		State.eggs[model] = {
 			model = model,
 			phase = "falling",
@@ -357,6 +358,19 @@ function MeteorEggService.placeEgg(player: Player)
 		hatchTime = hatchTimeForRarity(placedRarity)
 		egg.hatchAt = time() + hatchTime
 		setEggLabel(model, "🥚 " .. string.upper(placedRarity) .. " EGG — " .. tostring(hatchTime) .. "s")
+		-- Reveal (v74, mystery eggs): the incubator is where the
+		-- rarity shows — tint the label + glow to the rarity colour
+		-- now that it is placed. On the ground it was identical gold.
+		local rarityColor = RarityConfig.rarityByName(placedRarity).color
+		local eggBillboard = shell:FindFirstChild("EggLabel")
+		local revealLabel = eggBillboard and eggBillboard:FindFirstChildOfClass("TextLabel")
+		if revealLabel then
+			revealLabel.TextColor3 = rarityColor
+		end
+		local glow = shell:FindFirstChildOfClass("PointLight")
+		if glow then
+			glow.Color = rarityColor
+		end
 		print("[MeteorEgg] " .. player.Name .. " placed an egg (" .. placedRarity .. ") — hatches in " .. tostring(hatchTime) .. "s")
 	end
 	BoostService.applyWalkSpeed(player)

@@ -5220,16 +5220,17 @@ do
 	end
 end
 
--- -- (co) the egg shows its rarity and a live countdown (fix round 7, item 6)
--- Malek: "also the timer on the egg? whhere do i see its rarity?"
--- Fix round 6 hid the rarity until the reveal and the banner showed
--- only the wait — Malek overrides that. Now the hatch is rolled at
--- spawn, the ground egg's label names its rarity ("🥚 LEGENDARY
--- EGG") in the rarity colour with a rarity-tinted glow, the
--- incubator banner names the rarity + wait, and the incubating egg's
--- label counts down live every second ("🥚 LEGENDARY EGG — 173s").
--- The player can look at an egg and know (a) how rare it is and (b)
--- how long until it hatches.
+-- -- (co) ground eggs are mysteries; the rarity is revealed in the
+-- incubator (v74, mystery eggs). Malek: "why have the eggs on the map
+-- saying what is it? people wont go for normal eggs." A ground egg
+-- labelled "COMMON EGG" gets ignored. Now every ground egg looks
+-- identical — "🥚 METEOR EGG", same gold label, same orange glow —
+-- and the hatch is still rolled at spawn. The incubator banner names
+-- the rarity + wait and tints label + glow to it, and the incubating
+-- egg's label counts down live every second ("🥚 LEGENDARY EGG —
+-- 173s"). Any egg could be Legendary, so normal eggs stay worth
+-- grabbing. Not a revert to hidden-until-hatch: the reveal happens
+-- in the incubator, not only at hatch.
 do
 	local eggSrc = read("src/server/MeteorEggService.luau")
 	if not eggSrc then
@@ -5242,11 +5243,20 @@ do
 		if not eggSrc:find("local hatchDef, hatchMutation = rollHatchDef%(%)") then
 			table.insert(problems, "the hatch is not rolled at spawn — the ground egg still has no rarity")
 		end
-		if not eggSrc:find('"🥚 " %.%. string%.upper%(rarity%) %.%. " EGG"') then
-			table.insert(problems, "the egg label does not name its rarity")
+		-- (v74, mystery eggs) The ground egg shows NO rarity: one
+		-- identical "🥚 METEOR EGG" label + orange glow for all.
+		-- The reveal happens in the incubator (placeEgg), not here.
+		if not eggSrc:find('label%.Text = "🥚 METEOR EGG"') then
+			table.insert(problems, "the ground egg label is not the identical mystery label")
 		end
-		if not eggSrc:find("rarityColor = RarityConfig%.rarityByName%(rarity%)%.color") then
-			table.insert(problems, "the egg label/glow is not tinted to the rarity colour")
+		if eggSrc:find('"🥚 " %.%. string%.upper%(rarity%) %.%. " EGG"') then
+			table.insert(problems, "the ground egg label still names its rarity (not a mystery)")
+		end
+		if not eggSrc:find("light%.Color = Color3%.fromRGB%(255, 140, 50%)") then
+			table.insert(problems, "the ground egg glow is not the identical orange")
+		end
+		if not eggSrc:find("rarityColor = RarityConfig%.rarityByName%(placedRarity%)%.color") then
+			table.insert(problems, "the incubator does not tint the label/glow to the revealed rarity")
 		end
 		if not eggSrc:find("placedRarity") or not eggSrc:find('"🥚 " %.%. placedRarity %.%. " egg on the incubator') then
 			table.insert(problems, "the incubator banner does not name the rarity + wait")
@@ -5257,13 +5267,13 @@ do
 		if not eggSrc:find('setEggLabel%(model, "🥚 " %.%. string%.upper%(rarity%) %.%. " EGG — " %.%. tostring%(remaining%) %.%. "s"%)') then
 			table.insert(problems, "the hatch loop does not update the incubating egg's label with a live countdown")
 		end
-		if eggSrc:find('"🥚 METEOR EGG"') then
-			table.insert(problems, "the generic 'METEOR EGG' label is still there — the rarity is hidden again")
-		end
+		-- (v74, mystery eggs) The generic label is the design now —
+		-- the old assertion that it means "rarity hidden" is gone.
+		-- The reveal happens in the incubator (placeEgg), not here.
 		if #problems > 0 then
 			check("co", false, "the egg rarity/timer fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau")
 		else
-			check("co", true, "the egg shows its rarity and a live countdown: rolled at spawn, ground label names the rarity in its colour with a rarity-tinted glow, incubator banner names rarity + wait, incubating label counts down live every second")
+			check("co", true, "ground eggs are mysteries: identical '🥚 METEOR EGG' label + orange glow (no rarity name or tint), hatch rolled at spawn, incubator banner names rarity + wait and tints label + glow to it, incubating label counts down live every second")
 		end
 	end
 end
