@@ -1173,6 +1173,47 @@ do
 	end
 end
 
+-- 28. Mutations are visible (simplify pass, section B): a mutated
+-- Brainrot shows its mutation in the label, a beam + sparkle in the
+-- mutation's colour, a server-wide spawn banner, and a mutations line
+-- in the index; grabbing or placing one logs it as found.
+do
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	local spawnSrc = read("src/server/SpawnService.luau")
+	local indexSvcSrc = read("src/server/IndexService.luau")
+	local indexCtrlSrc = read("src/client/IndexController.client.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	if not factorySrc or not spawnSrc or not indexSvcSrc or not indexCtrlSrc or not carrySrc then
+		step("mutations", false, "RotlingFactory.luau, SpawnService.luau, IndexService.luau, IndexController.client.luau or CarryService.luau missing")
+	else
+		local problems: { string } = {}
+		if not factorySrc:find("local function nameText") or not factorySrc:find("mutation:upper()", 1, true) then
+			table.insert(problems, "the label does not name the mutation (nameText)")
+		end
+		if not factorySrc:find("local function addMutationBeam") or not factorySrc:find("local function addMutationSparkle") then
+			table.insert(problems, "no mutation beam + sparkle on mutated Rotlings")
+		end
+		if not spawnSrc:find("local function announceSpawn") or not spawnSrc:find("spawned in the crater!", 1, true) then
+			table.insert(problems, "no server-wide banner for mutated spawns")
+		end
+		if not indexSvcSrc:find("function IndexService.markMutationFound") then
+			table.insert(problems, "found mutations are not logged")
+		end
+		local _, markCalls = carrySrc:gsub("IndexService.markMutationFound", "")
+		if markCalls < 2 then
+			table.insert(problems, "markMutationFound is not called on both grab and place")
+		end
+		if not indexCtrlSrc:find("MutationLine") or not indexCtrlSrc:find('"Mutations: "', 1, true) then
+			table.insert(problems, "the index has no mutations line")
+		end
+		if #problems > 0 then
+			step("mutations", false, table.concat(problems, "; "))
+		else
+			step("mutations", true, "label names the mutation in its colour + multiplier line, Neon beam + sparkle, server-wide spawn banner, grab/place logs the find, index shows all six mutations as chips")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

@@ -5398,6 +5398,75 @@ do
 	end
 end
 
+-- -- (cs) mutations are VISIBLE (simplify pass, section B)
+-- Malek: "why invisible" — six mutations were wired into spawns, eggs
+-- and the shop but nothing ever showed them. Now a mutated Brainrot
+-- reads from the path: its label names the mutation up front in the
+-- mutation's own colour ("GOLD Boba Blob"), the rarity line carries
+-- the multiplier ("✦ RAINBOW x5"), a tall Neon beam in the mutation's
+-- colour rises from it with a sparkle emitter, a mutated spawn gets a
+-- server-wide banner ("✨ A GOLD Boba Blob spawned in the crater!"),
+-- and the index has a mutations line (one chip per mutation, found in
+-- its own colour with its multiplier, unfound as a grey "???").
+-- The opening mix guarantees two mutated spawns (Gold crumb, Rainbow
+-- bloop) so the player meets mutations in the first minute. Grabbing
+-- or placing a mutated Brainrot logs it as found (banner, no coins —
+-- the multiplier IS the reward).
+do
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	local spawnSrc = read("src/server/SpawnService.luau")
+	local indexSvcSrc = read("src/server/IndexService.luau")
+	local indexCtrlSrc = read("src/client/IndexController.client.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	local mutationSrc = read("src/shared/MutationConfig.luau")
+	if not factorySrc or not spawnSrc or not indexSvcSrc or not indexCtrlSrc or not carrySrc or not mutationSrc then
+		check("cs", false, "could not verify mutation visibility — RotlingFactory.luau, SpawnService.luau, IndexService.luau, IndexController.client.luau, CarryService.luau or MutationConfig.luau missing")
+	else
+		local problems: { string } = {}
+		if not factorySrc:find("local function nameText") or not factorySrc:find("mutation:upper()", 1, true) then
+			table.insert(problems, "the label does not name the mutation up front in its colour (nameText)")
+		end
+		if not factorySrc:find("local function addMutationBeam") or not factorySrc:find('"MutationBeam"', 1, true) or not factorySrc:find("addMutationBeam(model, body, mutation)", 1, true) then
+			table.insert(problems, "no mutation beam (addMutationBeam / MutationBeam) on mutated Rotlings")
+		end
+		if not factorySrc:find("local function addMutationSparkle") or not factorySrc:find('"MutationSparkle"', 1, true) or not factorySrc:find("addMutationSparkle(model, body, mutation)", 1, true) then
+			table.insert(problems, "no mutation sparkle (addMutationSparkle / MutationSparkle) on mutated Rotlings")
+		end
+		if not factorySrc:find("✦", 1, true) or not factorySrc:find("mutationMult(mutation)", 1, true) then
+			table.insert(problems, "the rarity line does not carry the mutation multiplier (✦ RAINBOW x5)")
+		end
+		if not spawnSrc:find("local function announceSpawn") or not spawnSrc:find("spawned in the crater!", 1, true) then
+			table.insert(problems, "no server-wide banner for mutated spawns (announceSpawn)")
+		end
+		if not spawnSrc:find("MutationConfig.rollMutation()", 1, true) then
+			table.insert(problems, "spawns do not roll a mutation")
+		end
+		if not spawnSrc:find('mutation = "Gold"', 1, true) or not spawnSrc:find('mutation = "Rainbow"', 1, true) then
+			table.insert(problems, "the opening mix has no guaranteed mutated spawns (Gold crumb, Rainbow bloop)")
+		end
+		if not indexSvcSrc:find("function IndexService.markMutationFound") or not indexSvcSrc:find("New mutation found:", 1, true) or not indexSvcSrc:find("profile.mutations[mutation] = true", 1, true) then
+			table.insert(problems, "found mutations are not logged (markMutationFound / profile.mutations)")
+		end
+		local _, markCalls = carrySrc:gsub("IndexService.markMutationFound", "")
+		if markCalls < 2 then
+			table.insert(problems, "markMutationFound is not called on both grab and place")
+		end
+		if not indexCtrlSrc:find("MutationLine") or not indexCtrlSrc:find('"Mutations: "', 1, true) or not indexCtrlSrc:find("✦ ???", 1, true) then
+			table.insert(problems, "the index has no mutations line (chips per mutation, found in colour, unfound ???)")
+		end
+		for _, name in ipairs({ "Gold", "Diamond", "Frozen", "Rainbow", "Starstruck", "Scorched" }) do
+			if not mutationSrc:find('"' .. name .. '"', 1, true) then
+				table.insert(problems, "mutation " .. name .. " is missing from MutationConfig")
+			end
+		end
+		if #problems > 0 then
+			check("cs", false, "mutations are not visible — " .. table.concat(problems, "; ") .. ". Parts: RotlingFactory.luau, SpawnService.luau, IndexService.luau, IndexController.client.luau, CarryService.luau, MutationConfig.luau")
+		else
+			check("cs", true, "mutations are visible: label names the mutation in its colour + multiplier line, Neon beam + sparkle on mutated Rotlings, server-wide spawn banner, opening mix guarantees a Gold and a Rainbow, grab/place logs the find, index shows all six mutations as chips (found in colour, unfound ???)")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
