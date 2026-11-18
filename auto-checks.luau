@@ -1065,8 +1065,11 @@ do
 		if not sellSrc:find("function SellService.sellCarried") then
 			table.insert(problems, "SellService.sellCarried not found")
 		end
-		if not sellSrc:find("function SellService.sellPlaced") then
-			table.insert(problems, "SellService.sellPlaced not found (sell must also work from the base)")
+		-- Fix round 5, item 1: sellPlaced is GONE — the SELL pad must
+		-- never sell a placed Rotling. If the function still exists,
+		-- the base can be wiped again.
+		if sellSrc:find("function SellService.sellPlaced") then
+			table.insert(problems, "SellService.sellPlaced still exists (the SELL pad must never sell a placed Rotling)")
 		end
 		if not sellSrc:find("Config.SELL_MULT") then
 			table.insert(problems, "sell price does not use Config.SELL_MULT")
@@ -3444,14 +3447,19 @@ do
 		check("bj", false, "could not verify the sell — SellService.luau, CarryService.luau or WorldBuilder.luau missing")
 	else
 		local problems: { string } = {}
-		if not sellSrc:find("function SellService%.sellPlaced") then
-			table.insert(problems, "SellService.sellPlaced is not defined")
+		-- Fix round 5, item 1: sellPlaced is REMOVED — the SELL pad
+		-- must never sell a placed Rotling.
+		if sellSrc:find("function SellService%.sellPlaced") then
+			table.insert(problems, "SellService.sellPlaced still exists (the SELL pad must never sell a placed Rotling)")
+		end
+		if sellSrc:find("SellService%.sellPlaced%(player%)") then
+			table.insert(problems, "sell() still calls sellPlaced")
 		end
 		if not sellSrc:find("function SellService%.sell%(player") then
-			table.insert(problems, "SellService.sell (carried first, else placed) is not defined")
+			table.insert(problems, "SellService.sell is not defined")
 		end
-		if not sellSrc:find("BaseService%.removePlaced%(baseId, padIndex%)") then
-			table.insert(problems, "sellPlaced does not remove the model from its pad (BaseService.removePlaced)")
+		if not sellSrc:find("Carry a Brainrot to sell it") then
+			table.insert(problems, "sell() does not tell empty-handed players to carry a Brainrot first")
 		end
 		if not sellSrc:find("profile%.coins %+= value", 1) then
 			table.insert(problems, "sell does not pay profile.coins += value")
@@ -3472,9 +3480,9 @@ do
 			table.insert(problems, "SELL pad prompt is not 'Sell Brainrot'")
 		end
 		if #problems > 0 then
-			check("bj", false, "the sell-from-base fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: SellService.luau (sellPlaced, sell), CarryService.luau (setPromptState), WorldBuilder.luau (SELL prompt)")
+			check("bj", false, "the sell fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: SellService.luau (sell), CarryService.luau (setPromptState), WorldBuilder.luau (SELL prompt)")
 		else
-			check("bj", true, "sell works from the base: SELL pad sells the carried Brainrot, else the best placed one on your base (removed from its pad, payout in the wallet); prompt lock reads the model's BaseId")
+			check("bj", true, "sell is carried-only: SELL pad sells the carried Brainrot and nothing else; empty hands = nothing sold + 'Carry a Brainrot to sell it'; placed Rotlings are never sold by the pad; prompt lock reads the model's BaseId")
 		end
 	end
 end
@@ -3874,7 +3882,10 @@ do
 		if not carrySrc:find('"Grab " %.%. name') then
 			table.insert(problems, "grab prompt does not use the renamed Brainrot name")
 		end
-		if not sellSrc:find("Nothing to sell — grab a Brainrot first!") then
+		-- Fix round 5, item 1: the empty-hands sell message is now
+		-- "Carry a Brainrot to sell it" (sellPlaced and its "Nothing
+		-- to sell" message are gone).
+		if not sellSrc:find("Carry a Brainrot to sell it") then
 			table.insert(problems, "sell empty message still says 'Rotling'")
 		end
 		-- Any remaining quoted "Rotling" on ONE line in the world
@@ -4008,18 +4019,15 @@ do
 	end
 end
 
--- -- (bt) selling works in both cases and proves it (fix round 4, item 2) --
--- Playtest 4: selling did nothing — the Brainrot did not disappear and
--- no cash was added, both when carried straight from the crater to
--- SELL and when sold from the base. The sell logic itself is correct
--- (sellCarried / sellPlaced both pay baseCps x 25, destroy the model,
--- save, and broadcast the HUD immediately) and the wiring is sound
--- (WorldBuilder.build creates the SellPad + prompt before
--- SellService.init finds it). The failure was upstream: grabbing was
--- broken, so there was never anything to carry. The fix makes the
--- wiring observable — init logs the pad + prompt it found (or warns),
+-- -- (bt) selling works and proves it (fix round 5, item 1) --
+-- Playtest 5: the SELL pad sold EVERY Brainrot on the base when the
+-- player pressed E with empty hands — sellPlaced sold the best placed
+-- Rotling per press, so repeated presses wiped the base. The fallback
+-- is removed: sell() sells ONLY the carried Rotling, and empty hands
+-- returns "Carry a Brainrot to sell it" with nothing sold. The wiring
+-- stays observable — init logs the pad + prompt it found (or warns),
 -- and every sell attempt + result is logged — so the next playtest can
--- prove which side of the pad the failure is on.
+-- prove the pad sold nothing with empty hands.
 do
 	local sellSrc = read("src/server/SellService.luau")
 	if not sellSrc then
@@ -4038,8 +4046,11 @@ do
 		if not sellSrc:find('%[Sell%] result for') then
 			table.insert(problems, "sell() does not log the result")
 		end
-		if not sellSrc:find("sellCarried%(player%)") or not sellSrc:find("sellPlaced%(player%)") then
-			table.insert(problems, "sell() does not try carried first, then placed")
+		if not sellSrc:find("sellCarried%(player%)") then
+			table.insert(problems, "sell() does not sell the carried Rotling")
+		end
+		if sellSrc:find("sellPlaced%(player%)") then
+			table.insert(problems, "sell() still calls sellPlaced")
 		end
 		if not sellSrc:find("model:Destroy%(%)") or not sellSrc:find("profile%.coins %+= value") then
 			table.insert(problems, "sell does not destroy the model and pay the coins")
@@ -4047,7 +4058,7 @@ do
 		if #problems > 0 then
 			check("bt", false, "the sell fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: SellService.luau")
 		else
-			check("bt", true, "sell is observable: init logs the wired pad prompt (or warns), every attempt + result is logged, carried first then placed, model destroyed and coins paid")
+			check("bt", true, "sell is observable and carried-only: init logs the wired pad prompt (or warns), every attempt + result is logged, only the carried Rotling is sold, model destroyed and coins paid")
 		end
 	end
 end

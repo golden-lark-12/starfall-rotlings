@@ -1,11 +1,12 @@
 --!strict
 -- Starfall Rotlings: selling.
 -- The gold SELL pad sits on the path between spawn and the crater. Press
--- E on it: it sells the Rotling you carry, or — if you carry none — the
--- highest-value Brainrot placed on your own base (the playtest showed
--- selling only worked while carrying, so a player with Rotlings on their
--- base got "Carry a Brainrot first!" and no money). The sold model is
--- removed from its pad and destroyed, and the payout (baseCps x
+-- E on it: it sells ONLY the Brainrot you are carrying. Empty hands =
+-- nothing happens (and the banner says so) — the pad NEVER sells a
+-- Brainrot placed on your base. Fix round 2's sellPlaced fallback (sell
+-- the best placed Rotling when empty-handed) is gone: it wiped a whole
+-- base one E press at a time, because every press sold one more placed
+-- Rotling. The sold model is destroyed, and the payout (baseCps x
 -- Config.SELL_MULT, ~25 seconds of its income) lands in the wallet.
 -- Selling is for clearing a pad to make room for a better Rotling —
 -- placing always pays more in the long run. The client never decides
@@ -72,81 +73,16 @@ function SellService.sellCarried(player: Player): (boolean, string)
 	return true, "💰 Sold " .. def.name .. " for " .. Formatting.formatMoney(value) .. "!"
 end
 
--- Sell the best Rotling placed on the player's own base. The playtest
--- showed the sell only worked for a CARRIED Rotling: a player standing
--- at the SELL pad with Rotlings on their base got "Carry a Rotling to
--- the SELL pad first!" and no money, so selling read as broken. Now the
--- pad sells the carried Rotling if there is one, else the highest-value
--- placed Rotling on the player's own base — the model is removed from
--- its pad (it disappears from the base) and the payout lands in the
--- wallet. The banner names which Rotling was sold and the exact amount.
-function SellService.sellPlaced(player: Player): (boolean, string)
-	local profile = DataService.getProfile(player)
-	if not profile then
-		return false, "Profile not loaded yet."
-	end
-	local baseId = BaseService.getPlayerBase(player.UserId)
-	if not baseId then
-		return false, "You have no base yet."
-	end
-	local placed = BaseService.getPlacedForPlayer(player)
-	if #placed == 0 then
-		return false, "Nothing to sell — grab a Brainrot first!"
-	end
-	-- Highest value wins: the most expensive Rotling on the base.
-	local best: Model? = nil
-	local bestValue = -1
-	for _, model in ipairs(placed) do
-		local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
-		if def then
-			local value = SellService.sellValue(def, model:GetAttribute("Mutation") :: string?)
-			if value > bestValue then
-				bestValue = value
-				best = model
-			end
-		end
-	end
-	if not best then
-		return false, "That Brainrot has no price."
-	end
-	local def = RotlingCatalog.getDef(best:GetAttribute("DefId") :: string)
-	local mutation = best:GetAttribute("Mutation") :: string?
-	local value = bestValue
-	-- Remove it from its pad first, then destroy the model: the pad
-	-- must read as free and the Rotling must be gone from the base.
-	local padIndex = best:GetAttribute("PadIndex") :: number?
-	if padIndex then
-		BaseService.removePlaced(baseId, padIndex)
-	end
-	best:Destroy()
-	-- Selling can change the best buddy (highest income).
-	local BuddyService = require(script.Parent.BuddyService)
-	BuddyService.refreshBuddy(player)
-	profile.coins += value
-	MissionService.addProgress(player, "earn", value)
-	DataService.saveProfile(player)
-	-- Refresh the HUD NOW so the payout is visible the moment the
-	-- Brainrot leaves the base. Deferred require (see sellCarried).
-	local IncomeService = require(script.Parent.IncomeService)
-	IncomeService.broadcastHud()
-	print("[Sell] " .. player.Name .. " sold placed " .. (if def then def.name else "Brainrot") .. " for " .. tostring(value))
-	FeedbackService.playSound(player, 1.4, 0.7)
-	local character = player.Character
-	if character then
-		FeedbackService.cashPopup(character, "+" .. Formatting.formatMoney(value))
-	end
-	return true, "💰 Sold " .. (if def then def.name else "Brainrot") .. " for " .. Formatting.formatMoney(value) .. "!"
-end
 
--- Sell: the carried Rotling first, else the best placed one on the
--- player's own base. One entry point for the remote and the pad prompt.
+-- Sell: ONLY the carried Rotling. Empty hands = nothing happens (the
+-- banner says to carry one first). Placed Rotlings are NEVER sold by
+-- the pad — the sellPlaced fallback that sold one placed Rotling per
+-- E press (and so wiped a whole base) is removed. One entry point for
+-- the remote and the pad prompt.
 function SellService.sell(player: Player): (boolean, string)
-	-- [Sell] log (fix round 4, item 2): the playtest said selling does
-	-- nothing in both cases, so every attempt and its result must show
-	-- in Output. The sell logic itself is correct (sellCarried /
-	-- sellPlaced both pay, destroy and broadcast); the failure was
-	-- upstream — grabbing was broken, so there was never anything to
-	-- carry, and a pad prompt that never fired would also land here.
+	-- [Sell] log (fix round 4, item 2): every attempt and its result
+	-- must show in Output, so the next playtest can prove the pad
+	-- sold nothing with empty hands.
 	local carried = CarryService.getCarried(player)
 	local placedCount = #BaseService.getPlacedForPlayer(player)
 	print("[Sell] attempt by " .. player.Name .. " (carried=" .. tostring(#carried) .. ", placed=" .. tostring(placedCount) .. ")")
@@ -154,7 +90,7 @@ function SellService.sell(player: Player): (boolean, string)
 	if #carried > 0 then
 		ok, message = SellService.sellCarried(player)
 	else
-		ok, message = SellService.sellPlaced(player)
+		ok, message = false, "Carry a Brainrot to sell it"
 	end
 	print("[Sell] result for " .. player.Name .. ": " .. tostring(ok) .. " — " .. message)
 	return ok, message
