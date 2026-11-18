@@ -24,6 +24,9 @@ export type Profile = {
 	incomeTier: number,
 	padsTier: number,
 	lockTier: number,
+	staminaTier: number, -- Endurance Training (fix round 8, item 6): +50 max stamina per tier
+	eggTier: number, -- Egg Warmer (fix round 8, item 6): -25% hatch time per tier
+	slapTier: number, -- Power Slap (fix round 8, item 6): +1.5 range / +20 knockback per tier
 	index: { [string]: boolean },
 	indexRewards: { [string]: boolean },
 	indexFullRewarded: boolean,

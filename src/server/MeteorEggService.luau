@@ -356,6 +356,11 @@ function MeteorEggService.placeEgg(player: Player)
 		end
 		placedRarity = (def :: RotlingCatalog.RotlingDef).rarity
 		hatchTime = hatchTimeForRarity(placedRarity)
+		-- Egg Warmer (fix round 8, item 6): -25% hatch time per tier,
+		-- read live from the profile, never below 15s.
+		local profile = DataService.getProfile(player)
+		local eggTier = if profile then profile.eggTier else 0
+		hatchTime = math.max(15, math.floor(hatchTime * (1 - Config.EGG_WARMER_REDUCTION * eggTier)))
 		egg.hatchAt = time() + hatchTime
 		setEggLabel(model, "🥚 " .. string.upper(placedRarity) .. " EGG — " .. tostring(hatchTime) .. "s")
 		-- Reveal (v74, mystery eggs): the incubator is where the

@@ -232,7 +232,7 @@ do
 	end
 end
 
--- 6. Buy: the shop panel offers all five ladders.
+-- 6. Buy: the shop panel offers all eight ladders.
 do
 	local shopClient = read("src/client/ShopController.client.luau")
 	if not shopClient then
@@ -240,11 +240,11 @@ do
 	else
 		local problems: { string } = {}
 		local rows = 0
-		for _ in shopClient:gmatch('SHOP_ORDER = { "Speed", "Carry", "Income", "Pads", "Lock" }') do
-			rows = 5
+		for _ in shopClient:gmatch('SHOP_ORDER = { "Speed", "Carry", "Income", "Pads", "Lock", "Stamina", "Egg", "Slap" }') do
+			rows = 8
 		end
-		if rows ~= 5 then
-			table.insert(problems, "shop panel does not list all 5 ladders")
+		if rows ~= 8 then
+			table.insert(problems, "shop panel does not list all 8 ladders")
 		end
 		if not shopClient:find("Remotes%.buyFunction%(%)%:InvokeServer%(key%)") then
 			table.insert(problems, "buy button never invokes BuyItem")
@@ -252,7 +252,7 @@ do
 		if #problems > 0 then
 			step("buy", false, table.concat(problems, "; "))
 		else
-			step("buy", true, "shop panel lists 5 ladders; buy buttons invoke BuyItem")
+			step("buy", true, "shop panel lists 8 ladders; buy buttons invoke BuyItem")
 		end
 	end
 end
@@ -1346,6 +1346,41 @@ do
 			step("multi-carry", false, table.concat(problems, "; "))
 		else
 			step("multi-carry", true, "each carried Brainrot fans to its own slot (4.2 studs apart, arced), re-seated after every grab/place/drop")
+		end
+	end
+end
+
+-- Fix round 8, item 6 — more shop upgrades: Endurance Training, Egg
+-- Warmer, Power Slap — sold, stored, shown, effects read live.
+do
+	local shopSrc = read("src/server/ShopService.luau")
+	local shopUiSrc = read("src/client/ShopController.client.luau")
+	local sprintSrc = read("src/client/SprintController.client.luau")
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	local slapSrc = read("src/server/SlapService.luau")
+	if not shopSrc or not shopUiSrc or not sprintSrc or not eggSrc or not slapSrc then
+		step("shop-upgrades", false, "ShopService.luau, ShopController.client.luau, SprintController.client.luau, MeteorEggService.luau or SlapService.luau missing")
+	else
+		local problems: { string } = {}
+		if not shopSrc:find("Stamina = {") or not shopSrc:find("Egg = {") or not shopSrc:find("Slap = {") then
+			table.insert(problems, "a new ladder is missing from the server shop")
+		end
+		if not shopUiSrc:find("LadderScroll") then
+			table.insert(problems, "the ladder rows are not scrollable")
+		end
+		if not sprintSrc:find("staminaTier") then
+			table.insert(problems, "the sprint controller does not read the stamina tier")
+		end
+		if not eggSrc:find("EGG_WARMER_REDUCTION") then
+			table.insert(problems, "the hatch time does not read the Egg Warmer tier")
+		end
+		if not slapSrc:find("SLAP_RANGE_PER_TIER") then
+			table.insert(problems, "the slap does not read the Power Slap tier")
+		end
+		if #problems > 0 then
+			step("shop-upgrades", false, table.concat(problems, "; "))
+		else
+			step("shop-upgrades", true, "Endurance Training + Egg Warmer + Power Slap sold, stored, shown in a scrollable shop, effects read live")
 		end
 	end
 end

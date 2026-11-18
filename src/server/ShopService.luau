@@ -1,9 +1,14 @@
 --!strict
 -- Starfall Rotlings: the shop.
--- Five ladders, all bought with coins the server owns: walk speed, extra
--- arms, income, extra base pads and longer base locks. The client only
--- asks to buy; the server checks the price and the tier before a coin
--- moves.
+-- Eight ladders, all bought with coins the server owns: walk speed,
+-- extra arms, income, extra base pads, longer base locks, stamina
+-- (Endurance Training), faster egg hatches (Egg Warmer) and a harder
+-- slap (Power Slap) — the last three are fix round 8, item 6. The
+-- client only asks to buy; the server checks the price and the tier
+-- before a coin moves. The new ladders need no buy-time apply step:
+-- their effects are read live from the profile (SprintController
+-- reads staminaTier from the HUD feed, MeteorEggService reads
+-- eggTier at hatch time, SlapService reads slapTier per swing).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -48,6 +53,24 @@ ShopService.SHOP = {
 		desc = "+30s base lock per tier",
 		tiers = { 800, 3000 },
 	},
+	-- Fix round 8, item 6 — three more ladders: stamina for longer
+	-- sprints (you run from the guardian now), faster egg hatches,
+	-- and a harder slap for the thieves chasing you.
+	Stamina = {
+		label = "Endurance Training",
+		desc = "+50 max stamina per tier",
+		tiers = { 500, 2000, 6000 },
+	},
+	Egg = {
+		label = "Egg Warmer",
+		desc = "-25% egg hatch time per tier",
+		tiers = { 800, 3000 },
+	},
+	Slap = {
+		label = "Power Slap",
+		desc = "+1.5 slap range, +20 knockback per tier",
+		tiers = { 300, 1500, 5000 },
+	},
 } :: { [string]: ShopItem }
 
 local TIER_KEYS = {
@@ -56,6 +79,9 @@ local TIER_KEYS = {
 	Income = "incomeTier",
 	Pads = "padsTier",
 	Lock = "lockTier",
+	Stamina = "staminaTier",
+	Egg = "eggTier",
+	Slap = "slapTier",
 } :: { [string]: string }
 
 -- Buy the next tier of an item. Returns (ok, message).

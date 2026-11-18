@@ -23,6 +23,7 @@ local player = Players.LocalPlayer
 local gui = GuiKit.getGui()
 
 local stamina = Config.SPRINT_STAMINA_MAX
+local staminaMax = Config.SPRINT_STAMINA_MAX -- grows with the Endurance Training tier (fix round 8, item 6)
 local shiftHeld = false
 local runHeld = false
 local sprinting = false
@@ -95,7 +96,7 @@ local function setSprinting(on: boolean)
 			})
 			fovTween:Play()
 		end
-		if stamina >= Config.SPRINT_STAMINA_MAX then
+		if stamina >= staminaMax then
 			staminaBar.Visible = false
 		end
 	end
@@ -120,6 +121,9 @@ Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 	end
 	eggCarried = data.eggCarried or false
 	baseSpeed = (Config.BASE_WALKSPEED + Config.SPEED_PER_TIER * (data.speedTier or 0)) * speedMult
+	-- Endurance Training (fix round 8, item 6): +50 max stamina per
+	-- tier, from the HUD feed — the bar and the drain both use it.
+	staminaMax = Config.SPRINT_STAMINA_MAX + Config.STAMINA_PER_TIER * (data.staminaTier or 0)
 	if eggCarried then
 		baseSpeed = math.max(8, baseSpeed - Config.EGG_SLOW)
 	end
@@ -174,11 +178,11 @@ RunService.Heartbeat:Connect(function(dt: number)
 		end
 	else
 		setSprinting(false)
-		stamina = math.min(Config.SPRINT_STAMINA_MAX, stamina + Config.SPRINT_STAMINA_REGEN * dt)
+		stamina = math.min(staminaMax, stamina + Config.SPRINT_STAMINA_REGEN * dt)
 	end
-	staminaFill.Size = UDim2.new(math.clamp(stamina / Config.SPRINT_STAMINA_MAX, 0, 1), 0, 1, 0)
+	staminaFill.Size = UDim2.new(math.clamp(stamina / staminaMax, 0, 1), 0, 1, 0)
 	staminaFill.BackgroundColor3 = if stamina < 25 then Color3.fromRGB(255, 90, 90) else Color3.fromRGB(120, 220, 255)
-	if sprinting or stamina < Config.SPRINT_STAMINA_MAX then
+	if sprinting or stamina < staminaMax then
 		staminaBar.Visible = true
 	else
 		staminaBar.Visible = false

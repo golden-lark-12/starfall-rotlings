@@ -1,11 +1,15 @@
 --!strict
 -- Starfall Rotlings: shop controller.
--- The shop panel: five ladders (speed, extra arms, income, extra pads,
--- longer locks) with tier dots and buy buttons. The client only asks to
--- buy; the server checks the price and answers with the result.
--- The Shop button sits in the top-left row at y=60, beside the HUD's
--- Upgrade and Daily buttons — below Roblox's own top-left menu, so it
--- is never covered by Roblox's own chrome.
+-- The shop panel: eight ladders (speed, extra arms, income, extra
+-- pads, longer locks, stamina, egg warmer, power slap — the last
+-- three are fix round 8, item 6) with tier dots and buy buttons. The
+-- client only asks to buy; the server checks the price and answers
+-- with the result. The ladder rows live in a ScrollingFrame (8 rows
+-- x 96px = 768px, taller than the panel's ladder area), so the panel
+-- stays 780px tall and the rows scroll on a phone. The Shop button
+-- sits in the top-left row at y=60, beside the HUD's Upgrade and
+-- Daily buttons — below Roblox's own top-left menu, so it is never
+-- covered by Roblox's own chrome.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -21,8 +25,11 @@ local SHOP_VIEW = {
 	Income = { label = "Golden Trough", desc = "+25% base income per tier", tiers = { 600, 2000, 8000 } },
 	Pads = { label = "Extra Pad", desc = "+1 base pad per tier (max 8)", tiers = { 1500, 6000 } },
 	Lock = { label = "Longer Lock", desc = "+30s base lock per tier", tiers = { 800, 3000 } },
+	Stamina = { label = "Endurance Training", desc = "+50 max stamina per tier", tiers = { 500, 2000, 6000 } },
+	Egg = { label = "Egg Warmer", desc = "-25% egg hatch time per tier", tiers = { 800, 3000 } },
+	Slap = { label = "Power Slap", desc = "+1.5 slap range, +20 knockback per tier", tiers = { 300, 1500, 5000 } },
 }
-local SHOP_ORDER = { "Speed", "Carry", "Income", "Pads", "Lock" }
+local SHOP_ORDER = { "Speed", "Carry", "Income", "Pads", "Lock", "Stamina", "Egg", "Slap" }
 
 -- Boosts (item 11): bought with Stardust, not coins. One row each.
 local BOOST_VIEW = {
@@ -42,7 +49,7 @@ shopPanel.Visible = false
 GuiKit.makeLabel(shopPanel, "Title", "🛒 SHOP", UDim2.new(1, 0, 0, 44), UDim2.new(0, 0, 0, 8), 30, GuiKit.COLORS.White)
 local shopClose = GuiKit.makeButton(shopPanel, "Close", "X", UDim2.new(0, 40, 0, 40), UDim2.new(1, -48, 0, 8), GuiKit.COLORS.Close)
 
-local tiers = { Speed = 0, Carry = 0, Income = 0, Pads = 0, Lock = 0 }
+local tiers = { Speed = 0, Carry = 0, Income = 0, Pads = 0, Lock = 0, Stamina = 0, Egg = 0, Slap = 0 }
 
 local refreshShop: () -> ()
 
@@ -59,16 +66,35 @@ local function effectText(key: string, tier: number): string
 		return "Lv " .. tostring(tier) .. "/2 — " .. tostring(6 + tier) .. " pads open"
 	elseif key == "Lock" then
 		return "Lv " .. tostring(tier) .. "/2 — lock lasts " .. tostring(60 + 30 * tier) .. "s"
+	elseif key == "Stamina" then
+		return "Lv " .. tostring(tier) .. "/3 — max stamina " .. tostring(100 + 50 * tier)
+	elseif key == "Egg" then
+		return "Lv " .. tostring(tier) .. "/2 — hatch " .. tostring(100 - 25 * tier) .. "% as long"
+	elseif key == "Slap" then
+		return "Lv " .. tostring(tier) .. "/3 — range " .. tostring(9 + 1.5 * tier) .. ", knockback " .. tostring(38 + 20 * tier)
 	else
 		return "Lv " .. tostring(tier)
 	end
 end
 
+-- The ladder rows scroll (fix round 8, item 6): 8 rows x 96px = 768px,
+-- taller than the panel's ladder area (60..540). A ScrollingFrame
+-- keeps the panel 780px tall and the rows reachable on a phone.
+local ladderScroll = Instance.new("ScrollingFrame")
+ladderScroll.Name = "LadderScroll"
+ladderScroll.Size = UDim2.new(1, -24, 0, 468)
+ladderScroll.Position = UDim2.new(0, 12, 0, 60)
+ladderScroll.BackgroundTransparency = 1
+ladderScroll.BorderSizePixel = 0
+ladderScroll.ScrollBarThickness = 6
+ladderScroll.CanvasSize = UDim2.new(0, 0, 0, #SHOP_ORDER * 96)
+ladderScroll.Parent = shopPanel
+
 local shopRows = {}
 for i, key in ipairs(SHOP_ORDER) do
 	local item = SHOP_VIEW[key]
-	local y = 60 + (i - 1) * 96
-	local row = GuiKit.makePanel(shopPanel, key .. "Row", UDim2.new(1, -24, 0, 88), UDim2.new(0, 12, 0, y))
+	local y = (i - 1) * 96
+	local row = GuiKit.makePanel(ladderScroll, key .. "Row", UDim2.new(1, -12, 0, 88), UDim2.new(0, 0, 0, y))
 	GuiKit.makeLabel(row, "Name", item.label, UDim2.new(1, -130, 0, 28), UDim2.new(0, 10, 0, 6), 22, Color3.fromRGB(255, 255, 255))
 	GuiKit.makeLabel(row, "Desc", item.desc, UDim2.new(1, -130, 0, 22), UDim2.new(0, 10, 0, 34), 16, Color3.fromRGB(200, 200, 220))
 	local tierLabel = GuiKit.makeLabel(row, "Tier", "Lv 0", UDim2.new(1, -130, 0, 22), UDim2.new(0, 10, 0, 58), 16, Color3.fromRGB(160, 255, 170))
@@ -180,6 +206,9 @@ Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 	tiers.Income = data.incomeTier
 	tiers.Pads = data.padsTier
 	tiers.Lock = data.lockTier
+	tiers.Stamina = data.staminaTier
+	tiers.Egg = data.eggTier
+	tiers.Slap = data.slapTier
 	if shopPanel.Visible then
 		refreshShop()
 	end

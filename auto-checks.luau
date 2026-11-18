@@ -6394,6 +6394,74 @@ do
 	end
 end
 
+-- (dj) MORE SHOP UPGRADES (fix round 8, item 6): three new ladders —
+-- Endurance Training (+50 max stamina/tier), Egg Warmer (-25% hatch
+-- time/tier), Power Slap (+1.5 range / +20 knockback/tier). The server
+-- sells them (SHOP + TIER_KEYS), the profile stores them (old saves
+-- default to 0), the HUD feed carries them, the shop shows them in a
+-- scrollable ladder section, and each effect is read live where it
+-- applies (sprint stamina, hatch time, slap range/knockback).
+do
+	local shopSrc = read("src/server/ShopService.luau")
+	local stateSrc = read("src/server/State.luau")
+	local dataSrc = read("src/server/DataService.luau")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local shopUiSrc = read("src/client/ShopController.client.luau")
+	local sprintSrc = read("src/client/SprintController.client.luau")
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	local slapSrc = read("src/server/SlapService.luau")
+	if not shopSrc or not stateSrc or not dataSrc or not remotesSrc or not incomeSrc or not shopUiSrc or not sprintSrc or not eggSrc or not slapSrc then
+		check("dj", false, "could not verify the new shop upgrades — ShopService.luau, State.luau, DataService.luau, Remotes.luau, IncomeService.luau, ShopController.client.luau, SprintController.client.luau, MeteorEggService.luau or SlapService.luau missing")
+	else
+		local problems: { string } = {}
+		if not shopSrc:find("Stamina = {") or not shopSrc:find("tiers = { 500, 2000, 6000 }") then
+			table.insert(problems, "no Endurance Training ladder (500/2000/6000) in the shop")
+		end
+		if not shopSrc:find("Egg = {") or not shopSrc:find("tiers = { 800, 3000 }") then
+			table.insert(problems, "no Egg Warmer ladder (800/3000) in the shop")
+		end
+		if not shopSrc:find("Slap = {") or not shopSrc:find("tiers = { 300, 1500, 5000 }") then
+			table.insert(problems, "no Power Slap ladder (300/1500/5000) in the shop")
+		end
+		if not shopSrc:find('Stamina = "staminaTier"') or not shopSrc:find('Egg = "eggTier"') or not shopSrc:find('Slap = "slapTier"') then
+			table.insert(problems, "the new ladders are not mapped to profile tier keys")
+		end
+		if not stateSrc:find("staminaTier: number") or not stateSrc:find("eggTier: number") or not stateSrc:find("slapTier: number") then
+			table.insert(problems, "the profile type has no stamina/egg/slap tiers")
+		end
+		if not dataSrc:find("staminaTier = 0") or not dataSrc:find("eggTier = 0") or not dataSrc:find("slapTier = 0") then
+			table.insert(problems, "new profiles do not start the new tiers at 0")
+		end
+		if not remotesSrc:find("staminaTier: number") or not remotesSrc:find("eggTier: number") or not remotesSrc:find("slapTier: number") then
+			table.insert(problems, "the HUD feed type does not carry the new tiers")
+		end
+		if not incomeSrc:find("staminaTier = profile%.staminaTier") or not incomeSrc:find("eggTier = profile%.eggTier") or not incomeSrc:find("slapTier = profile%.slapTier") then
+			table.insert(problems, "the HUD broadcast does not send the new tiers")
+		end
+		if not shopUiSrc:find('SHOP_ORDER = { "Speed", "Carry", "Income", "Pads", "Lock", "Stamina", "Egg", "Slap" }') then
+			table.insert(problems, "the shop UI does not list the new ladders")
+		end
+		if not shopUiSrc:find("LadderScroll") or not shopUiSrc:find("ScrollingFrame") then
+			table.insert(problems, "the ladder rows are not scrollable (8 rows do not fit the panel)")
+		end
+		if not sprintSrc:find("staminaTier") or not sprintSrc:find("STAMINA_PER_TIER") then
+			table.insert(problems, "the sprint controller does not read the stamina tier")
+		end
+		if not eggSrc:find("EGG_WARMER_REDUCTION") then
+			table.insert(problems, "the hatch time does not read the Egg Warmer tier")
+		end
+		if not slapSrc:find("slapRange%(player%)") or not slapSrc:find("SLAP_RANGE_PER_TIER") or not slapSrc:find("SLAP_KNOCKBACK_PER_TIER") then
+			table.insert(problems, "the slap does not read the Power Slap tier")
+		end
+		if #problems > 0 then
+			check("dj", false, "the new shop upgrades are incomplete — " .. table.concat(problems, "; ") .. ". Parts: ShopService.luau, State.luau, DataService.luau, Remotes.luau, IncomeService.luau, ShopController.client.luau, SprintController.client.luau, MeteorEggService.luau, SlapService.luau")
+		else
+			check("dj", true, "three new ladders live: Endurance Training (500/2000/6000, +50 stamina/tier), Egg Warmer (800/3000, -25% hatch/tier), Power Slap (300/1500/5000, +1.5 range/+20 knockback/tier) — sold by the server, stored in the profile, shown in a scrollable shop, effects read live")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

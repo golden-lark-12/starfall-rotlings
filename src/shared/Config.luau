@@ -104,6 +104,10 @@ Config.SPRINT_STAMINA_MAX = 100
 Config.SPRINT_STAMINA_DRAIN = 25 -- per second while sprinting
 Config.SPRINT_STAMINA_REGEN = 15 -- per second while not sprinting
 Config.SPRINT_STAMINA_MIN = 20 -- stamina must be above this to start sprinting again
+Config.STAMINA_PER_TIER = 50 -- Endurance Training (fix round 8, item 6): +50 max stamina per tier
+Config.EGG_WARMER_REDUCTION = 0.25 -- Egg Warmer (fix round 8, item 6): -25% hatch time per tier
+Config.SLAP_RANGE_PER_TIER = 1.5 -- Power Slap (fix round 8, item 6): +1.5 slap range per tier
+Config.SLAP_KNOCKBACK_PER_TIER = 20 -- Power Slap (fix round 8, item 6): +20 slap knockback per tier
 Config.SPRINT_FOV = 82 -- field of view while sprinting (base is 70)
 Config.SPRINT_FOV_BASE = 70
 

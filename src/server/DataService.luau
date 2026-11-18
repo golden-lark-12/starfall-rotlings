@@ -43,6 +43,9 @@ function DataService.defaultProfile(): State.Profile
 		incomeTier = 0,
 		padsTier = 0,
 		lockTier = 0,
+		staminaTier = 0,
+		eggTier = 0,
+		slapTier = 0,
 		index = {},
 		indexRewards = {},
 		indexFullRewarded = false,
@@ -87,6 +90,16 @@ local function reconcile(data: any): State.Profile
 	end
 	if profile.lockTier == nil then
 		profile.lockTier = 0
+	end
+	-- Fix round 8, item 6 (new shop ladders): old saves get tier 0.
+	if profile.staminaTier == nil then
+		profile.staminaTier = 0
+	end
+	if profile.eggTier == nil then
+		profile.eggTier = 0
+	end
+	if profile.slapTier == nil then
+		profile.slapTier = 0
 	end
 	-- v4 fields (stardust / xp / level / buddy): old saves get defaults.
 	if profile.stardust == nil then

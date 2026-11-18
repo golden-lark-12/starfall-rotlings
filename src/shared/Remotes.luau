@@ -25,6 +25,9 @@ export type HudData = {
 	incomeTier: number,
 	padsTier: number,
 	lockTier: number,
+	staminaTier: number, -- Endurance Training tier (fix round 8, item 6)
+	eggTier: number, -- Egg Warmer tier (fix round 8, item 6)
+	slapTier: number, -- Power Slap tier (fix round 8, item 6)
 	carried: number,
 	carrySlots: number,
 	carriedName: string?, -- name of the Rotling being carried (for the CARRYING banner)

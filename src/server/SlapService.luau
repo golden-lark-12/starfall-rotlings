@@ -13,6 +13,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local BoostService = require(script.Parent.BoostService)
 local CarryService = require(script.Parent.CarryService)
+local DataService = require(script.Parent.DataService)
 local RivalService = require(script.Parent.RivalService)
 local State = require(script.Parent.State)
 
@@ -20,10 +21,25 @@ local SlapService = {}
 
 local readyAt: { [number]: number } = {}
 
-local function knockback(root: Part, from: Vector3)
+-- Power Slap (fix round 8, item 6): +1.5 range / +20 knockback per
+-- tier, read live from the swinger's profile. A rival's slap-back
+-- uses the base numbers (the rival has no shop).
+local function slapRange(player: Player): number
+	local profile = DataService.getProfile(player)
+	local tier = if profile then profile.slapTier else 0
+	return Config.SLAP_RANGE + Config.SLAP_RANGE_PER_TIER * tier
+end
+
+local function slapKnockback(player: Player?): number
+	local profile = if player then DataService.getProfile(player) else nil
+	local tier = if profile then profile.slapTier else 0
+	return Config.SLAP_KNOCKBACK + Config.SLAP_KNOCKBACK_PER_TIER * tier
+end
+
+local function knockback(root: Part, from: Vector3, power: number?)
 	local flat = Vector3.new(root.Position.X - from.X, 0, root.Position.Z - from.Z)
 	local away = if flat.Magnitude > 0.5 then flat.Unit else Vector3.new(0, 0, 1)
-	root.AssemblyLinearVelocity = away * Config.SLAP_KNOCKBACK + Vector3.new(0, 16, 0)
+	root.AssemblyLinearVelocity = away * (power or Config.SLAP_KNOCKBACK) + Vector3.new(0, 16, 0)
 end
 
 -- The slap's HIT effect: a shockwave ring + "BONK!" burst at the
@@ -49,7 +65,7 @@ function SlapService.slapRival(rival: State.Rival, byPlayer: Player?)
 	local character = if byPlayer then byPlayer.Character else nil
 	local from = if character then character:FindFirstChild("HumanoidRootPart") else nil
 	if root and from then
-		knockback(root, from.Position)
+		knockback(root, from.Position, slapKnockback(byPlayer))
 	end
 	if root then
 		slapHitAt(root.Position)
@@ -73,7 +89,7 @@ function SlapService.slapPlayer(victim: Player, byPlayer: Player)
 	local swinger = byPlayer.Character
 	local from = swinger and swinger:FindFirstChild("HumanoidRootPart")
 	if root and from then
-		knockback(root, from.Position)
+		knockback(root, from.Position, slapKnockback(byPlayer))
 		slapHitAt(root.Position)
 	end
 	CarryService.dropAllCarried(victim)
@@ -113,13 +129,14 @@ function SlapService.trySlap(player: Player)
 	end
 	local forward = root.CFrame.LookVector
 	local hitAnyone = false
+	local range = slapRange(player)
 	-- Rivals first.
 	for model, rival in pairs(State.rivals) do
 		local rivalRoot = model:FindFirstChild("HumanoidRootPart")
 		if rivalRoot then
 			local to = rivalRoot.Position - root.Position
 			local dist = to.Magnitude
-			if dist <= Config.SLAP_RANGE and dist > 0.5 and to.Unit:Dot(Vector3.new(forward.X, 0, forward.Z).Unit) > 0.3 then
+			if dist <= range and dist > 0.5 and to.Unit:Dot(Vector3.new(forward.X, 0, forward.Z).Unit) > 0.3 then
 				SlapService.slapRival(rival, player)
 				hitAnyone = true
 			end
@@ -133,7 +150,7 @@ function SlapService.trySlap(player: Player)
 			if otherRoot then
 				local to = otherRoot.Position - root.Position
 				local dist = to.Magnitude
-				if dist <= Config.SLAP_RANGE and dist > 0.5 and to.Unit:Dot(Vector3.new(forward.X, 0, forward.Z).Unit) > 0.3 then
+				if dist <= range and dist > 0.5 and to.Unit:Dot(Vector3.new(forward.X, 0, forward.Z).Unit) > 0.3 then
 					SlapService.slapPlayer(other, player)
 					hitAnyone = true
 				end
@@ -146,7 +163,7 @@ function SlapService.trySlap(player: Player)
 		if raiderRoot then
 			local to = raiderRoot.Position - root.Position
 			local dist = to.Magnitude
-			if dist <= Config.SLAP_RANGE and dist > 0.5 and to.Unit:Dot(Vector3.new(forward.X, 0, forward.Z).Unit) > 0.3 then
+			if dist <= range and dist > 0.5 and to.Unit:Dot(Vector3.new(forward.X, 0, forward.Z).Unit) > 0.3 then
 				local RaiderService = require(script.Parent.RaiderService)
 				RaiderService.bonkRaider(raiderModel, player)
 				-- bonkRaider scatters the loot and flees but fires no
