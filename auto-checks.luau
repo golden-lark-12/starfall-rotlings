@@ -4829,6 +4829,51 @@ do
 	end
 end
 
+-- -- (ci) the guardian looks like a creature, not a ball (fix round 6, item 5)
+-- Malek: "can we rework how he look?" The old guardian was a smooth
+-- ball with flat grey slabs. The new one is a hunched rock golem:
+-- head jutting forward low on the chest, heavy brow over the red eyes,
+-- boulder shoulders, long arms with fists, stomp feet, Neon magma
+-- cracks. The body ball is unchanged (the chase is tuned on it) and
+-- the red eyes + red light + "CRATER GUARDIAN" tag are kept.
+do
+	local guardianSrc = read("src/server/GuardianService.luau")
+	if not guardianSrc then
+		check("ci", false, "could not verify the guardian look — GuardianService.luau missing")
+	else
+		local problems: { string } = {}
+		if not guardianSrc:find("makePart%(\"Head\"") then
+			table.insert(problems, "no head rock — the golem has no hunched head")
+		end
+		if not guardianSrc:find("makePart%(\"Brow\"") then
+			table.insert(problems, "no brow slab — the eyes have no heavy brow over them")
+		end
+		if not guardianSrc:find("makePart%(\"Shoulder\"") then
+			table.insert(problems, "no boulder shoulders — the silhouette is still a ball")
+		end
+		if not guardianSrc:find("makePart%(\"Arm\"") or not guardianSrc:find("makePart%(\"Fist\"") then
+			table.insert(problems, "no arms + fists — the golem has no limbs")
+		end
+		if not guardianSrc:find("makePart%(\"Foot\"") then
+			table.insert(problems, "no stomp feet — the golem floats instead of standing")
+		end
+		if not guardianSrc:find("makePart%(\"GlowCrack\"") then
+			table.insert(problems, "no glowing cracks — the magma-crack read is missing")
+		end
+		if guardianSrc:find("makePart%(\"Crack\"") then
+			table.insert(problems, "the old flat grey Crack slabs are still there")
+		end
+		if not guardianSrc:find("CRATER GUARDIAN") or not guardianSrc:find("255, 30, 30") or not guardianSrc:find("PointLight") then
+			table.insert(problems, "the warning read is gone — the tag, red eyes or red light must stay")
+		end
+		if #problems > 0 then
+			check("ci", false, "the guardian look rework is incomplete — " .. table.concat(problems, "; ") .. ". Part: GuardianService.luau")
+		else
+			check("ci", true, "the guardian is a hunched rock golem: forward low head + heavy brow, red eyes, Neon magma cracks, boulder shoulders, arms + fists, stomp feet; body ball unchanged, tag + red eyes + red light kept")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

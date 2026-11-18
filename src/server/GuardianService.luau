@@ -81,8 +81,15 @@ local function makePart(name: string, shape: Enum.PartType, size: Vector3, color
 	return part
 end
 
--- Build the guardian: a big dark space rock with glowing red eyes.
+-- Build the guardian: a hunched rock golem with glowing cracks.
 -- Built from parts only (no meshes, no uploads), like every Rotling.
+-- (fix round 6, item 5) THE LOOK, reworked: the old guardian was a
+-- smooth ball with flat grey slabs — Malek asked for a creature. Now
+-- it has a head jutting forward low on the chest (the hunch), a heavy
+-- brow over glowing red eyes, boulder shoulders, long arms with fists,
+-- stomp feet, and Neon magma cracks instead of grey slabs. The body
+-- ball itself is UNCHANGED (size + centre are the locomotion the
+-- chase was tuned on); everything new is decorative and welded to it.
 local function buildGuardian(position: Vector3): Model
 	local model = Instance.new("Model")
 	model.Name = "Crater Guardian"
@@ -94,40 +101,107 @@ local function buildGuardian(position: Vector3): Model
 	body.Parent = model
 	model.PrimaryPart = body
 
-	-- Cracks: lighter rock slabs stuck on the front, so it reads as
-	-- a boulder, not a smooth ball.
-	for _, offset in ipairs({ Vector3.new(-1.6, 0.8, 2.2), Vector3.new(1.4, -0.9, 2.3), Vector3.new(0, 1.8, 2.1) }) do
-		local slab = makePart("Crack", Enum.PartType.Block, Vector3.new(1.6, 1.2, 0.5), Color3.fromRGB(90, 80, 95), Enum.Material.Slate)
-		slab.CFrame = body.CFrame * CFrame.new(offset)
-		slab.Parent = model
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = body
-		weld.Part1 = slab
-		weld.Parent = slab
-	end
+	-- Head: a smaller rock ball mounted low and forward — the hunch.
+	local head = makePart("Head", Enum.PartType.Ball, Vector3.new(2.6, 2.6, 2.6), Color3.fromRGB(38, 32, 42), Enum.Material.Slate)
+	head.CFrame = body.CFrame * CFrame.new(0, 1.2, 2.2)
+	head.Parent = model
+	local headWeld = Instance.new("WeldConstraint")
+	headWeld.Part0 = body
+	headWeld.Part1 = head
+	headWeld.Parent = head
 
-	-- Glowing red eyes: the whole point of the monster. Two Neon red
-	-- orbs on the front, plus a red light so it glows in the dark.
+	-- Heavy brow slab over the eyes, tilted down — the menace.
+	local brow = makePart("Brow", Enum.PartType.Block, Vector3.new(3.0, 0.9, 1.0), Color3.fromRGB(30, 25, 35), Enum.Material.Slate)
+	brow.CFrame = body.CFrame * CFrame.new(0, 2.0, 3.0) * CFrame.Angles(math.rad(-15), 0, 0)
+	brow.Parent = model
+	local browWeld = Instance.new("WeldConstraint")
+	browWeld.Part0 = body
+	browWeld.Part1 = brow
+	browWeld.Parent = brow
+
+	-- Glowing red eyes, deep under the brow on the head's front.
 	for _, side in ipairs({ -1, 1 }) do
 		local eye = makePart("Eye", Enum.PartType.Ball, Vector3.new(0.9, 0.9, 0.9), Color3.fromRGB(255, 30, 30), Enum.Material.Neon)
-		eye.CFrame = body.CFrame * CFrame.new(side * 1.2, 0.7, 2.4)
+		eye.CFrame = body.CFrame * CFrame.new(side * 0.65, 1.4, 3.4)
 		eye.Parent = model
 		local weld = Instance.new("WeldConstraint")
 		weld.Part0 = body
 		weld.Part1 = eye
 		weld.Parent = eye
 	end
+
+	-- Glowing cracks: thin Neon magma bars wedged into the torso and
+	-- head at angles, replacing the old flat grey slabs.
+	local cracks: { { pos: Vector3, len: number, rot: number } } = {
+		{ pos = Vector3.new(0, -0.4, 2.6), len = 2.8, rot = 10 },
+		{ pos = Vector3.new(-1.7, 0.9, 2.3), len = 1.8, rot = -35 },
+		{ pos = Vector3.new(1.8, -0.2, 2.3), len = 2.0, rot = 30 },
+		{ pos = Vector3.new(-0.6, -1.6, 2.4), len = 1.4, rot = 55 },
+		{ pos = Vector3.new(0.9, 1.8, 3.3), len = 1.2, rot = -20 },
+	}
+	for _, c in ipairs(cracks) do
+		local crack = makePart("GlowCrack", Enum.PartType.Block, Vector3.new(0.35, c.len, 0.35), Color3.fromRGB(255, 80, 30), Enum.Material.Neon)
+		crack.CFrame = body.CFrame * CFrame.new(c.pos) * CFrame.Angles(0, 0, math.rad(c.rot))
+		crack.Parent = model
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = body
+		weld.Part1 = crack
+		weld.Parent = crack
+	end
+
+	-- Boulder shoulders.
+	for _, side in ipairs({ -1, 1 }) do
+		local shoulder = makePart("Shoulder", Enum.PartType.Ball, Vector3.new(2.6, 2.6, 2.6), Color3.fromRGB(40, 34, 44), Enum.Material.Slate)
+		shoulder.CFrame = body.CFrame * CFrame.new(side * 2.6, 1.6, 0)
+		shoulder.Parent = model
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = body
+		weld.Part1 = shoulder
+		weld.Parent = shoulder
+	end
+
+	-- Long arms hanging from the shoulders, fists at the ends.
+	for _, side in ipairs({ -1, 1 }) do
+		local arm = makePart("Arm", Enum.PartType.Block, Vector3.new(1.5, 3.4, 1.5), Color3.fromRGB(42, 36, 46), Enum.Material.Slate)
+		arm.CFrame = body.CFrame * CFrame.new(side * 2.9, -0.6, 0.3) * CFrame.Angles(0, 0, math.rad(-side * 8))
+		arm.Parent = model
+		local armWeld = Instance.new("WeldConstraint")
+		armWeld.Part0 = body
+		armWeld.Part1 = arm
+		armWeld.Parent = arm
+		local fist = makePart("Fist", Enum.PartType.Ball, Vector3.new(1.6, 1.6, 1.6), Color3.fromRGB(38, 32, 42), Enum.Material.Slate)
+		fist.CFrame = body.CFrame * CFrame.new(side * 3.0, -2.2, 0.3)
+		fist.Parent = model
+		local fistWeld = Instance.new("WeldConstraint")
+		fistWeld.Part0 = body
+		fistWeld.Part1 = fist
+		fistWeld.Parent = fist
+	end
+
+	-- Stomp feet, so it stands on the ground instead of floating.
+	for _, side in ipairs({ -1, 1 }) do
+		local foot = makePart("Foot", Enum.PartType.Block, Vector3.new(2.2, 1.0, 2.6), Color3.fromRGB(35, 30, 40), Enum.Material.Slate)
+		foot.CFrame = body.CFrame * CFrame.new(side * 1.4, -2.7, 0.3)
+		foot.Parent = model
+		local footWeld = Instance.new("WeldConstraint")
+		footWeld.Part0 = body
+		footWeld.Part1 = foot
+		footWeld.Parent = foot
+	end
+
+	-- Red light so the cracks and eyes glow in the dark.
 	local light = Instance.new("PointLight")
 	light.Color = Color3.fromRGB(255, 40, 40)
 	light.Brightness = 2
 	light.Range = 12
 	light.Parent = body
 
-	-- A red tag so the chase reads from across the crater.
+	-- A red tag so the chase reads from across the crater. Raised:
+	-- the shoulders now top out higher than the old ball.
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "GuardianTag"
 	billboard.Size = UDim2.fromOffset(220, 36)
-	billboard.StudsOffsetWorldSpace = Vector3.new(0, 4.2, 0)
+	billboard.StudsOffsetWorldSpace = Vector3.new(0, 6.8, 0)
 	billboard.AlwaysOnTop = true
 	billboard.LightInfluence = 0
 	billboard.MaxDistance = 60
