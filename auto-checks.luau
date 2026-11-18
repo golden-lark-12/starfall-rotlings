@@ -2573,7 +2573,7 @@ end
 
 -- -- (ax) the storm front wall --------------------------------------------------------
 -- Step 2: a giant glowing meteor wall sweeps the whole map during the
--- storm, with a "STORM FRONT INCOMING: RUN HOME!" banner and a green
+-- storm, with a "METEOR SHOWER INCOMING! RUN HOME!" banner and a green
 -- "SAFE DOME" label over every base while it passes. The wall is pure
 -- spectacle: knockback and dropped Rotlings still come only from the
 -- falling meteors.
@@ -2599,11 +2599,11 @@ do
 		if not stormSrc:find("Enum%.EasingStyle%.Linear") then
 			table.insert(problems, "the wall does not sweep linearly across the map")
 		end
-		if not stormSrc:find("STORM FRONT INCOMING: RUN HOME!") then
-			table.insert(problems, 'no "STORM FRONT INCOMING: RUN HOME!" storm banner')
+		if not stormSrc:find("METEOR SHOWER INCOMING! RUN HOME!") then
+			table.insert(problems, 'no "METEOR SHOWER INCOMING! RUN HOME!" storm banner')
 		end
-		if not warnSrc:find("STORM FRONT INCOMING") then
-			table.insert(problems, "the storm warning bar does not show the storm front line")
+		if not warnSrc:find("SPACE ROCKS INCOMING") then
+			table.insert(problems, "the storm warning bar does not show the space-rocks line")
 		end
 		if not worldSrc:find("SAFE DOME") then
 			table.insert(problems, 'no "SAFE DOME" label in WorldBuilder')
@@ -2620,7 +2620,7 @@ do
 		if #problems > 0 then
 			check("ax", false, "the storm front is missing — " .. table.concat(problems, "; ") .. ". Parts: StormFront (StarfallService.luau), warning bar (StormWarningController), SAFE DOME (WorldBuilder.luau), feed (IncomeService.luau)")
 		else
-			check("ax", true, "storm front: giant glowing wall sweeps the map, STORM FRONT INCOMING banner, green SAFE DOME label + dome over every base while it passes")
+			check("ax", true, "storm front: giant glowing wall sweeps the map, METEOR SHOWER INCOMING banner, green SAFE DOME label + dome over every base while it passes")
 		end
 	end
 end
@@ -3051,8 +3051,8 @@ do
 			table.insert(problems, "storm bar does not pulse while the storm runs")
 		end
 		-- Simultaneous at storm start: banner + wall + heroes + rain.
-		if not starSrc:find('bannerEvent%(%)%:FireAllClients%("🌠 STORM FRONT INCOMING') then
-			table.insert(problems, "no STORM FRONT INCOMING banner at storm start")
+		if not starSrc:find('bannerEvent%(%)%:FireAllClients%("🌠 METEOR SHOWER INCOMING') then
+			table.insert(problems, "no METEOR SHOWER INCOMING banner at storm start")
 		end
 		if not starSrc:find("task.spawn%(function%(%)%s+local ok, err = pcall%(spawnStormFront%)") then
 			table.insert(problems, "storm front wall is not spawned at storm start")

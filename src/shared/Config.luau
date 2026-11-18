@@ -62,7 +62,7 @@ Config.STORM_WARNING_TIME = 2 -- seconds the warning circle shows before impact
 Config.STORM_BASE_SAFE_RADIUS = 17 -- no impact target this close to a base centre
 Config.STORM_HIT_RADIUS = 6 -- a player this close to an impact is knocked back
 Config.STORM_KNOCKBACK = 42 -- studs/sec of knockback velocity on a hit
-Config.STORM_HAZARD_LABEL = "DANGER: CRATER-WIDE METEOR RAIN" -- hazard label on the storm banner
+Config.STORM_HAZARD_LABEL = "DANGER: CRATER-WIDE FIREBALL RAIN" -- hazard label on the storm banner
 -- Storm front wall (step 2): a giant glowing meteor front that sweeps
 -- across the whole map during the storm — the threat you can see coming
 -- from far away. It is pure spectacle: the knockback and dropped

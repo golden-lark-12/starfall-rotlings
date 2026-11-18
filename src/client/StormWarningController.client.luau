@@ -70,7 +70,7 @@ Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 		-- the event with a doubled income number — and the player
 		-- knows WHY they ran home. The wall, the banner and the
 		-- effect all land in the same moment (storm start).
-		warnLabel.Text = "⛈ STORM FRONT INCOMING — SHELTER ON YOUR BASE = x2 INCOME! ⛈"
+		warnLabel.Text = "⛈ SPACE ROCKS INCOMING — SHELTER ON YOUR BASE = x2 INCOME! ⛈"
 		startPulse()
 	else
 		stopPulse()

@@ -965,8 +965,8 @@ do
 		if not stormSrc:find("StormFront") then
 			table.insert(problems, "no StormFront wall")
 		end
-		if not stormSrc:find("STORM FRONT INCOMING: RUN HOME!") then
-			table.insert(problems, "no STORM FRONT INCOMING banner")
+		if not stormSrc:find("METEOR SHOWER INCOMING! RUN HOME!") then
+			table.insert(problems, "no METEOR SHOWER INCOMING banner")
 		end
 		if not worldSrc:find("SAFE DOME") then
 			table.insert(problems, 'no "SAFE DOME" label')
@@ -977,7 +977,7 @@ do
 		if #problems > 0 then
 			step("storm-front", false, table.concat(problems, "; "))
 		else
-			step("storm-front", true, "giant glowing wall sweeps the map, STORM FRONT INCOMING banner, green SAFE DOME over bases, meteors still knock back and drop carries")
+			step("storm-front", true, "giant glowing wall sweeps the map, METEOR SHOWER INCOMING banner, green SAFE DOME over bases, meteors still knock back and drop carries")
 		end
 	end
 end

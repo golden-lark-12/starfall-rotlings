@@ -552,7 +552,7 @@ function StarfallService.start()
 						lightningFlash()
 					end
 				end)
-				Remotes.bannerEvent():FireAllClients("🌠 STORM FRONT INCOMING: RUN HOME! 🌠", 8)
+				Remotes.bannerEvent():FireAllClients("🌠 METEOR SHOWER INCOMING! RUN HOME! 🌠", 8)
 				-- The rain loop spawns the first meteor immediately
 				-- (no wait before the first call), so a meteor is
 				-- falling within a second of the storm starting.
