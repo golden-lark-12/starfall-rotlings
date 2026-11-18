@@ -478,7 +478,7 @@ local function buildBase(baseId: number)
 		-- Press E on a pad to place the Rotling you carry. The server
 		-- checks you own this base and the pad is free.
 		local placePrompt = Instance.new("ProximityPrompt")
-		placePrompt.ActionText = "Place Rotling"
+		placePrompt.ActionText = "Place Brainrot"
 		placePrompt.ObjectText = "Base " .. tostring(baseId)
 		placePrompt.HoldDuration = 0
 		placePrompt.MaxActivationDistance = 10
@@ -1214,7 +1214,13 @@ end
 -- per Rotling. Panels start dark; the client (IndexWallController)
 -- lights a panel in its rarity colour once the Rotling is found.
 local function buildIndexWall()
-	local wallCf = CFrame.lookAt(Vector3.new(28, 0, 80), Vector3.new(0, 0, 96))
+	-- Right side of the path, further from spawn (fix round 2, fix 8):
+	-- the wall used to sit at (28, 0, 80), close to spawn and ~14
+	-- studs from the Bounty Board, so its AlwaysOnTop title overlapped
+	-- both the Bounty Board and the SPAWN sign. Now it is at (35, 0,
+	-- 70) — further from spawn, further right, ~55 studs from the
+	-- Bounty Board on the opposite side of the path.
+	local wallCf = CFrame.lookAt(Vector3.new(35, 0, 70), Vector3.new(0, 0, 96))
 	local board = part("IndexWallBoard", Enum.PartType.Block, Vector3.new(26, 9, 0.6), Color3.fromRGB(40, 30, 70), wallCf * CFrame.new(0, 4.5, 0))
 	board.CanCollide = false
 	local titleGui = Instance.new("BillboardGui")
@@ -1228,7 +1234,7 @@ local function buildIndexWall()
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Size = UDim2.new(1, 0, 1, 0)
 	titleLabel.BackgroundTransparency = 1
-	titleLabel.Text = "📖 ROTLING INDEX"
+	titleLabel.Text = "📖 BRAINROT INDEX"
 	titleLabel.Font = Enum.Font.FredokaOne
 	titleLabel.TextScaled = true
 	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1451,43 +1457,6 @@ end
 -- ROTLINGS" plus a one-line pitch in our own words, on two tall
 -- posts at the crater's north edge, facing spawn — visible in the
 -- hero and isometric shots.
-local function buildTitleBillboard()
-	for _, x in ipairs({ -14, 14 }) do
-		local post = part("TitlePost", Enum.PartType.Cylinder, Vector3.new(22, 1.2, 1.2), Color3.fromRGB(72, 62, 92), CFrame.new(x, 11, -48) * CFrame.Angles(0, 0, math.rad(90)))
-		post.CanCollide = false
-	end
-	local board = part("TitleBoard", Enum.PartType.Block, Vector3.new(32, 9, 0.8), Color3.fromRGB(20, 15, 40), CFrame.new(0, 22, -48))
-	board.CanCollide = false
-	local gui = Instance.new("BillboardGui")
-	gui.Name = "TitleBillboard"
-	gui.Size = UDim2.fromOffset(1200, 340)
-	gui.AlwaysOnTop = true
-	gui.LightInfluence = 0
-	gui.MaxDistance = 400
-	gui.Parent = board
-	local title = Instance.new("TextLabel")
-	title.Name = "TitleText"
-	title.Size = UDim2.new(1, 0, 0.6, 0)
-	title.BackgroundTransparency = 1
-	title.Text = "⭐ SPACE ROCK BRAINROTS! ⭐"
-	title.Font = Enum.Font.FredokaOne
-	title.TextScaled = true
-	title.TextColor3 = Color3.fromRGB(255, 220, 90)
-	title.TextStrokeTransparency = 0.2
-	title.Parent = gui
-	local pitch = Instance.new("TextLabel")
-	pitch.Name = "TitlePitch"
-	pitch.Size = UDim2.new(1, 0, 0.4, 0)
-	pitch.Position = UDim2.new(0, 0, 0.6, 0)
-	pitch.BackgroundTransparency = 1
-	pitch.Text = "Grab them. Grow them. Guard your base."
-	pitch.Font = Enum.Font.FredokaOne
-	pitch.TextScaled = true
-	pitch.TextColor3 = Color3.fromRGB(255, 255, 255)
-	pitch.TextStrokeTransparency = 0.3
-	pitch.Parent = gui
-end
-
 -- Logo stage near spawn: three hero Rotlings (Cosmic Corn Dog,
 -- Supreme Spaghetti, Baron von Burrito) on a small stage with a
 -- meteor prop — the in-game render of the logo, bright and readable
@@ -1524,7 +1493,13 @@ end
 -- Bounty board near spawn (15, 0, 85): "Top earner this storm wins
 -- a bonus." The income broadcast updates its text (item 7d).
 local function buildBountyBoard()
-	local boardCf = CFrame.lookAt(Vector3.new(15, 0, 85), Vector3.new(0, 0, 96))
+	-- Opposite side of the spawn path from the Index Wall (fix round
+	-- 2, fix 8): the board used to sit at (15, 0, 85), ~14 studs from
+	-- the Index Wall at (28, 0, 80), and their AlwaysOnTop billboards
+	-- overlapped on screen from spawn. Now the board is on the LEFT
+	-- side of the path (-18) and the wall is on the RIGHT (35, 70) —
+	-- ~55 studs apart, never in the same frame.
+	local boardCf = CFrame.lookAt(Vector3.new(-18, 0, 85), Vector3.new(0, 0, 96))
 	for _, x in ipairs({ -4, 4 }) do
 		local post = part("BountyPost", Enum.PartType.Cylinder, Vector3.new(7, 0.8, 0.8), Color3.fromRGB(120, 85, 50), boardCf * CFrame.new(x, 3.5, 0) * CFrame.Angles(0, 0, math.rad(90)))
 		post.CanCollide = false
@@ -1588,7 +1563,11 @@ function WorldBuilder.build()
 	buildBackground()
 	buildSignpostsAndFences()
 	buildCritters()
-	buildTitleBillboard()
+	-- Title billboard REMOVED (fix round 2, fix 8): the giant
+	-- "SPACE ROCK BRAINROTS!" text in the sky filled the screen and
+	-- its pitch line overlapped the SELL pad. The small HUD title is
+	-- enough — the name lives on the HUD and the title screen, not
+	-- in the sky.
 	buildLogoStage()
 	buildBountyBoard()
 	print("[WorldBuilder] world built: " .. tostring(Config.BASE_COUNT) .. " bases, crater, conveyor, sell area, plaza, trees, rocks, hills, ground detail, crystals, islands, sky, wind, star shop, upgrade machines, rebirth altar, index wall, spaceship, background, signposts, fences, paths, critters, title billboard, logo stage, bounty board.")

@@ -169,11 +169,11 @@ function BuddyService.setBuddy(player: Player, defId: string): (boolean, string)
 		return false, "Profile not loaded yet."
 	end
 	if not profile.index[defId] then
-		return false, "Find that Rotling first — then it can be your buddy."
+		return false, "Find that Brainrot first — then it can be your buddy."
 	end
 	local def = RotlingCatalog.getDef(defId)
 	if not def then
-		return false, "No such Rotling."
+		return false, "No such Brainrot."
 	end
 	profile.buddyDefId = defId
 	DataService.saveProfile(player)

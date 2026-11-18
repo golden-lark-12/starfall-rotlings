@@ -149,7 +149,7 @@ local function buildRaider(position: Vector3): Model
 	-- "Bonk the Raider!" prompt: the reliable way to hit it.
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ActionText = "Bonk the Raider!"
-	prompt.ObjectText = "Save your Rotling"
+	prompt.ObjectText = "Save your Brainrot"
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = 8
 	prompt.RequiresLineOfSight = false
@@ -170,7 +170,7 @@ function RaiderService.bonkRaider(model: Model, byPlayer: Player?)
 	end
 	raider.phase = "flee"
 	if byPlayer then
-		Remotes.bannerEvent():FireClient(byPlayer, "Bonk! " .. raider.name .. " dropped your Rotling!", 3)
+		Remotes.bannerEvent():FireClient(byPlayer, "Bonk! " .. raider.name .. " dropped your Brainrot!", 3)
 	end
 end
 
@@ -347,7 +347,7 @@ local function runRaid(model: Model)
 		local owner = Players:GetPlayerByUserId(ownerId)
 		if owner then
 			local def = RotlingCatalog.getDef(stolen:GetAttribute("DefId") :: string)
-			local name = if def then def.name else "a Rotling"
+			local name = if def then def.name else "a Brainrot"
 			Remotes.bannerEvent():FireClient(owner, "🚨 THIEF AT YOUR BASE! " .. raider.name .. " is stealing your " .. name .. "! Bonk it!", 5)
 		end
 	end
@@ -380,7 +380,7 @@ local function runRaid(model: Model)
 		if ownerId then
 			local owner = Players:GetPlayerByUserId(ownerId)
 			if owner then
-				Remotes.bannerEvent():FireClient(owner, raider.name .. " escaped with your Rotling!", 4)
+				Remotes.bannerEvent():FireClient(owner, raider.name .. " escaped with your Brainrot!", 4)
 			end
 		end
 	end
@@ -461,7 +461,7 @@ function RaiderService.spawnRaider(): Model?
 	if ownerId and ownerId > 0 then
 		local owner = Players:GetPlayerByUserId(ownerId)
 		if owner then
-			Remotes.bannerEvent():FireClient(owner, "🚨 " .. (model:GetAttribute("RaiderName") :: string) .. " is sneaking toward your base! Guard your Rotlings — bonk it or slap it!", 5)
+			Remotes.bannerEvent():FireClient(owner, "🚨 " .. (model:GetAttribute("RaiderName") :: string) .. " is sneaking toward your base! Guard your Brainrots — bonk it or slap it!", 5)
 		end
 	end
 	-- Touching it bonks it (with a short debounce per raider).

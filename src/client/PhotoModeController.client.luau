@@ -49,7 +49,7 @@ local SHOTS = {
 		-- big character filling the frame with its rarity tag
 		-- readable, instead of a distant landscape.
 		name = "1/4 — Hero",
-		detail = "Hero Rotling close-up: low and close on the belt's nearest Rotling, tags readable",
+		detail = "Hero Brainrot close-up: low and close on the belt's nearest Brainrot, tags readable",
 		position = Vector3.new(10, 3.5, 7),
 		lookAt = Vector3.new(0, 2, 0),
 	},
@@ -59,7 +59,7 @@ local SHOTS = {
 		-- beacon. The belt's Rotlings are ~15 studs away — big, with
 		-- their rarity tags readable — instead of a distant landscape.
 		name = "2/4 — Belt",
-		detail = "Grab moment: down the conveyor belt, Rotlings and the beacon",
+		detail = "Grab moment: down the conveyor belt, Brainrots and the beacon",
 		position = Vector3.new(42, 4.5, 9),
 		lookAt = Vector3.new(0, 2, 0),
 	},
@@ -76,13 +76,13 @@ local SHOTS = {
 	},
 	{
 		name = "4/4 — Packed base",
-		detail = "Pads full of placed Rotlings, Lv sign and banked cash",
+		detail = "Pads full of placed Brainrots, Lv sign and banked cash",
 		position = nil, -- computed from the nearest base, below
 		lookAt = nil,
 	},
 	{
 		name = "Icon — 512x512",
-		detail = "Icon: logo stage near spawn — one big bright Rotling front-centre, fiery meteor behind, square crop",
+		detail = "Icon: logo stage near spawn — one big bright Brainrot front-centre, fiery meteor behind, square crop",
 		-- Icon shot: the logo stage near spawn (-25, 0, 88) with its
 		-- three hero Rotlings and the fiery meteor prop behind them.
 		-- Camera 10 studs south of the stage, looking north at the
@@ -218,4 +218,4 @@ player.Chatted:Connect(function(message: string)
 	end
 end)
 
-print("Starfall Rotlings photo mode ready (P or /photo).")
+print("Starfall Brainrots photo mode ready (P or /photo).")

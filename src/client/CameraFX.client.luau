@@ -99,4 +99,4 @@ RunService.RenderStepped:Connect(function()
 	trauma = math.max(0, trauma - 0.02)
 end)
 
-print("Starfall Rotlings camera FX ready.")
+print("Starfall Brainrots camera FX ready.")

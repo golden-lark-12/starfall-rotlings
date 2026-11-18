@@ -899,8 +899,11 @@ do
 		if not hudSrc:find("BeltPanel") then
 			table.insert(problems, 'no "On the belt" list in the HUD')
 		end
-		if not worldSrc:find("TitleBoard") then
-			table.insert(problems, "no title billboard over the crater")
+		-- Title billboard REMOVED (fix round 2, fix 8): the giant sky
+		-- text filled the screen and its pitch line overlapped the
+		-- SELL pad. The step proves it is GONE, not present.
+		if worldSrc:find("TitleBoard") then
+			table.insert(problems, "the title billboard is still in the sky (must be removed per the playtest)")
 		end
 		if not worldSrc:find("ShieldDome") then
 			table.insert(problems, "no shield dome on the bases")
@@ -914,7 +917,7 @@ do
 		if #problems > 0 then
 			step("cheap-wins", false, table.concat(problems, "; "))
 		else
-			step("cheap-wins", true, "NEXT REBIRTH bar, danger meter, belt list, title billboard, shield dome, 2 global events")
+			step("cheap-wins", true, "NEXT REBIRTH bar, danger meter, belt list, no title billboard (removed per playtest), shield dome, 2 global events")
 		end
 	end
 end

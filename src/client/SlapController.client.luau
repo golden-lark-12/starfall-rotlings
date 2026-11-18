@@ -126,4 +126,4 @@ if player.Character then
 	onCharacter(player.Character)
 end
 
-print("Starfall Rotlings slap bat ready (F or SLAP button).")
+print("Starfall Brainrots slap bat ready (F or SLAP button).")

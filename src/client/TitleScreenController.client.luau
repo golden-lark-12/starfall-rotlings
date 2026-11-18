@@ -54,7 +54,7 @@ tagline.AnchorPoint = Vector2.new(0.5, 0)
 -- catalog at runtime, so the ladder always shows real game data.
 local ladderPanel = GuiKit.makePanel(titleFrame, "LadderPanel", UDim2.new(0, 560, 0, 268), UDim2.new(0.5, -280, 0, 140))
 ladderPanel.ZIndex = 51
-local ladderTitle = GuiKit.makeLabel(ladderPanel, "LadderTitle", "THE ROTLINGS — 6 RARITIES", UDim2.new(1, 0, 0, 28), UDim2.new(0, 0, 0, 6), 20, GuiKit.COLORS.Gold)
+local ladderTitle = GuiKit.makeLabel(ladderPanel, "LadderTitle", "THE BRAINROTS — 6 RARITIES", UDim2.new(1, 0, 0, 28), UDim2.new(0, 0, 0, 6), 20, GuiKit.COLORS.Gold)
 ladderTitle.ZIndex = 52
 for i, rarity in ipairs(RarityConfig.RARITIES) do
 	local rowY = 40 + (i - 1) * 36
@@ -101,7 +101,7 @@ stepsPanel.BackgroundTransparency = 1
 stepsPanel.ZIndex = 51
 stepsPanel.Parent = titleFrame
 local steps = {
-	{ num = "1", verb = "GRAB", text = "a Rotling\nin the crater" },
+	{ num = "1", verb = "GRAB", text = "a Brainrot\nin the crater" },
 	{ num = "2", verb = "CARRY", text = "it home\nto your base" },
 	{ num = "3", verb = "EARN", text = "coins\nevery second" },
 }
@@ -131,4 +131,4 @@ playButton.MouseButton1Click:Connect(function()
 	print("[Title] PLAY pressed — entering the game.")
 end)
 
-print("Starfall Rotlings title screen ready.")
+print("Starfall Brainrots title screen ready.")

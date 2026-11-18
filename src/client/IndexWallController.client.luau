@@ -40,4 +40,4 @@ end)
 -- HUD feed arrived before the parts replicated.
 task.delay(5, refreshWall)
 
-print("Starfall Rotlings index wall ready.")
+print("Starfall Brainrots index wall ready.")

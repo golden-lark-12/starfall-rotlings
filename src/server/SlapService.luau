@@ -46,7 +46,7 @@ function SlapService.slapRival(rival: State.Rival, byPlayer: Player?)
 	rival.phase = "flee"
 	rival.targetUserId = nil
 	if byPlayer then
-		Remotes.bannerEvent():FireClient(byPlayer, "👋 SLAP! " .. rival.name .. " dropped the Rotling and ran!", 3)
+		Remotes.bannerEvent():FireClient(byPlayer, "👋 SLAP! " .. rival.name .. " dropped the Brainrot and ran!", 3)
 	end
 end
 
@@ -67,7 +67,7 @@ function SlapService.slapPlayer(victim: Player, byPlayer: Player)
 	CarryService.dropAllCarried(victim)
 	local MeteorEggService = require(script.Parent.MeteorEggService)
 	MeteorEggService.dropEgg(victim)
-	Remotes.bannerEvent():FireClient(victim, "👋 " .. byPlayer.DisplayName .. " slapped you — you dropped your Rotlings!", 3)
+	Remotes.bannerEvent():FireClient(victim, "👋 " .. byPlayer.DisplayName .. " slapped you — you dropped your Brainrots!", 3)
 end
 
 -- A rival slaps a player back (no cooldown on the victim's side).
@@ -85,7 +85,7 @@ function SlapService.applySlapFromRival(rival: State.Rival, victim: Player)
 	CarryService.dropAllCarried(victim)
 	local MeteorEggService = require(script.Parent.MeteorEggService)
 	MeteorEggService.dropEgg(victim)
-	Remotes.bannerEvent():FireClient(victim, "👋 " .. rival.name .. " slapped you back — you dropped your Rotlings!", 3)
+	Remotes.bannerEvent():FireClient(victim, "👋 " .. rival.name .. " slapped you back — you dropped your Brainrots!", 3)
 end
 
 -- The swing: find rivals and players in front of the swinger, in range.

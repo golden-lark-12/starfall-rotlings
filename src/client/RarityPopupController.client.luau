@@ -39,4 +39,4 @@ Remotes.rarityPopupEvent().OnClientEvent:Connect(function(name: string, rarity: 
 	end)
 end)
 
-print("Starfall Rotlings rarity popup ready.")
+print("Starfall Brainrots rarity popup ready.")

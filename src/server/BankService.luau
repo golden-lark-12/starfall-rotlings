@@ -23,7 +23,7 @@ function BankService.collectBank(player: Player): (boolean, string)
 		return false, "Profile not loaded yet."
 	end
 	if profile.banked <= 0 then
-		return false, "Nothing to collect yet — your Rotlings are still earning."
+		return false, "Nothing to collect yet — your Brainrots are still earning."
 	end
 	local amount = profile.banked
 	profile.banked = 0

@@ -451,7 +451,7 @@ local function runRival(rival: State.Rival)
 							if stolen then
 								carryModel(rival, stolen)
 								local stolenDef = RotlingCatalog.getDef(stolen:GetAttribute("DefId") :: string)
-								local stolenName = if stolenDef then stolenDef.name else "Rotling"
+								local stolenName = if stolenDef then stolenDef.name else "Brainrot"
 								Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " stole your " .. stolenName .. "! Slap them to get it back!", 5)
 								rival.phase = "toBase"
 							else

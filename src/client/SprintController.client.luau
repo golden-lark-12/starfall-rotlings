@@ -185,4 +185,4 @@ RunService.Heartbeat:Connect(function(dt: number)
 	end
 end)
 
-print("Starfall Rotlings sprint ready (Shift or RUN).")
+print("Starfall Brainrots sprint ready (Shift or RUN).")

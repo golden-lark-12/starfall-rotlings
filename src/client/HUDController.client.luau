@@ -107,7 +107,7 @@ missionFill.BackgroundColor3 = Color3.fromRGB(80, 200, 100)
 missionFill.BackgroundTransparency = 0.4
 missionFill.BorderSizePixel = 0
 missionFill.Parent = missionBar
-local missionLabel = GuiKit.makeLabel(missionBar, "MissionLabel", "🎯 Grab 3 Rotlings — 0/3 • $300", UDim2.new(1, -16, 1, 0), UDim2.new(0, 8, 0, 0), 18, GuiKit.COLORS.White)
+local missionLabel = GuiKit.makeLabel(missionBar, "MissionLabel", "🎯 Grab 3 Brainrots — 0/3 • $300", UDim2.new(1, -16, 1, 0), UDim2.new(0, 8, 0, 0), 18, GuiKit.COLORS.White)
 
 -- XP bar (level + progress) right under the mission bar: grabbing and
 -- placing earn XP, 100 XP per level. Below it, the NEXT REBIRTH
@@ -148,7 +148,14 @@ local rebirthProgressLabel = GuiKit.makeLabel(rebirthBar, "RebirthProgressLabel"
 
 -- Storm timer, top-right at y=60: below the player list (which ends
 -- around y=48), 12px clear of the screen edge.
-local stormLabel = GuiKit.makeLabel(gui, "Storm", "Next storm: --", UDim2.new(0, 230, 0, 36), UDim2.new(1, -242, 0, 60), 22, GuiKit.COLORS.White)
+-- "Next storm" panel (fix round 2, fix 8): it used to be 230px wide
+-- at (1, -242), but the warning text ("Storm in 10s! DANGER:
+-- CRATER-WIDE FIREBALL RAIN") is ~550px at this font size, so it was
+-- clipped off at the top-right. Now the label is 420px wide, still
+-- 12px from the right edge, and the warning line is short ("Storm in
+-- 10s!") — the hazard label already rides on the banner and the
+-- full-width warning bar.
+local stormLabel = GuiKit.makeLabel(gui, "Storm", "Next storm: --", UDim2.new(0, 420, 0, 36), UDim2.new(1, -432, 0, 60), 22, GuiKit.COLORS.White)
 stormLabel.TextXAlignment = Enum.TextXAlignment.Right
 
 -- Meteor Danger meter (cheap win 8): a thin bar under the storm
@@ -183,7 +190,7 @@ local lockButton = GuiKit.makeButton(gui, "LockButton", "🔓 Lock Base (L)", UD
 
 -- Hint line, bottom-centre, anchored so it never clips at the sides.
 -- Widened to 760 so the buddy name fits on the same line.
-local hintLabel = GuiKit.makeLabel(gui, "Hint", "Grab a Rotling in the crater!", UDim2.new(0, 760, 0, 30), UDim2.new(0.5, 0, 1, -44), 22, GuiKit.COLORS.White)
+local hintLabel = GuiKit.makeLabel(gui, "Hint", "Grab a Brainrot in the crater!", UDim2.new(0, 760, 0, 30), UDim2.new(0.5, 0, 1, -44), 22, GuiKit.COLORS.White)
 hintLabel.AnchorPoint = Vector2.new(0.5, 0)
 
 -- Banner line, centre screen, fades on its own. Sits below the XP and
@@ -285,7 +292,7 @@ local hud = {
 	eventName = "",
 	eventSeconds = 0,
 	buddyName = nil,
-	missionText = "Grab 3 Rotlings",
+	missionText = "Grab 3 Brainrots",
 	missionProgress = 0,
 	missionTarget = 3,
 	missionReward = 300,
@@ -484,7 +491,7 @@ local function onHudData(data: Remotes.HudData)
 		stormLabel.Text = "🌠 METEOR STORM!"
 		stormLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
 	elseif hud.stormPhase == "warn" then
-		stormLabel.Text = "⚠ Storm in " .. tostring(hud.stormSeconds) .. "s! " .. Config.STORM_HAZARD_LABEL
+		stormLabel.Text = "⚠ Storm in " .. tostring(hud.stormSeconds) .. "s!"
 		stormLabel.TextColor3 = Color3.fromRGB(255, 180, 60)
 	else
 		stormLabel.Text = "Next storm: " .. tostring(hud.stormSeconds) .. "s"
@@ -506,12 +513,12 @@ local function onHudData(data: Remotes.HudData)
 		hintLabel.Text = "Carrying " .. tostring(hud.carried) .. "/" .. tostring(hud.carrySlots) .. " — stand on your base and press E on a pad!"
 		-- The carrying banner names the catch: the threat shot's drama
 		-- is what you are carrying home.
-		local carriedName = hud.carriedName or "a Rotling"
+		local carriedName = hud.carriedName or "a Brainrot"
 		carryBannerLabel.Text = "🚨 CARRYING: " .. carriedName .. " — RUN HOME! 🚨"
 		carryBanner.Visible = true
 	else
 		local buddyText = if hud.buddyName then "  •  🐾 Buddy: " .. hud.buddyName else ""
-		hintLabel.Text = "Grab a Rotling in the crater! (E)" .. buddyText
+		hintLabel.Text = "Grab a Brainrot in the crater! (E)" .. buddyText
 		carryBanner.Visible = false
 	end
 
@@ -559,4 +566,4 @@ task.spawn(function()
 	end
 end)
 
-print("Starfall Rotlings HUD ready.")
+print("Starfall Brainrots HUD ready.")

@@ -148,4 +148,4 @@ Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 	end
 end)
 
-print("Starfall Rotlings storm warning ready.")
+print("Starfall Brainrots storm warning ready.")

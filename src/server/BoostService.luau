@@ -26,7 +26,7 @@ local BoostService = {}
 
 BoostService.BOOSTS = {
 	speed = { label = "Speed Coil", emoji = "🌀", desc = "+40% speed for 30s", duration = Config.BOOST_SPEED_DURATION },
-	magnet = { label = "Magnet", emoji = "🧲", desc = "Auto-grab Rotlings within 15 studs for 30s", duration = Config.BOOST_MAGNET_DURATION },
+	magnet = { label = "Magnet", emoji = "🧲", desc = "Auto-grab Brainrots within 15 studs for 30s", duration = Config.BOOST_MAGNET_DURATION },
 	cash = { label = "2x Cash", emoji = "💰", desc = "Double income for 60s", duration = Config.BOOST_CASH_DURATION },
 	shield = { label = "Shield", emoji = "🛡️", desc = "Immune to slaps and meteors for 20s", duration = Config.BOOST_SHIELD_DURATION },
 } :: { [string]: { label: string, emoji: string, desc: string, duration: number } }

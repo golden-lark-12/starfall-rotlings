@@ -30,7 +30,7 @@ ShopService.SHOP = {
 	},
 	Carry = {
 		label = "Extra Arms",
-		desc = "+1 Rotling carried per tier",
+		desc = "+1 Brainrot carried per tier",
 		tiers = { 400, 2500 },
 	},
 	Income = {
@@ -125,7 +125,7 @@ function ShopService.rerollMutation(player: Player): (boolean, string)
 	local BaseService = require(script.Parent.BaseService)
 	local placed = BaseService.getPlacedForPlayer(player)
 	if #placed == 0 then
-		return false, "Place a Rotling on your base first, then reroll its mutation."
+		return false, "Place a Brainrot on your base first, then reroll its mutation."
 	end
 	-- Best = highest base income.
 	local RotlingCatalog = require(game:GetService("ReplicatedStorage").Shared.RotlingCatalog)
@@ -144,7 +144,7 @@ function ShopService.rerollMutation(player: Player): (boolean, string)
 		end
 	end
 	if not best then
-		return false, "No Rotling to reroll."
+		return false, "No Brainrot to reroll."
 	end
 	local mutation = MutationConfig.rollMutation()
 	profile.stardust -= Config.REROLL_STARDUST_COST
@@ -153,7 +153,7 @@ function ShopService.rerollMutation(player: Player): (boolean, string)
 	DataService.saveProfile(player)
 	FeedbackService.celebrate(player)
 	local def = RotlingCatalog.getDef(best:GetAttribute("DefId") :: string)
-	local name = if def then def.name else "Your Rotling"
+	local name = if def then def.name else "Your Brainrot"
 	if mutation then
 		local mut = MutationConfig.mutationByName(mutation)
 		local mult = if mut then mut.mult else 1

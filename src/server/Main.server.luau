@@ -122,7 +122,7 @@ local function onPlayerAdded(player: Player)
 	LeaderstatsService.createLeaderstats(player)
 	local baseId = BaseService.assignBase(player)
 	if not baseId then
-		player:Kick("Starfall Rotlings is full! All 8 bases are taken. Try again soon.")
+		player:Kick("Starfall Brainrots is full! All 8 bases are taken. Try again soon.")
 		return
 	end
 	local profile = DataService.getProfile(player)
@@ -165,4 +165,4 @@ game:BindToClose(function()
 	end
 end)
 
-print("Starfall Rotlings server ready.")
+print("Starfall Brainrots server ready.")

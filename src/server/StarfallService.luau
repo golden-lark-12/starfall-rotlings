@@ -212,7 +212,7 @@ local function maybeStarstruck(impact: Vector3)
 						descendant:SetAttribute("Mutation", "Starstruck")
 						RotlingFactory.applyMutationVisual(descendant, "Starstruck")
 						local def = RotlingCatalog.getDef(descendant:GetAttribute("DefId") :: string)
-						local name = if def then def.name else "A Rotling"
+						local name = if def then def.name else "A Brainrot"
 						Remotes.bannerEvent():FireAllClients(name .. " survived a meteor and went STARSTRUCK! x4 income!", 4)
 					end
 				end

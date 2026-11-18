@@ -138,7 +138,7 @@ function CarryService.setPromptState(model: Model)
 		return
 	end
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
-	local name = if def then def.name else "Rotling"
+	local name = if def then def.name else "Brainrot"
 	local state = model:GetAttribute("State")
 	if state == "carried" then
 		prompt.Enabled = false
@@ -415,10 +415,10 @@ function CarryService.dropAllCarried(player: Player)
 		CarryService.removeCarried(player, model)
 		CarryService.scatterToCrater(model)
 	end
-	Remotes.bannerEvent():FireClient(player, "You dropped your Rotlings!", 3)
+	Remotes.bannerEvent():FireClient(player, "You dropped your Brainrots!", 3)
 end
 
--- Rebuild a player's saved Rotlings onto their new base's pads.
+-- Rebuild a player's saved Brainrots onto their new base's pads.
 function CarryService.restorePlaced(player: Player, saved: { State.PlacedEntry })
 	local baseId = BaseService.getPlayerBase(player.UserId)
 	if not baseId then

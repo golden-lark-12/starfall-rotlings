@@ -26,7 +26,7 @@ local indexButton = GuiKit.makeButton(gui, "IndexButton", "📖 Index (I)", UDim
 
 local indexPanel = GuiKit.makePanel(gui, "IndexPanel", UDim2.new(0, 520, 0, 420), UDim2.new(0.5, -260, 0.5, -210))
 indexPanel.Visible = false
-GuiKit.makeLabel(indexPanel, "Title", "📖 ROTLING INDEX", UDim2.new(1, 0, 0, 44), UDim2.new(0, 0, 0, 8), 30, GuiKit.COLORS.White)
+GuiKit.makeLabel(indexPanel, "Title", "📖 BRAINROT INDEX", UDim2.new(1, 0, 0, 44), UDim2.new(0, 0, 0, 8), 30, GuiKit.COLORS.White)
 local indexClose = GuiKit.makeButton(indexPanel, "Close", "X", UDim2.new(0, 40, 0, 40), UDim2.new(1, -48, 0, 8), GuiKit.COLORS.Close)
 local indexCount = GuiKit.makeLabel(indexPanel, "Count", "Found 0 / 20", UDim2.new(1, 0, 0, 26), UDim2.new(0, 0, 0, 48), 20, Color3.fromRGB(160, 255, 170))
 
@@ -147,4 +147,4 @@ Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 	end
 end)
 
-print("Starfall Rotlings index ready.")
+print("Starfall Brainrots index ready.")

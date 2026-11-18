@@ -86,7 +86,7 @@ function StealService.trySteal(player: Player, model: Model)
 	Remotes.bannerEvent():FireClient(player, "Stolen! Get it home before they notice!", 3)
 	local owner = Players:GetPlayerByUserId(ownerId)
 	if owner then
-		local stolenName = if def then def.name else "a Rotling"
+		local stolenName = if def then def.name else "a Brainrot"
 		Remotes.bannerEvent():FireClient(owner, player.DisplayName .. " is stealing your " .. stolenName .. "!", 4)
 		playStealSound(owner)
 	end

@@ -26,8 +26,8 @@ Config.CRATER_INITIAL = 8 -- Rotlings waiting when the first player arrives
 -- on the server (grabs, places, coins earned); finishing one pays the
 -- reward and moves to the next.
 Config.MISSIONS = {
-	{ id = "grab", text = "Grab 3 Rotlings", target = 3, reward = 300 },
-	{ id = "place", text = "Place 3 Rotlings on your base", target = 3, reward = 500 },
+	{ id = "grab", text = "Grab 3 Brainrots", target = 3, reward = 300 },
+	{ id = "place", text = "Place 3 Brainrots on your base", target = 3, reward = 500 },
 	{ id = "earn", text = "Earn $5,000 coins", target = 5000, reward = 750 },
 }
 

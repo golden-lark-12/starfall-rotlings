@@ -37,7 +37,7 @@ local baseTarget: Vector3? = nil
 -- BasePlatform to the player (they spawn beside their own base).
 local function stepTarget(step: number): (Vector3, string)
 	if step == 1 then
-		return Vector3.new(0, 0, 0), "1. Walk to the crater — press E on a Rotling to grab it!"
+		return Vector3.new(0, 0, 0), "1. Walk to the crater — press E on a Brainrot to grab it!"
 	elseif step == 2 then
 		if not baseTarget then
 			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -149,4 +149,4 @@ Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 	end
 end)
 
-print("Starfall Rotlings tutorial ready.")
+print("Starfall Brainrots tutorial ready.")

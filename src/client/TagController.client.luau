@@ -77,4 +77,4 @@ task.spawn(function()
 	end
 end)
 
-print("Starfall Rotlings tag manager ready.")
+print("Starfall Brainrots tag manager ready.")

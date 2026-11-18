@@ -4,7 +4,7 @@
 -- E on it: it sells the Rotling you carry, or — if you carry none — the
 -- highest-value Brainrot placed on your own base (the playtest showed
 -- selling only worked while carrying, so a player with Rotlings on their
--- base got "Carry a Rotling first!" and no money). The sold model is
+-- base got "Carry a Brainrot first!" and no money). The sold model is
 -- removed from its pad and destroyed, and the payout (baseCps x
 -- Config.SELL_MULT, ~25 seconds of its income) lands in the wallet.
 -- Selling is for clearing a pad to make room for a better Rotling —
@@ -39,12 +39,12 @@ function SellService.sellCarried(player: Player): (boolean, string)
 	end
 	local carried = CarryService.getCarried(player)
 	if #carried == 0 then
-		return false, "Carry a Rotling to the SELL pad first!"
+		return false, "Carry a Brainrot to the SELL pad first!"
 	end
 	local model = carried[1]
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
 	if not def then
-		return false, "That Rotling has no price."
+		return false, "That Brainrot has no price."
 	end
 	local mutation = model:GetAttribute("Mutation") :: string?
 	local value = SellService.sellValue(def, mutation)

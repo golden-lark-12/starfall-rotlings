@@ -17,7 +17,7 @@ local GuiKit = require(script.Parent:WaitForChild("GuiKit"))
 
 local SHOP_VIEW = {
 	Speed = { label = "Speed Boots", desc = "+2 WalkSpeed per tier", tiers = { 200, 800, 4000 } },
-	Carry = { label = "Extra Arms", desc = "+1 Rotling carried per tier", tiers = { 400, 2500 } },
+	Carry = { label = "Extra Arms", desc = "+1 Brainrot carried per tier", tiers = { 400, 2500 } },
 	Income = { label = "Golden Trough", desc = "+25% base income per tier", tiers = { 600, 2000, 8000 } },
 	Pads = { label = "Extra Pad", desc = "+1 base pad per tier (max 8)", tiers = { 1500, 6000 } },
 	Lock = { label = "Longer Lock", desc = "+30s base lock per tier", tiers = { 800, 3000 } },
@@ -27,7 +27,7 @@ local SHOP_ORDER = { "Speed", "Carry", "Income", "Pads", "Lock" }
 -- Boosts (item 11): bought with Stardust, not coins. One row each.
 local BOOST_VIEW = {
 	{ kind = "speed", label = "⚡ Speed Coil", desc = "+40% speed, 30s" },
-	{ kind = "magnet", label = "🧲 Magnet", desc = "Auto-grab nearest Rotling within 15 studs, 30s" },
+	{ kind = "magnet", label = "🧲 Magnet", desc = "Auto-grab nearest Brainrot within 15 studs, 30s" },
 	{ kind = "cash", label = "💰 2x Cash", desc = "Double income, 60s" },
 	{ kind = "shield", label = "🛡️ Shield", desc = "Immune to slaps and meteors, 20s" },
 }
@@ -102,7 +102,7 @@ end
 -- highest-income placed Rotling.
 local rerollRow = GuiKit.makePanel(shopPanel, "RerollRow", UDim2.new(1, -24, 0, 36), UDim2.new(0, 12, 0, 728))
 GuiKit.makeLabel(rerollRow, "Name", "🎲 Reroll Mutation", UDim2.new(0, 170, 0, 22), UDim2.new(0, 10, 0, 7), 16, Color3.fromRGB(255, 255, 255))
-GuiKit.makeLabel(rerollRow, "Desc", "Reroll your best Rotling's mutation", UDim2.new(1, -180, 0, 22), UDim2.new(0, 180, 0, 7), 14, Color3.fromRGB(200, 200, 220))
+GuiKit.makeLabel(rerollRow, "Desc", "Reroll your best Brainrot's mutation", UDim2.new(1, -180, 0, 22), UDim2.new(0, 180, 0, 7), 14, Color3.fromRGB(200, 200, 220))
 local rerollButton = GuiKit.makeButton(rerollRow, "Buy", "30 💎", UDim2.new(0, 80, 0, 28), UDim2.new(1, -90, 0, 4), GuiKit.COLORS.Buy)
 rerollButton.MouseButton1Click:Connect(function()
 	local ok, message = Remotes.rerollFunction():InvokeServer()
@@ -191,4 +191,4 @@ Remotes.openShopEvent().OnClientEvent:Connect(function(section: string?)
 	openShop(section)
 end)
 
-print("Starfall Rotlings shop ready.")
+print("Starfall Brainrots shop ready.")

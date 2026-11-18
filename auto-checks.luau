@@ -2476,8 +2476,12 @@ do
 		if not shopSrc:find("now %+") then
 			table.insert(problems, "no upgrade levels with current effects in the shop rows")
 		end
-		if not worldSrc:find("TitleBoard") then
-			table.insert(problems, "no giant title billboard over the crater")
+		-- Title billboard REMOVED (fix round 2, fix 8): the giant
+		-- "SPACE ROCK BRAINROTS!" text in the sky filled the screen
+		-- and its pitch line overlapped the SELL pad. The small HUD
+		-- title is enough. The check proves it is GONE, not present.
+		if worldSrc:find("TitleBoard") then
+			table.insert(problems, "the giant title billboard is still in the sky (must be removed per the playtest)")
 		end
 		if not worldSrc:find("ShieldDome") then
 			table.insert(problems, "no shield dome on the bases")
@@ -2506,7 +2510,7 @@ do
 		if #problems > 0 then
 			check("au", false, "cheap wins are missing — " .. table.concat(problems, "; ") .. ". Parts: tags (RotlingFactory.luau), HUD bars (HUDController), shop rows (ShopController), billboard/dome (WorldBuilder), events (GlobalEventService.luau)")
 		else
-			check("au", true, "cheap wins: multiplier in tags + index, NEXT REBIRTH bar, upgrade levels, title billboard, shield dome + SAFE label, pursuit banner, 2 global events, danger meter + belt list, Disco Donut")
+			check("au", true, "cheap wins: multiplier in tags + index, NEXT REBIRTH bar, upgrade levels, no title billboard (removed per playtest), shield dome + SAFE label, pursuit banner, 2 global events, danger meter + belt list, Disco Donut")
 		end
 	end
 end
@@ -2741,8 +2745,8 @@ do
 		if not clientSrc:find("WHILE YOU WERE AWAY") then
 			table.insert(problems, 'no "WHILE YOU WERE AWAY" popup')
 		end
-		if not clientSrc:find("Your Rotlings earned ") then
-			table.insert(problems, 'no "Your Rotlings earned $X" popup line')
+		if not clientSrc:find("Your Brainrots earned ") then
+			table.insert(problems, 'no "Your Brainrots earned $X" popup line')
 		end
 		if not projectSrc:find('"OfflineEarnings"') then
 			table.insert(problems, "no OfflineEarnings remote in default.project.json")
@@ -3305,9 +3309,12 @@ end
 -- 20-name roster (5 Common, 4 Rare, 4 Epic, 4 Legendary, 2 Mythic,
 -- 1 Cosmic). Every approved name must be in the catalog under its
 -- approved rarity, no old name may remain, and the game title must read
--- SPACE ROCK BRAINROTS in the HUD, the title screen and the world
--- billboard. Two entries changed tier to match the approved roster
--- (penguin Rare -> Legendary, cat Cosmic -> Legendary).
+-- SPACE ROCK BRAINROTS in the HUD and the title screen. The world
+-- billboard was REMOVED in fix round 2 (fix 8) — the giant sky text
+-- filled the screen and its pitch line overlapped the SELL pad — so
+-- (bi) proves it is GONE, not present. Two entries changed tier to
+-- match the approved roster (penguin Rare -> Legendary, cat Cosmic ->
+-- Legendary).
 do
 	local catalogSrc = read("src/shared/RotlingCatalog.luau")
 	local hudSrc = read("src/client/HUDController.client.luau")
@@ -3362,13 +3369,13 @@ do
 		if not titleSrc:find("SPACE ROCK BRAINROTS") then
 			table.insert(problems, "title screen is not SPACE ROCK BRAINROTS")
 		end
-		if not worldSrc:find("SPACE ROCK BRAINROTS") then
-			table.insert(problems, "world billboard is not SPACE ROCK BRAINROTS")
+		if worldSrc:find("TitleBoard") or worldSrc:find("buildTitleBillboard") then
+			table.insert(problems, "world billboard is still in the sky (must be removed per the playtest)")
 		end
 		if #problems > 0 then
 			check("bi", false, "the branding is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RotlingCatalog.luau, HUDController.client.luau, TitleScreenController.client.luau, WorldBuilder.luau")
 		else
-			check("bi", true, "branding: SPACE ROCK BRAINROTS! everywhere (HUD, title screen, world billboard); all 20 approved Rotling names in the catalog under their approved rarities (5C/4R/4E/4L/2M/1Co), no old name remains")
+			check("bi", true, "branding: SPACE ROCK BRAINROTS! (HUD, title screen; world billboard removed per playtest); all 20 approved Rotling names in the catalog under their approved rarities (5C/4R/4E/4L/2M/1Co), no old name remains")
 		end
 	end
 end
@@ -3765,6 +3772,79 @@ do
 			check("bp", false, "the crater fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau (buildCrater), Config.luau (CRATER_FLOOR_Y)")
 		else
 			check("bp", true, "crater is a real bowl: three open rings (28-31, 31-35, 35-39) leave the floor exposed, belt + Rotlings stand on it and are reachable, entrance gap on the spawn-path side")
+		end
+	end
+end
+
+-- -- (bq) layout fixed + every visible "Rotling" is now "Brainrot" (fix round 2, fix 8) --
+-- The playtest showed the giant title text in the sky, the Rotling
+-- Index and Bounty Board signs overlapping, the slogan over the SELL
+-- pad, ROTLING INDEX over SPAWN, the "Next storm" panel cut off at the
+-- top right, and "Rotling" everywhere the player looks. Now the sky
+-- billboard is gone, the Index Wall and Bounty Board are ~55 studs
+-- apart on opposite sides of the path, the storm panel is wide enough
+-- for its text, and every player-visible "Rotling" reads "Brainrot"
+-- (code identifiers — RotlingCatalog, RotlingFactory, RotlingLabel,
+-- PlaceRotling/SellRotling remotes, the StarfallRotlings DataStore —
+-- stay, per the brief).
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local indexSrc = read("src/client/IndexController.client.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	local sellSrc = read("src/server/SellService.luau")
+	if not worldSrc or not hudSrc or not indexSrc or not carrySrc or not sellSrc then
+		check("bq", false, "could not verify the layout + rename — WorldBuilder.luau, HUDController.client.luau, IndexController.client.luau, CarryService.luau or SellService.luau missing")
+	else
+		local problems: { string } = {}
+		if worldSrc:find("buildTitleBillboard") or worldSrc:find("TitleBoard") then
+			table.insert(problems, "the giant title billboard is still in the sky")
+		end
+		if worldSrc:find("Grab them%. Grow them%. Guard your base%.") then
+			table.insert(problems, "the slogan ('Grab them. Grow them. Guard your base.') is still in the world")
+		end
+		if not worldSrc:find("Vector3%.new%(%-18, 0, 85%)") then
+			table.insert(problems, "Bounty Board is not on the left side of the path (-18, 0, 85)")
+		end
+		if not worldSrc:find("Vector3%.new%(35, 0, 70%)") then
+			table.insert(problems, "Index Wall is not moved away from spawn (35, 0, 70)")
+		end
+		if not worldSrc:find("BRAINROT INDEX") then
+			table.insert(problems, "Index Wall title is not 'BRAINROT INDEX'")
+		end
+		if worldSrc:find("ROTLING INDEX") then
+			table.insert(problems, "'ROTLING INDEX' still in the world")
+		end
+		if not indexSrc:find("BRAINROT INDEX") then
+			table.insert(problems, "Index panel title is not 'BRAINROT INDEX'")
+		end
+		if not hudSrc:find("UDim2%.new%(0, 420, 0, 36%), UDim2%.new%(1, %-432, 0, 60%)") then
+			table.insert(problems, "storm panel is not widened to 420px at (1, -432) — it will still clip")
+		end
+		if hudSrc:find("STORM_HAZARD_LABEL") then
+			table.insert(problems, "storm panel still appends the long hazard label (it clips)")
+		end
+		if not carrySrc:find('"Grab " %.%. name') then
+			table.insert(problems, "grab prompt does not use the renamed Brainrot name")
+		end
+		if not sellSrc:find("Nothing to sell — grab a Brainrot first!") then
+			table.insert(problems, "sell empty message still says 'Rotling'")
+		end
+		-- Any remaining quoted "Rotling" on ONE line in the world
+		-- builder is a missed visible string. The allowed identifiers
+		-- (RotlingCatalog / RotlingFactory) are stripped first so
+		-- they do not false-positive. The pattern excludes newlines
+		-- so it cannot match across lines through comments.
+		do
+			local cleaned = worldSrc:gsub("RotlingCatalog", ""):gsub("RotlingFactory", "")
+			if cleaned:find('"[^"\n]*Rotling[^"\n]*"') then
+				table.insert(problems, "a quoted 'Rotling' string remains in WorldBuilder (missed rename)")
+			end
+		end
+		if #problems > 0 then
+			check("bq", false, "the layout + rename is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, HUDController.client.luau, IndexController.client.luau, CarryService.luau, SellService.luau")
+		else
+			check("bq", true, "layout fixed: sky billboard + slogan gone, Index Wall (35,70) and Bounty Board (-18,85) ~55 studs apart, storm panel 420px with a short warn line; every visible 'Rotling' is 'Brainrot'")
 		end
 	end
 end

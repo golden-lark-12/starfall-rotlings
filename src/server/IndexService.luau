@@ -51,7 +51,7 @@ function IndexService.markFound(player: Player, defId: string)
 		if found >= #RotlingCatalog.DEFS then
 			profile.indexFullRewarded = true
 			profile.coins += Config.INDEX_FULL_REWARD
-			Remotes.bannerEvent():FireClient(player, "INDEX COMPLETE! All 12 Rotlings found! +" .. Formatting.formatMoney(Config.INDEX_FULL_REWARD) .. "!", 6)
+			Remotes.bannerEvent():FireClient(player, "INDEX COMPLETE! All 12 Brainrots found! +" .. Formatting.formatMoney(Config.INDEX_FULL_REWARD) .. "!", 6)
 		end
 	end
 end
