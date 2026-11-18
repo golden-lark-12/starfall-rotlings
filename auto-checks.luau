@@ -1031,11 +1031,14 @@ do
 		if not worldSrc:find('"Sell here %(E%)"') then
 			table.insert(problems, 'SELL sign does not say "Sell here (E)"')
 		end
-		if not worldSrc:find('sellPrompt%.ActionText = "Sell Rotling"') then
-			table.insert(problems, 'no "Sell Rotling" prompt on the SELL pad')
+		if not worldSrc:find('sellPrompt%.ActionText = "Sell Brainrot"') then
+			table.insert(problems, 'no "Sell Brainrot" prompt on the SELL pad')
 		end
 		if not sellSrc:find("function SellService.sellCarried") then
 			table.insert(problems, "SellService.sellCarried not found")
+		end
+		if not sellSrc:find("function SellService.sellPlaced") then
+			table.insert(problems, "SellService.sellPlaced not found (sell must also work from the base)")
 		end
 		if not sellSrc:find("Config.SELL_MULT") then
 			table.insert(problems, "sell price does not use Config.SELL_MULT")
@@ -3366,6 +3369,58 @@ do
 			check("bi", false, "the branding is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RotlingCatalog.luau, HUDController.client.luau, TitleScreenController.client.luau, WorldBuilder.luau")
 		else
 			check("bi", true, "branding: SPACE ROCK BRAINROTS! everywhere (HUD, title screen, world billboard); all 20 approved Rotling names in the catalog under their approved rarities (5C/4R/4E/4L/2M/1Co), no old name remains")
+		end
+	end
+end
+
+-- -- (bj) sell works from the base, not only while carrying (fix round 2, fix 1) --
+-- The playtest showed selling only worked for a CARRIED Rotling: a
+-- player at the SELL pad with Rotlings on their base got "Carry a
+-- Rotling to the SELL pad first!" and no money, so selling read as
+-- broken. Now the pad sells the carried Rotling if there is one, else
+-- the highest-value placed Rotling on the player's own base — the model
+-- is removed from its pad and destroyed, and the payout lands in the
+-- wallet. The prompt lock check also reads the model's own BaseId
+-- attribute (the old code read an undefined global, so it never ran).
+do
+	local sellSrc = read("src/server/SellService.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not sellSrc or not carrySrc or not worldSrc then
+		check("bj", false, "could not verify the sell — SellService.luau, CarryService.luau or WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		if not sellSrc:find("function SellService%.sellPlaced") then
+			table.insert(problems, "SellService.sellPlaced is not defined")
+		end
+		if not sellSrc:find("function SellService%.sell%(player") then
+			table.insert(problems, "SellService.sell (carried first, else placed) is not defined")
+		end
+		if not sellSrc:find("BaseService%.removePlaced%(baseId, padIndex%)") then
+			table.insert(problems, "sellPlaced does not remove the model from its pad (BaseService.removePlaced)")
+		end
+		if not sellSrc:find("profile%.coins %+= value", 1) then
+			table.insert(problems, "sell does not pay profile.coins += value")
+		end
+		if not sellSrc:find("local ok, message = SellService%.sell%(player%)") then
+			table.insert(problems, "init does not wire the remote/prompt to the unified SellService.sell")
+		end
+		if sellSrc:find("local ok, message = SellService%.sellCarried%(player%)") then
+			table.insert(problems, "init still wires the remote/prompt to sellCarried instead of the unified sell")
+		end
+		if carrySrc:find("isLocked%(baseId%)") then
+			table.insert(problems, "CarryService.setPromptState still reads the undefined global baseId")
+		end
+		if not carrySrc:find("model:GetAttribute%(\"BaseId\"%)") then
+			table.insert(problems, "setPromptState does not read the BaseId from the model attribute")
+		end
+		if not worldSrc:find("Sell Brainrot") then
+			table.insert(problems, "SELL pad prompt is not 'Sell Brainrot'")
+		end
+		if #problems > 0 then
+			check("bj", false, "the sell-from-base fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: SellService.luau (sellPlaced, sell), CarryService.luau (setPromptState), WorldBuilder.luau (SELL prompt)")
+		else
+			check("bj", true, "sell works from the base: SELL pad sells the carried Brainrot, else the best placed one on your base (removed from its pad, payout in the wallet); prompt lock reads the model's BaseId")
 		end
 	end
 end

@@ -146,9 +146,12 @@ function CarryService.setPromptState(model: Model)
 		-- One prompt for everyone: "Take" covers both the owner
 		-- picking their own Rotling back up and a rival stealing it.
 		-- tryGrab routes owners to pickupOwn and everyone else to
-		-- StealService.trySteal.
+		-- StealService.trySteal. The base id comes from the model's
+		-- own BaseId attribute (fix 2): the old code read an undefined
+		-- global, so the lock check silently never ran.
 		prompt.ActionText = "Take " .. name
-		prompt.Enabled = not BaseService.isLocked(baseId)
+		local placedBaseId = model:GetAttribute("BaseId") :: number?
+		prompt.Enabled = if placedBaseId then not BaseService.isLocked(placedBaseId) else true
 	else
 		prompt.ActionText = "Grab " .. name
 		prompt.Enabled = true

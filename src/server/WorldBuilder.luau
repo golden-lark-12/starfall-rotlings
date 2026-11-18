@@ -677,10 +677,10 @@ local function buildSellArea()
 	-- pad is a big glowing square with a tall sign and a beam, and
 	-- selling pays 1 minute of that Rotling's income.
 	local sellPad = part("SellPad", Enum.PartType.Block, Vector3.new(14, 1, 14), Color3.fromRGB(255, 200, 60), CFrame.new(62, 0.5, 0), Enum.Material.Neon)
-	-- Press E on the pad to sell the Rotling you carry. SellService.init
-	-- wires this prompt to SellService.sellCarried (server-priced).
+	-- Press E on the pad to sell: the Rotling you carry, or your best
+	-- placed Brainrot on your own base. SellService.sell decides.
 	local sellPrompt = Instance.new("ProximityPrompt")
-	sellPrompt.ActionText = "Sell Rotling"
+	sellPrompt.ActionText = "Sell Brainrot"
 	sellPrompt.ObjectText = "SELL pad"
 	sellPrompt.HoldDuration = 0
 	sellPrompt.MaxActivationDistance = 10
