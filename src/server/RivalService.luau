@@ -206,6 +206,16 @@ local function setThiefSign(model: Model, on: boolean)
 	end
 end
 
+-- (fix round 6, item 3) The sneak alert promised a thief at the
+-- victim's base. When the steal aborts for any reason, the victim
+-- must see the resolution on screen — a silent abort reads as a
+-- false alarm ("Ziggy is sneaking!" while no one is there).
+local function giveUpBanner(victim: Player?, rivalName: string, reason: string)
+	if victim then
+		Remotes.bannerEvent():FireClient(victim, "🚨 " .. rivalName .. " gave up sneaking to your base — " .. reason .. "!", 4)
+	end
+end
+
 -- Weld a Rotling to the rival's chest (the rival's own mini-carry).
 local function carryModel(rival: State.Rival, model: Model)
 	local body = rival.model.PrimaryPart
@@ -232,7 +242,19 @@ local function carryModel(rival: State.Rival, model: Model)
 	-- prompt showed, tryGrab hit state == "carried" and returned
 	-- silently). The prompt comes back when the loot is dropped
 	-- (scatterToCrater) or placed (setPromptState there).
-	CarryService2.setPromptState(model)
+	-- (fix round 6, item 3) ROOT CAUSE of "the thief still doesn't
+	-- do anything": this used to call CarryService2.setPromptState —
+	-- a name that does not exist in this file (the only CarryService2
+	-- is a LOCAL inside stepRival's toBase branch). Reading the
+	-- undefined global returned nil, so every rival grab — crater and
+	-- steal alike — errored HERE, after the weld and State="carried"
+	-- but before rival.carried was set and before the "stole your X"
+	-- banner. The pcall in runRival caught it, the rival went idle
+	-- next tick (pad already emptied by removePlaced), and the
+	-- Brainrot stayed welded to the rival, earning nothing and never
+	-- placed or dropped — which is also why Ziggy/Nova read $0 on the
+	-- leaderboard. It is CarryService here.
+	CarryService.setPromptState(model)
 	model:SetAttribute("BaseId", 0)
 	model:SetAttribute("PadIndex", 0)
 	rival.carried = model
@@ -470,6 +492,11 @@ local function stepRival(rival: State.Rival, model: Model)
 					State.placed[baseId][padIndex] = carried
 					CarryService2.setPromptState(carried)
 					RotlingFactory.setRestPose(carried)
+					-- (fix round 6, item 3) The steal is only complete
+					-- when the loot is placed and earning — log it, so
+					-- the F9 trail reads triggered → walking →
+					-- arrived → grabbed → running home → placed.
+					print("[Rival] " .. rival.name .. " placed " .. (if def then def.name else "a Brainrot") .. " on its base — earning now")
 				end
 			end
 			rival.phase = "idle"
@@ -478,10 +505,14 @@ local function stepRival(rival: State.Rival, model: Model)
 		local victim = if rival.targetUserId then Players:GetPlayerByUserId(rival.targetUserId) else nil
 		local victimBase = rival.targetBase
 		if not victim or not victimBase then
+			print("[Rival] " .. rival.name .. " steal aborted — victim left")
 			setThiefSign(model, false)
 			rival.phase = "idle"
 		elseif BaseService.isLocked(victimBase) then
-			-- Locked mid-sneak: give up and go home.
+			-- Locked mid-sneak: give up and go home. The victim sees
+			-- the lock work instead of a thief that never arrives.
+			print("[Rival] " .. rival.name .. " steal aborted — " .. victim.Name .. "'s base is locked")
+			giveUpBanner(victim, rival.name, "your base is locked")
 			setThiefSign(model, false)
 			rival.phase = "toBase"
 		else
@@ -494,16 +525,39 @@ local function stepRival(rival: State.Rival, model: Model)
 				end
 			end
 			if not padIndex then
+				print("[Rival] " .. rival.name .. " steal aborted — nothing on " .. victim.Name .. "'s base to steal")
+				giveUpBanner(victim, rival.name, "nothing to steal")
 				setThiefSign(model, false)
 				rival.phase = "idle"
 			else
 				local padCf = WorldBuilder.padCFrame(victimBase, padIndex)
-				-- 60s timeout (fix round 4, item 5): the walk to a
-				-- victim's pad crosses the whole map, and 40s was
-				-- cutting it short — the rival gave up mid-walk and
-				-- the steal never happened.
-				if padCf and walkTo(model, padCf.Position, 60, stormRunning) then
+				-- (fix round 6, item 3) Walk AROUND the crater, not
+				-- through it. Bases sit on a circle around the crater,
+				-- and a rival on the far side walks a straight line
+				-- through the rim twice and pushes against the wall
+				-- until the timeout — the sneak alert fires but the
+				-- thief never arrives (Ziggy's base is directly
+				-- opposite the player's, so its line goes straight
+				-- through the crater centre). Leg 1 goes to open
+				-- ground outside the rim at the victim base's angle
+				-- (radius 45, the same approach the raider uses);
+				-- leg 2 walks straight in to the pad.
+				print("[Rival] " .. rival.name .. " walking to " .. victim.Name .. "'s base (pad " .. tostring(padIndex) .. ") — around the crater")
+				local victimCf = WorldBuilder.baseCFrame(victimBase)
+				local victimAngle = if victimCf then math.atan2(victimCf.Position.Z, victimCf.Position.X) else nil
+				local arrived = false
+				if padCf and victimAngle then
+					local around = Vector3.new(math.cos(victimAngle) * 45, 0, math.sin(victimAngle) * 45)
+					arrived = walkTo(model, around, 40, stormRunning)
+						and walkTo(model, padCf.Position, 40, stormRunning)
+				elseif padCf then
+					arrived = walkTo(model, padCf.Position, 60, stormRunning)
+				end
+				if arrived then
+					print("[Rival] " .. rival.name .. " arrived at " .. victim.Name .. "'s base")
 					if BaseService.isLocked(victimBase) then
+						print("[Rival] " .. rival.name .. " steal aborted — " .. victim.Name .. " locked the base mid-sneak")
+						giveUpBanner(victim, rival.name, "your base is locked")
 						setThiefSign(model, false)
 						rival.phase = "toBase"
 					else
@@ -516,15 +570,17 @@ local function stepRival(rival: State.Rival, model: Model)
 							print("[Rival] " .. rival.name .. " stole " .. stolenName .. " from " .. victim.Name .. " — carrying it home")
 							rival.phase = "toBase"
 						else
+							print("[Rival] " .. rival.name .. " steal aborted — the Brainrot was gone when it arrived")
+							giveUpBanner(victim, rival.name, "nothing to steal")
 							rival.phase = "idle"
 						end
 						setThiefSign(model, false)
 					end
 				else
-					-- The walk failed (or the pad vanished): log it,
-					-- or the next playtest cannot tell a failed walk
-					-- from a frozen rival.
+					-- The walk failed: log it AND tell the victim, or
+					-- the sneak alert reads as a false alarm.
 					print("[Rival] " .. rival.name .. " could not reach " .. victim.Name .. "'s base (pad " .. tostring(padIndex) .. ") — steal aborted")
+					giveUpBanner(victim, rival.name, "couldn't reach your base")
 					setThiefSign(model, false)
 					rival.phase = "idle"
 				end

@@ -98,7 +98,7 @@ Config.SPRINT_FOV = 82 -- field of view while sprinting (base is 70)
 Config.SPRINT_FOV_BASE = 70
 
 -- Bases and stealing.
-Config.LOCK_DURATION = 60 -- seconds a base lock holds
+Config.LOCK_DURATION = 120 -- seconds a base lock holds (fix round 6, item 3: Malek — "add more time for the lockups"; was 60, too short to stop a thief)
 Config.LOCK_COOLDOWN = 90 -- seconds before the lock can be used again
 Config.LOCK_DURATION_PER_TIER = 30 -- +30s lock per shop lock tier
 -- Carrying: the Rotling rides IN FRONT OF THE CHEST at arm height,

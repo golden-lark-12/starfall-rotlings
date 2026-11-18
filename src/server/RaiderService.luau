@@ -316,6 +316,17 @@ local function runRaid(model: Model)
 		if raider.phase == "flee" then
 			fleeAndDespawn(model)
 		else
+			-- (fix round 6, item 3) ALL thieves: the sneak banner
+			-- already fired at spawn, so a silent despawn reads as
+			-- a false alarm — tell the owner the thief gave up.
+			local ownerId = BaseService.getBaseOwner(raider.targetBase)
+			if ownerId and ownerId > 0 then
+				local owner = Players:GetPlayerByUserId(ownerId)
+				if owner then
+					Remotes.bannerEvent():FireClient(owner, "🚨 " .. raider.name .. " gave up sneaking to your base — couldn't reach it!", 4)
+				end
+			end
+			print("[Raider] " .. raider.name .. " could not reach base " .. tostring(raider.targetBase) .. " (pad " .. tostring(raider.targetPad) .. ") — raid aborted")
 			RaiderService.despawnRaider(model)
 		end
 		return

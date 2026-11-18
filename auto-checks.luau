@@ -4513,7 +4513,10 @@ do
 		check("cb", false, "could not verify the grab-prompt fix — CarryService.luau, RivalService.luau, RaiderService.luau, SpawnService.luau or MeteorEggService.luau missing")
 	else
 		local problems: { string } = {}
-		if not rivalSrc:find("CarryService2%.setPromptState%(model%)") then
+		-- (fix round 6, item 3) This used to match CarryService2 —
+		-- the undefined global that made every rival grab error.
+		-- carryModel now calls the real CarryService.
+		if not rivalSrc:find("CarryService%.setPromptState%(model%)") then
 			table.insert(problems, "rival carryModel does not call setPromptState — a rival-carried Rotling keeps a live Grab prompt")
 		end
 		if not raiderSrc:find("CarryService%.setPromptState%(stolen%)") then
@@ -4727,6 +4730,57 @@ do
 			check("cf", false, "the raider edge-case fix is incomplete — " .. table.concat(problems, "; ") .. ". Part: RaiderService.luau")
 		else
 			check("cf", true, "unweldable raider loot is scattered back to the crater, never destroyed: weld failure scatters + despawns in both raid paths, escape only destroys State == \"carried\" loot")
+		end
+	end
+end
+
+-- -- (cg) the thief actually steals: rival grab works, steal walk goes
+-- around the crater, every abort tells the victim, lock lasts 2 min
+-- (fix round 6, item 3 — ALL thieves, not one bot)
+-- carryModel called CarryService2.setPromptState — a name that does
+-- not exist in RivalService (the only CarryService2 is a LOCAL inside
+-- stepRival's toBase branch) — so EVERY rival grab errored after the
+-- weld but before rival.carried was set: no "stole your X" banner, no
+-- place, no earnings (Ziggy/Nova $0), and the Brainrot stayed welded
+-- to the rival. The steal walk also went straight through the crater,
+-- so a far-side rival (Ziggy, directly opposite the player) pushed
+-- against the rim until the timeout while the sneak alert had already
+-- fired — the false alarm. The walk now goes around the rim at the
+-- victim's angle, every abort fires a visible "gave up" banner (rival
+-- and raider alike), and the lock holds 120s instead of 60s.
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	local raiderSrc = read("src/server/RaiderService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not rivalSrc or not raiderSrc or not configSrc then
+		check("cg", false, "could not verify the thief fix — RivalService.luau, RaiderService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if rivalSrc:find("CarryService2%.setPromptState%(model%)") then
+			table.insert(problems, "carryModel still calls the undefined CarryService2 — every rival grab errors before rival.carried is set")
+		end
+		if not rivalSrc:find("CarryService%.setPromptState%(model%)") then
+			table.insert(problems, "carryModel does not call CarryService.setPromptState — the carried prompt is never disabled")
+		end
+		if not rivalSrc:find("victimAngle") or not rivalSrc:find("math%.cos%(victimAngle%) %* 45") then
+			table.insert(problems, "the steal walk does not go around the crater at the victim's angle — far-side rivals still cross the rim")
+		end
+		if not rivalSrc:find("gave up sneaking to your base") then
+			table.insert(problems, "no give-up banner in the rival steal — a failed steal stays a silent false alarm")
+		end
+		if not raiderSrc:find("gave up sneaking to your base") then
+			table.insert(problems, "no give-up banner in the raider raid — a failed raid stays a silent false alarm")
+		end
+		if not rivalSrc:find("placed .+ on its base — earning now") then
+			table.insert(problems, "no placed-and-earning log in the rival toBase — the steal trail has no final step")
+		end
+		if not configSrc:find("LOCK_DURATION = 120") then
+			table.insert(problems, "the lock is not 120s — Malek asked for more time for the lockups")
+		end
+		if #problems > 0 then
+			check("cg", false, "the thief fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, RaiderService.luau, Config.luau")
+		else
+			check("cg", true, "the thief actually steals: carryModel uses CarryService (no nil-global error), steal walk goes around the crater at the victim's angle, every abort fires a visible 'gave up' banner (rival + raider), steal trail logs through to placed-and-earning, lock holds 120s")
 		end
 	end
 end
