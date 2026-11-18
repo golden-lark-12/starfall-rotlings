@@ -212,15 +212,25 @@ local function startIdleMotion()
 					continue
 				else
 					local body = model.PrimaryPart
+					-- PLACED Rotlings only. Free Rotlings are owned by
+					-- SpawnService.animateFree, which moves them along
+					-- the belt with model:PivotTo. This loop used to
+					-- set body.CFrame for free Rotlings too, every
+					-- 0.12s, pinning them back to their spawn pose
+					-- while animateFree pushed them elsewhere every
+					-- 0.1s — two loops fighting over the same model at
+					-- different rates, with the body Anchored and the
+					-- other parts unanchored on WeldConstraints, so
+					-- the parts lagged and the model tipped over (and
+					-- neither loop ever translated it, so it bobbed
+					-- and swayed in place forever). One loop per
+					-- state, no fight.
 					local state = model:GetAttribute("State")
-					if body and (state == "free" or state == "placed") then
+					if body and state == "placed" then
 						local seed = bobSeed[model] or 0
 						local bob = math.sin(now * 1.6 + seed) * 0.22
-						-- Placed Rotlings slowly spin on display; free ones
-						-- sway so their face stays toward the player.
-						local angle = if state == "placed"
-							then (now * 0.5 + seed) % (math.pi * 2)
-							else math.sin(now * 0.6 + seed) * 0.25
+						-- Placed Rotlings slowly spin on display.
+						local angle = (now * 0.5 + seed) % (math.pi * 2)
 						body.CFrame = base * CFrame.new(0, bob, 0) * CFrame.Angles(0, angle, 0)
 					end
 				end
@@ -890,6 +900,15 @@ local function addAccessory(model: Model, body: Part, def: RotlingCatalog.Rotlin
 end
 
 local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef, mutation: string?)
+	-- Idempotent: exactly ONE label per Rotling. addLabel used to
+	-- create a fresh BillboardGui every time it ran, so a Rotling
+	-- that was re-labelled (rebuild, restore, re-place) showed its
+	-- name and rarity twice, overlapping. Remove any existing label
+	-- first so there is never a second one.
+	local existing = body:FindFirstChild("RotlingLabel")
+	if existing then
+		existing:Destroy()
+	end
 	local rarity = RarityConfig.rarityByName(def.rarity)
 	local cps = RotlingCatalog.baseCps(def, mutation)
 	local billboard = Instance.new("BillboardGui")
@@ -940,7 +959,7 @@ local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef
 	nameLabel.Font = Enum.Font.FredokaOne
 	nameLabel.TextScaled = true
 	nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	nameLabel.TextStrokeTransparency = 0.4
+	nameLabel.TextStrokeTransparency = 1 -- no stroke: the 0.4 stroke rendered a ghost offset of the text behind the real text, doubling the name at a glance; the dark card behind the text is the contrast, not a stroke
 	nameLabel.Parent = billboard
 
 	local rarityLabel = Instance.new("TextLabel")
@@ -959,7 +978,7 @@ local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef
 	rarityLabel.Font = Enum.Font.FredokaOne
 	rarityLabel.TextScaled = true
 	rarityLabel.TextColor3 = rarity.color
-	rarityLabel.TextStrokeTransparency = 0.4
+	rarityLabel.TextStrokeTransparency = 1
 	rarityLabel.Parent = billboard
 
 	local cpsLabel = Instance.new("TextLabel")
@@ -973,7 +992,7 @@ local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef
 	cpsLabel.Font = Enum.Font.FredokaOne
 	cpsLabel.TextScaled = true
 	cpsLabel.TextColor3 = Color3.fromRGB(255, 230, 90)
-	cpsLabel.TextStrokeTransparency = 0.4
+	cpsLabel.TextStrokeTransparency = 1
 	cpsLabel.Parent = billboard
 end
 

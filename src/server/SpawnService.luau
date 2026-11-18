@@ -74,7 +74,16 @@ function SpawnService.unregister(model: Model)
 	bobSeeds[model] = nil
 end
 
--- Bob every free Rotling up and down and turn it slowly.
+-- Bob, spin and BELT TRAVEL for free Rotlings. This is the ONLY loop
+-- that moves a free Rotling: RotlingFactory.startIdleMotion handles
+-- placed Rotlings only, so the two loops never fight over the same
+-- model (the old fight tipped Rotlings over). A free Rotling walks
+-- along the belt (+X) at BELT_TRAVEL_SPEED, bobbing and spinning as it
+-- goes, and wraps from the far end back to the start — a real
+-- conveyor, not a bob in place. The stored base CFrame advances with
+-- it, so the bob/spin is always relative to where the Rotling is now,
+-- not where it spawned. It faces its travel direction (+X) so it reads
+-- as walking, not sliding sideways.
 local function animateFree()
 	while true do
 		task.wait(0.1)
@@ -92,7 +101,19 @@ local function animateFree()
 					local seed = bobSeeds[model] or 0
 					local bob = math.sin(now * 2 + seed) * 0.25
 					local spin = math.sin(now * 0.5 + seed) * 0.3
-					model:PivotTo(baseCf * CFrame.new(0, bob, 0) * CFrame.Angles(0, spin, 0))
+					-- Advance along the belt; wrap at the far end.
+					-- The stored base moves with the Rotling, so the
+					-- bob/spin stays relative to its current spot.
+					local newX = baseCf.Position.X + Config.BELT_TRAVEL_SPEED * 0.1
+					if newX > Config.BELT_HALF_LENGTH then
+						newX = -Config.BELT_HALF_LENGTH
+					end
+					-- Face the travel direction (+X): -90 degrees
+					-- about Y turns the model's +Z face toward +X.
+					local yaw = -math.pi / 2 + spin
+					local newBase = CFrame.new(newX, Config.CRATER_FLOOR_Y, baseCf.Position.Z) * CFrame.Angles(0, yaw, 0)
+					bobBases[model] = newBase
+					model:PivotTo(newBase * CFrame.new(0, bob, 0))
 				end
 			end
 		end
@@ -126,7 +147,7 @@ local function findSpawnPosition(): Vector3
 	for _ = 1, 12 do
 		-- On the belt: x along the belt's length, z within the belt's
 		-- width, so every Rotling stands on the conveyor in a line.
-		local x = (math.random() * 2 - 1) * Config.CRATER_RADIUS * 0.85
+		local x = (math.random() * 2 - 1) * Config.BELT_HALF_LENGTH -- on the belt, not past its ends (a spawn past +20 would wrap to -20 on the first travel tick)
 		local z = (math.random() * 2 - 1) * Config.BELT_SPAWN_Z
 		local candidate = Vector3.new(x, Config.CRATER_FLOOR_Y, z)
 		local gap = math.huge
@@ -145,7 +166,7 @@ local function findSpawnPosition(): Vector3
 	if best then
 		return best
 	end
-	local x = (math.random() * 2 - 1) * Config.CRATER_RADIUS * 0.85
+	local x = (math.random() * 2 - 1) * Config.BELT_HALF_LENGTH -- on the belt, not past its ends (a spawn past +20 would wrap to -20 on the first travel tick)
 	local z = (math.random() * 2 - 1) * Config.BELT_SPAWN_Z
 	return Vector3.new(x, Config.CRATER_FLOOR_Y, z)
 end
