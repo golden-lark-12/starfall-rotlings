@@ -173,7 +173,12 @@ function RaiderService.bonkRaider(model: Model, byPlayer: Player?)
 	end
 end
 
--- Walk a raider to a position, giving up after a timeout.
+-- Walk a raider to a position, giving up after a timeout. If the
+-- raider gets stuck (no progress for a while), it jumps: MoveTo never
+-- jumps on its own, so a bot that walks into a step or a rim edge just
+-- pushes against it until the timeout. The jump clears the 2-stud base
+-- edge and the crater rim steps, so a stuck bot hops over the obstacle
+-- instead of timing out and despawning.
 local function walkTo(model: Model, target: Vector3, timeout: number): boolean
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	local root = model:FindFirstChild("HumanoidRootPart")
@@ -187,6 +192,8 @@ local function walkTo(model: Model, target: Vector3, timeout: number): boolean
 		done = reached
 	end)
 	local waited = 0
+	local lastPos = root.Position
+	local stuckTime = 0
 	while not done and waited < timeout do
 		task.wait(0.5)
 		waited += 0.5
@@ -196,11 +203,62 @@ local function walkTo(model: Model, target: Vector3, timeout: number): boolean
 		if (root.Position - target).Magnitude < 4 then
 			done = true
 		end
+		-- Stuck? Hop. A bot that has not moved in 1.5s is pushing
+		-- against a step; a jump clears it.
+		if (root.Position - lastPos).Magnitude < 0.5 then
+			stuckTime += 0.5
+			if stuckTime >= 1.5 then
+				humanoid.Jump = true
+				stuckTime = 0
+			end
+		else
+			stuckTime = 0
+		end
+		lastPos = root.Position
 	end
 	if connection then
 		connection:Disconnect()
 	end
 	return done
+end
+
+-- Storm cover (fix 2): when a storm is running, a raider runs for the
+-- nearest base platform and waits there until the storm ends, then
+-- resumes the raid. Returns true if it sheltered (the caller resumes
+-- after the storm), false if there was no storm to shelter from.
+local function shelterIfStorm(model: Model): boolean
+	local StarfallService = require(script.Parent.StarfallService)
+	if StarfallService.getStatus().phase ~= "storm" then
+		return false
+	end
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return false
+	end
+	-- Nearest base platform is cover.
+	local WorldBuilder = require(script.Parent.WorldBuilder)
+	local bestCf: CFrame? = nil
+	local bestDist = math.huge
+	for baseId = 1, Config.BASE_COUNT do
+		local cf = WorldBuilder.baseCFrame(baseId)
+		if cf then
+			local dist = (root.Position - cf.Position).Magnitude
+			if dist < bestDist then
+				bestDist = dist
+				bestCf = cf
+			end
+		end
+	end
+	if bestCf then
+		walkTo(model, bestCf.Position, 30)
+	end
+	while StarfallService.getStatus().phase == "storm" do
+		task.wait(1)
+		if not model.Parent then
+			return true
+		end
+	end
+	return true
 end
 
 -- Run one raid: pick a base with Rotlings, grab one, run for the edge.
@@ -211,6 +269,12 @@ local function runRaid(model: Model)
 	end
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	if not humanoid then
+		return
+	end
+	-- A storm means cover first: shelter on the nearest base until
+	-- it passes, then resume the raid.
+	shelterIfStorm(model)
+	if not model.Parent or State.raiders[model] == nil then
 		return
 	end
 	-- Hunt: walk to the target pad.
@@ -257,6 +321,11 @@ local function runRaid(model: Model)
 			local name = if def then def.name else "a Rotling"
 			Remotes.bannerEvent():FireClient(owner, "🚨 THIEF AT YOUR BASE! " .. raider.name .. " is stealing your " .. name .. "! Bonk it!", 5)
 		end
+	end
+	-- A storm mid-carry means cover first (it keeps the loot).
+	shelterIfStorm(model)
+	if not model.Parent or State.raiders[model] == nil then
+		return
 	end
 	-- Carry: run for the crater edge. If it gets there, the loot is gone.
 	local angle = math.random() * math.pi * 2
@@ -308,7 +377,12 @@ function RaiderService.spawnRaider(): Model?
 	end
 	local padIndex = pads[math.random(1, #pads)]
 	local angle = math.random() * math.pi * 2
-	local spawnPos = Vector3.new(math.cos(angle) * (Config.CRATER_RADIUS + 6), 0, math.sin(angle) * (Config.CRATER_RADIUS + 6))
+	-- Spawn outside the crater rim, above the ground (fix 2): the old
+	-- spawn at radius CRATER_RADIUS + 6 (34) and Y=0 sat INSIDE the
+	-- rim mound (the radius-35 rim step tops at Y=4), so the raider
+	-- spawned buried in solid geometry and never moved. Radius 45 is
+	-- open ground past the rim (39); Y=8 lets it fall to the surface.
+	local spawnPos = Vector3.new(math.cos(angle) * 45, 8, math.sin(angle) * 45)
 	local model = buildRaider(spawnPos)
 	model.Parent = workspace
 	State.raiders[model] = {

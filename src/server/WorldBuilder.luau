@@ -322,6 +322,19 @@ local function buildBase(baseId: number)
 	-- Trim: a bright edge strip on the crater side.
 	local trim = part("BaseTrim", Enum.PartType.Block, Vector3.new(26, 0.6, 1), color, cf * CFrame.new(0, 1.1, -11))
 	baseTrims[baseId] = trim
+	-- Entrance ramp (fix 2): a wedge from the ground up onto the
+	-- platform, in the front gap where the lock gate stands. The
+	-- platform top is a 2-stud vertical edge from the ground, and a
+	-- Humanoid walking with MoveTo (no jump) cannot climb it — so
+	-- raiders and rivals walked to a base, pushed against the edge,
+	-- timed out after 40s and despawned, and the "sneaking to your
+	-- base!" banner fired for a rival that never arrived. The ramp
+	-- makes every base walkable: low end on the ground outside
+	-- (z=-15), high end flush with the platform top (z=-11, Y=2).
+	-- A Wedge's high edge is at its local -Z, so the 180-degree Y
+	-- turn puts the high edge toward the platform (+Z in base space).
+	local ramp = part("BaseRamp", Enum.PartType.Wedge, Vector3.new(6, 2, 4), Color3.fromRGB(150, 130, 100), cf * CFrame.new(0, 1, -13) * CFrame.Angles(0, math.rad(180), 0))
+	ramp.CastShadow = false
 	-- Back edge: a LOW trim, not a wall. The old 8-stud back wall was a
 	-- giant grey slab that filled the screen and blocked the view of
 	-- the base from the crater side; a 1.5-stud edge keeps the "home"

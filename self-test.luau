@@ -589,6 +589,42 @@ do
 	end
 end
 
+-- 15b. Bots move (fix 2): the base edge and the crater rim no longer
+-- trap them. A wedge ramp at every base front, raiders spawning on
+-- open ground, a stuck bot that jumps, and bots that run for cover
+-- in a storm.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local raiderSrc = read("src/server/RaiderService.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not worldSrc or not raiderSrc or not rivalSrc or not configSrc then
+		step("bots-move", false, "WorldBuilder.luau, RaiderService.luau, RivalService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find('"BaseRamp"') or not worldSrc:find("Enum%.PartType%.Wedge, Vector3%.new%(6, 2, 4%)") then
+			table.insert(problems, "no 6x2x4 BaseRamp wedge at the base front")
+		end
+		if not raiderSrc:find("Vector3%.new%(math%.cos%(angle%) %* 45, 8, math%.sin%(angle%) %* 45%)") then
+			table.insert(problems, "raiders do not spawn at radius 45, Y=8")
+		end
+		if not configSrc:find("RAIDER_FIRST = 15") or not configSrc:find("RAIDER_INTERVAL = 45") then
+			table.insert(problems, "raider timing is not first 15s / every 45s")
+		end
+		if not raiderSrc:find("humanoid%.Jump = true") or not rivalSrc:find("humanoid%.Jump = true") then
+			table.insert(problems, "walkTo has no stuck-jump in RaiderService or RivalService")
+		end
+		if not raiderSrc:find("shelterIfStorm") or not rivalSrc:find('getStatus%(%)%.phase == "storm"') then
+			table.insert(problems, "bots do not shelter during a storm")
+		end
+		if #problems > 0 then
+			step("bots-move", false, table.concat(problems, "; "))
+		else
+			step("bots-move", true, "BaseRamp wedge at every base front, raiders spawn radius 45 / Y=8, first raid 15s then every 45s, stuck bots jump, raiders + rivals shelter during storms")
+		end
+	end
+end
+
 -- 16. Slap bat: F key + SLAP button, 2s cooldown, knockback + drop.
 do
 	local slapSrc = read("src/server/SlapService.luau")

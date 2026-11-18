@@ -3065,6 +3065,67 @@ do
 	end
 end
 
+-- -- (be) bots move: base ramps, raider spawn, stuck-jump, storm cover (fix 2)
+-- Raiders and rivals walked into a 2-stud base edge (and the crater
+-- rim) with MoveTo, which never jumps — so they pushed against the
+-- edge, timed out after 40s and despawned, and the "sneaking to your
+-- base!" banner fired for a rival that never arrived. Now: a wedge
+-- ramp at every base front, raiders spawn on open ground outside the
+-- rim, a stuck bot jumps, and bots run for cover in a storm.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local raiderSrc = read("src/server/RaiderService.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not worldSrc or not raiderSrc or not rivalSrc or not configSrc then
+		check("be", false, "could not verify bot movement — WorldBuilder.luau, RaiderService.luau, RivalService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		-- A wedge ramp at every base front (ground -> platform top).
+		if not worldSrc:find('"BaseRamp"') then
+			table.insert(problems, 'no "BaseRamp" wedge in WorldBuilder.buildBase')
+		end
+		if not worldSrc:find("Enum%.PartType%.Wedge, Vector3%.new%(6, 2, 4%)") then
+			table.insert(problems, "BaseRamp is not a 6x2x4 wedge")
+		end
+		if not worldSrc:find("CFrame%.new%(0, 1, %-13%)") then
+			table.insert(problems, "BaseRamp is not centred at the front entrance (0, 1, -13)")
+		end
+		-- Raiders spawn outside the rim, above the ground.
+		if not raiderSrc:find("Vector3%.new%(math%.cos%(angle%) %* 45, 8, math%.sin%(angle%) %* 45%)") then
+			table.insert(problems, "raiders do not spawn at radius 45, Y=8 (outside the rim, above the ground)")
+		end
+		-- Raiders come sooner and more often.
+		local first = configValue(configSrc, "RAIDER_FIRST")
+		local interval = configValue(configSrc, "RAIDER_INTERVAL")
+		if first ~= 15 then
+			table.insert(problems, "Config.RAIDER_FIRST is " .. tostring(first) .. " (not 15)")
+		end
+		if interval ~= 45 then
+			table.insert(problems, "Config.RAIDER_INTERVAL is " .. tostring(interval) .. " (not 45)")
+		end
+		-- A stuck bot jumps (both services).
+		if not raiderSrc:find("humanoid%.Jump = true") then
+			table.insert(problems, "RaiderService.walkTo has no stuck-jump (humanoid.Jump = true)")
+		end
+		if not rivalSrc:find("humanoid%.Jump = true") then
+			table.insert(problems, "RivalService.walkTo has no stuck-jump (humanoid.Jump = true)")
+		end
+		-- Bots run for cover in a storm.
+		if not raiderSrc:find("shelterIfStorm") then
+			table.insert(problems, "RaiderService has no shelterIfStorm (raiders do not flee storms)")
+		end
+		if not rivalSrc:find('getStatus%(%)%.phase == "storm"') then
+			table.insert(problems, "RivalService.runRival does not shelter during a storm")
+		end
+		if #problems > 0 then
+			check("be", false, "the bots cannot move — " .. table.concat(problems, "; ") .. ". Parts: BaseRamp (WorldBuilder.luau), raider spawn/timing (RaiderService.luau, Config.luau), stuck-jump + storm cover (RaiderService.luau, RivalService.luau)")
+		else
+			check("be", true, "bots move: wedge ramp at every base front, raiders spawn at radius 45 / Y=8, first raid 15s then every 45s, stuck bots jump, raiders + rivals shelter on a base during storms")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

@@ -150,6 +150,8 @@ local function walkTo(model: Model, target: Vector3, timeout: number): boolean
 		done = reached
 	end)
 	local waited = 0
+	local lastPos = root.Position
+	local stuckTime = 0
 	while not done and waited < timeout do
 		task.wait(0.5)
 		waited += 0.5
@@ -159,6 +161,19 @@ local function walkTo(model: Model, target: Vector3, timeout: number): boolean
 		if (root.Position - target).Magnitude < 4 then
 			done = true
 		end
+		-- Stuck? Hop. MoveTo never jumps, so a bot that walks into
+		-- the crater rim or a base edge just pushes against it until
+		-- the timeout. The jump clears the step (fix 2).
+		if (root.Position - lastPos).Magnitude < 0.5 then
+			stuckTime += 0.5
+			if stuckTime >= 1.5 then
+				humanoid.Jump = true
+				stuckTime = 0
+			end
+		else
+			stuckTime = 0
+		end
+		lastPos = root.Position
 	end
 	if connection then
 		connection:Disconnect()
@@ -267,6 +282,24 @@ local function runRival(rival: State.Rival)
 	local model = rival.model
 	while model.Parent do
 		task.wait(0.5)
+		-- Storm cover (fix 2): when a storm runs, a rival runs home
+		-- to its own base and waits there until the storm ends, then
+		-- resumes. Bots that ignore the storm look dead; bots that
+		-- run for cover look alive.
+		local StarfallService = require(script.Parent.StarfallService)
+		if StarfallService.getStatus().phase == "storm" then
+			local homeCf = WorldBuilder.baseCFrame(rival.baseId)
+			if homeCf then
+				walkTo(model, homeCf.Position, 30)
+			end
+			while StarfallService.getStatus().phase == "storm" do
+				task.wait(1)
+				if not model.Parent then
+					return
+				end
+			end
+			rival.phase = "idle"
+		end
 		-- Slap-back: a real player crowding the rival gets slapped.
 		local root = model:FindFirstChild("HumanoidRootPart")
 		if root and time() >= rival.slapReadyAt then

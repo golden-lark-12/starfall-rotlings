@@ -138,8 +138,8 @@ Config.SPEED_PER_TIER = 2 -- +2 WalkSpeed per shop speed tier
 Config.BASE_WALKSPEED = 16
 
 -- Rot Raiders: NPC thieves that raid bases on a timer.
-Config.RAIDER_FIRST = 45 -- seconds after server start before the first raid
-Config.RAIDER_INTERVAL = 75 -- seconds between raids
+Config.RAIDER_FIRST = 15 -- seconds after server start before the first raid (was 45: too slow to notice in a short playtest)
+Config.RAIDER_INTERVAL = 45 -- seconds between raids (was 75)
 Config.RAIDER_LIFETIME = 90 -- seconds before a raider gives up and leaves
 Config.RAIDER_WALK_SPEED = 14
 
