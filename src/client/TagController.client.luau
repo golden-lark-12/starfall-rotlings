@@ -59,7 +59,13 @@ local function updateTags()
 	local shown = 0
 	for _, entry in ipairs(tagged) do
 		local show = false
-		if entry.showable and entry.dist <= maxDist then
+		-- Too close hides the tag (fix round 5, item 5): a 200x84
+		-- AlwaysOnTop tag right in front of the camera fills the
+		-- screen and overlaps the base sign and the thief banner
+		-- (Playtest 5's "Mister Muffin Feet"). A hidden close tag
+		-- does not consume one of the 3 shown slots. Step back and
+		-- it reads again.
+		if entry.showable and entry.dist >= Config.TAG_MIN_DISTANCE and entry.dist <= maxDist then
 			shown += 1
 			show = shown <= maxShown
 		end

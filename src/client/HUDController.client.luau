@@ -108,6 +108,13 @@ missionFill.BackgroundTransparency = 0.4
 missionFill.BorderSizePixel = 0
 missionFill.Parent = missionBar
 local missionLabel = GuiKit.makeLabel(missionBar, "MissionLabel", "🎯 Grab 3 Brainrots — 0/3 • $300", UDim2.new(1, -16, 1, 0), UDim2.new(0, 8, 0, 0), 18, GuiKit.COLORS.White)
+-- Left-aligned + truncated (fix round 5, item 5): the label is
+-- centre-aligned by default, so a long mission string on a narrow
+-- screen clipped on BOTH sides and read as "Place Bra..." cut off at
+-- the left edge. Left-aligned it reads from the left and ellipsizes
+-- at the right if it ever runs long.
+missionLabel.TextXAlignment = Enum.TextXAlignment.Left
+missionLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
 -- XP bar (level + progress) right under the mission bar: grabbing and
 -- placing earn XP, 100 XP per level. Below it, the NEXT REBIRTH

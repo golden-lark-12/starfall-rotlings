@@ -118,6 +118,7 @@ Config.PLACE_RANGE = 14 -- how close to a free pad the carrier must stand
 -- Name tags: only the nearest few, only up close, so they never stack
 -- into unreadable text when Rotlings stand close together.
 Config.TAG_MAX_DISTANCE = 25 -- a tag only shows within 25 studs
+Config.TAG_MIN_DISTANCE = 6 -- a tag hides closer than 6 studs: a 200x84 AlwaysOnTop tag right in front of the camera fills the screen and overlaps the base sign and the thief banner (Playtest 5's "Mister Muffin Feet"). Step back and it reads again.
 Config.TAG_MAX_SHOWN = 3 -- at most the 3 nearest tags at once
 Config.TAG_PHOTO_MAX_DISTANCE = 40 -- in photo mode, show every tag within 40 studs
 Config.TAG_PHOTO_MAX_SHOWN = 99 -- in photo mode, show all of them (the shots need every label)

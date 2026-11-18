@@ -4603,6 +4603,50 @@ do
 	end
 end
 
+-- -- (cd) HUD text is readable (fix round 5, item 5) --
+-- Playtest 5: the mission bar read "Place Bra..." cut off at the left
+-- edge, and the "Mister Muffin Feet" name tag overlapped the base
+-- label and the thief banner. The mission label was centre-aligned by
+-- default, so a long string on a narrow screen clipped on both sides;
+-- and a 200x84 AlwaysOnTop tag right in front of the camera fills the
+-- screen. The fix: the mission label is left-aligned and truncates
+-- with an ellipsis; name tags hide closer than 6 studs (and a hidden
+-- close tag does not consume one of the 3 shown slots). Money, storm,
+-- buddy, belt and guardian are verified intact, not rebuilt: the
+-- $0/s was the wiped base (Fix 1), not a money bug — sim-money still
+-- traces grab $0 / place $0 / income +$6/s / sell $110 / collect $ for
+-- $; the storm killed the player in Playtest 4 and the warning works;
+-- the buddy is knee height and the self-test bright-capture step
+-- passes; the belt panel lists belt Brainrots; the guardian checks
+-- in (ca) still pass.
+do
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local tagSrc = read("src/client/TagController.client.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not hudSrc or not tagSrc or not configSrc then
+		check("cd", false, "could not verify the HUD text fix — HUDController.client.luau, TagController.client.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if not hudSrc:find("missionLabel%.TextXAlignment = Enum%.TextXAlignment%.Left") then
+			table.insert(problems, "mission label is still centre-aligned — a long mission string clips at the left edge")
+		end
+		if not hudSrc:find("missionLabel%.TextTruncate = Enum%.TextTruncate%.AtEnd") then
+			table.insert(problems, "mission label does not truncate — a long mission string overflows instead of ellipsizing")
+		end
+		if not configSrc:find("TAG_MIN_DISTANCE = 6") then
+			table.insert(problems, "no TAG_MIN_DISTANCE — close name tags still fill the screen")
+		end
+		if not tagSrc:find("TAG_MIN_DISTANCE") then
+			table.insert(problems, "TagController does not hide tags closer than TAG_MIN_DISTANCE")
+		end
+		if #problems > 0 then
+			check("cd", false, "the HUD text fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: HUDController.client.luau, TagController.client.luau, Config.luau")
+		else
+			check("cd", true, "HUD text readable: mission label left-aligned + truncated (no 'Place Bra...' cut-off); name tags hide closer than 6 studs (no tag over the base sign/banner); money/storm/buddy/belt/guardian verified intact, not rebuilt")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
