@@ -20,6 +20,12 @@ local SpawnService = {}
 local running = false
 local bobBases: { [Model]: CFrame } = {}
 local bobSeeds: { [Model]: number } = {}
+-- Prompts wired once per model (weak keys: a destroyed model drops
+-- out on its own). placeOnPad re-wires every placed Rotling so a
+-- Rotling restored from a save gets its Take prompt; without this
+-- guard the fresh-place path would double-connect the same prompt
+-- and tryGrab would fire twice.
+local connected: { [Model]: boolean } = setmetatable({}, { __mode = "k" })
 
 function SpawnService.countFree(): number
 	local count = 0
@@ -32,7 +38,13 @@ function SpawnService.countFree(): number
 end
 
 -- Wire a Rotling's grab prompt to the server's grab logic.
+-- Idempotent: a prompt wired once stays wired once, so placeOnPad
+-- can safely re-wire a placed Rotling (restored from a save) without
+-- double-firing tryGrab on a freshly placed one.
 function SpawnService.connectPrompt(model: Model)
+	if connected[model] then
+		return
+	end
 	local body = model.PrimaryPart
 	if not body then
 		return
@@ -41,6 +53,7 @@ function SpawnService.connectPrompt(model: Model)
 	if not prompt then
 		return
 	end
+	connected[model] = true
 	prompt.Triggered:Connect(function(player: Player)
 		CarryService.tryGrab(player, model)
 	end)

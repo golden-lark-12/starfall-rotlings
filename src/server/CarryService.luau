@@ -348,6 +348,15 @@ function CarryService.placeOnPad(player: Player, model: Model, baseId: number, p
 	end
 	State.placed[baseId][padIndex] = model
 	CarryService.setPromptState(model)
+	-- Wire the Take prompt: a Rotling restored from a save is built
+	-- fresh by restorePlaced, so its prompt was never connected —
+	-- pressing E on it did nothing and a placed Rotling could never
+	-- be picked back up or sold. Deferred require: SpawnService
+	-- requires this module, so a top-level require would be circular.
+	-- connectPrompt is idempotent, so a freshly placed Rotling (wired
+	-- at spawn) is not double-wired.
+	local SpawnService = require(script.Parent.SpawnService)
+	SpawnService.connectPrompt(model)
 	if def then
 		IndexService.markFound(player, def.id)
 	end
