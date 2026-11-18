@@ -1420,6 +1420,35 @@ do
 	end
 end
 
+-- Fix round 8, item 9 — hatch event: the egg cracks open, the animal
+-- pops out with a scale-in bounce, and jumps into the owner's arms
+-- when they are nearby with a free slot.
+do
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	if not eggSrc then
+		step("hatch-event", false, "MeteorEggService.luau missing")
+	else
+		local problems: { string } = {}
+		if not eggSrc:find("local function crackEgg%(model: Model, egg: State%.Egg, baseId: number%)") then
+			table.insert(problems, "no crackEgg event")
+		end
+		if not eggSrc:find('crack%.Name = "Crack"') then
+			table.insert(problems, "no crack parts appear on the shell")
+		end
+		if not eggSrc:find("setModelScale%(hatched, 0%.2%)") then
+			table.insert(problems, "no scale-in pop when the animal comes out")
+		end
+		if not eggSrc:find("jumped into your arms") then
+			table.insert(problems, "the hatchling does not jump into the owner's arms")
+		end
+		if #problems > 0 then
+			step("hatch-event", false, table.concat(problems, "; "))
+		else
+			step("hatch-event", true, "the egg cracks open, the animal pops out with a scale-in bounce, and jumps into the owner's arms when nearby with a free slot")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

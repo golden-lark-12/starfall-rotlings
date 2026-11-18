@@ -6495,6 +6495,50 @@ do
 	end
 end
 
+-- (dk) HATCH EVENT (fix round 8, item 9): the egg does not just
+-- vanish — it cracks open (shake, dark cracks, white flash), the
+-- animal pops out with a scale-in bounce + gold burst, and if the
+-- owner is standing nearby with a free slot it jumps into their
+-- arms so they place it on a pad themselves (Steal-an-Egg feel).
+-- Otherwise the old fallback: a free pad, or the crater.
+do
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	if not eggSrc then
+		check("dk", false, "could not verify the hatch event — MeteorEggService.luau missing")
+	else
+		local problems: { string } = {}
+		if not eggSrc:find("local function crackEgg%(model: Model, egg: State%.Egg, baseId: number%)") then
+			table.insert(problems, "no crackEgg event (the egg still just vanishes)")
+		end
+		if not eggSrc:find("HATCHING!") then
+			table.insert(problems, "the egg label does not read HATCHING during the crack")
+		end
+		if not eggSrc:find('crack%.Name = "Crack"') then
+			table.insert(problems, "no crack parts appear on the shell")
+		end
+		if not eggSrc:find("setModelScale%(hatched, 0%.2%)") then
+			table.insert(problems, "no scale-in pop when the animal comes out")
+		end
+		if not eggSrc:find("jumped into your arms") then
+			table.insert(problems, "the hatchling does not jump into the owner's arms (no auto-carry)")
+		end
+		if not eggSrc:find("%(ownerRoot%.Position %- hatchPos%)%.Magnitude <= 20") then
+			table.insert(problems, "the auto-carry does not check the owner is nearby (20 studs)")
+		end
+		if not eggSrc:find("#CarryService%.getCarried%(owner%) < CarryService%.getCarrySlots%(owner%)") then
+			table.insert(problems, "the auto-carry does not check for a free slot")
+		end
+		if not eggSrc:find("task%.spawn%(crackEgg, model, egg, baseId%)") then
+			table.insert(problems, "the hatch event does not run in its own thread (it would stall the hatch loop)")
+		end
+		if #problems > 0 then
+			check("dk", false, "the hatch event is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau")
+		else
+			check("dk", true, "hatch event: the egg shakes, cracks, flashes white, the animal pops out with a scale-in bounce, and jumps into the owner's arms when they are nearby with a free slot (else a free pad, or the crater)")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

@@ -382,52 +382,120 @@ function MeteorEggService.placeEgg(player: Player)
 	Remotes.bannerEvent():FireClient(player, "🥚 " .. placedRarity .. " egg on the incubator — hatches in " .. tostring(hatchTime) .. "s!", 4)
 end
 
-local function hatchEgg(model: Model)
-	local egg = State.eggs[model]
-	if not egg then
+-- The hatch EVENT (fix round 8, item 9): the egg does not just vanish
+-- and a Brainrot appear on a pad — it cracks open in front of you,
+-- the animal pops out, and (if you are standing there with a free
+-- slot) it jumps straight into your arms so YOU place it on a pad.
+-- Steal-an-Egg feel, original assets only (the egg, the crack parts
+-- and the pop are all built here, no decals, no copied art). The
+-- sequence runs in its own thread so the hatch loop keeps ticking.
+local function crackEgg(model: Model, egg: State.Egg, baseId: number)
+	local shell = model.PrimaryPart
+	if not shell or not shell:IsA("BasePart") then
+		model:Destroy()
 		return
 	end
-	local baseId = egg.baseId
-	State.eggs[model] = nil
-	model:Destroy()
-	if not baseId then
-		return
+	local hatchPos = shell.Position
+	setEggLabel(model, "🥚 HATCHING!")
+	print("[MeteorEgg] egg on base " .. tostring(baseId) .. " is hatching — cracking open")
+	-- 1. The crack: the shell shakes, then a dark crack appears on
+	-- it, three times — the shaking reads as the animal inside
+	-- fighting its way out.
+	local baseCf = shell.CFrame
+	for _ = 1, 3 do
+		for _ = 1, 3 do
+			shell.CFrame = baseCf * CFrame.Angles(math.rad(math.random(-6, 6)), math.rad(math.random(-6, 6)), 0)
+			task.wait(0.12)
+		end
+		shell.CFrame = baseCf
+		local crack = Instance.new("Part")
+		crack.Name = "Crack"
+		crack.Shape = Enum.PartType.Block
+		crack.Size = Vector3.new(0.3, 1.4, 0.3)
+		crack.Color = Color3.fromRGB(40, 25, 15)
+		crack.Material = Enum.Material.SmoothPlastic
+		crack.Anchored = true
+		crack.CanCollide = false
+		local angle = math.rad(math.random(0, 360))
+		crack.CFrame = baseCf * CFrame.Angles(0, angle, 0) * CFrame.new(0, math.random(-1, 1), 1.6) * CFrame.Angles(math.rad(math.random(-30, 30)), 0, math.rad(math.random(-30, 30)))
+		crack.Parent = model
 	end
+	-- Flash: the shell goes white for a beat, then breaks.
+	shell.Color = Color3.fromRGB(255, 255, 255)
+	local light = shell:FindFirstChildOfClass("PointLight")
+	if light then
+		light.Color = Color3.fromRGB(255, 255, 255)
+		light.Brightness = 6
+	end
+	task.wait(0.3)
+	-- 2. The break: the egg is gone, the animal pops out at the
+	-- incubator with a scale-in bounce + gold burst.
 	local def, mutation = rollHatchDef()
 	if egg.hatchDef then
-		-- (fix round 6, item 6) The hatch was rolled at place time
-		-- (so the hatch time could scale with its rarity) — use the
-		-- stored result; a fresh roll is only the fallback for an egg
-		-- placed before this change.
 		local stored = RotlingCatalog.getDef(egg.hatchDef)
 		if stored then
 			def = stored
 			mutation = egg.hatchMutation
 		end
 	end
+	model:Destroy()
+	local hatched = RotlingFactory.build(def.id, mutation, hatchPos, 1)
+	if not hatched then
+		return
+	end
+	hatched.Parent = workspace
+	RotlingFactory.setModelScale(hatched, 0.2)
+	for _, s in ipairs({ 0.5, 0.8, 1 }) do
+		RotlingFactory.setModelScale(hatched, s)
+		task.wait(0.15)
+	end
+	RotlingFactory.placePop(hatched)
+	-- 3. The animal comes out: if the owner is standing nearby with
+	-- a free slot, it jumps straight into their arms — they place it
+	-- on a pad themselves. Otherwise the old fallback: a free pad,
+	-- or the crater if the base is full / the owner left.
 	local ownerId = BaseService.getBaseOwner(baseId)
 	local owner = if ownerId then Players:GetPlayerByUserId(ownerId) else nil
-	-- Hatch onto a free pad of that base, or back into the crater.
-	local padIndex = BaseService.freePad(baseId)
-	local hatched: Model? = nil
-	if padIndex and owner then
-		local padCf = WorldBuilder.padCFrame(baseId, padIndex)
-		if padCf then
-			hatched = RotlingFactory.build(def.id, mutation, padCf.Position, 1)
-			if hatched then
-				hatched.Parent = workspace
-				CarryService.placeOnPad(owner, hatched, baseId, padIndex)
-				RotlingFactory.placePop(hatched)
+	local carried = false
+	if owner then
+		local character = owner.Character
+		local ownerRoot = character and character:FindFirstChild("HumanoidRootPart")
+		if ownerRoot and (ownerRoot.Position - hatchPos).Magnitude <= 20 and #CarryService.getCarried(owner) < CarryService.getCarrySlots(owner) then
+			RotlingFactory.setCarriedVisual(hatched, true)
+			local body = hatched.PrimaryPart
+			if body then
+				for _, part in ipairs(hatched:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.Anchored = false
+					end
+				end
+				local weld = Instance.new("Weld")
+				weld.Name = "CarryWeld"
+				weld.Part0 = ownerRoot
+				weld.Part1 = body
+				weld.C0 = CFrame.new(0, Config.CARRY_Y, Config.CARRY_Z)
+				weld.Parent = body
+				hatched:SetAttribute("State", "carried")
+				CarryService.carryRotling(owner, hatched)
+				carried = true
+				Remotes.bannerEvent():FireClient(owner, "🥚 IT HATCHED! " .. def.name .. " jumped into your arms — place it on a pad!", 5)
+				print("[MeteorEgg] " .. def.name .. " hatched into " .. owner.Name .. "'s arms (owner nearby, free slot)")
 			end
 		end
 	end
-	if not hatched then
-		-- Base full (or the owner left): the hatchling wanders into
-		-- the crater instead, free to catch.
-		local position = Vector3.new((math.random() * 2 - 1) * 15, Config.CRATER_FLOOR_Y, (math.random() * 2 - 1) * 2)
-		hatched = RotlingFactory.build(def.id, mutation, position, 1.5)
-		if hatched then
-			hatched.Parent = workspace
+	if not carried then
+		local padIndex = BaseService.freePad(baseId)
+		if padIndex and owner then
+			local padCf = WorldBuilder.padCFrame(baseId, padIndex)
+			if padCf then
+				CarryService.placeOnPad(owner, hatched, baseId, padIndex)
+				RotlingFactory.placePop(hatched)
+			end
+		else
+			-- Base full (or the owner left): the hatchling wanders into
+			-- the crater instead, free to catch.
+			local position = Vector3.new((math.random() * 2 - 1) * 15, Config.CRATER_FLOOR_Y, (math.random() * 2 - 1) * 2)
+			hatched:PivotTo(CFrame.new(position))
 			SpawnService.connectPrompt(hatched)
 			SpawnService.registerFree(hatched)
 		end
@@ -446,6 +514,20 @@ local function hatchEgg(model: Model)
 		end
 		print("[MeteorEgg] hatched " .. def.name .. " (" .. def.rarity .. (if mutation then " " .. mutation else "") .. ") on base " .. tostring(baseId))
 	end
+end
+
+local function hatchEgg(model: Model)
+	local egg = State.eggs[model]
+	if not egg then
+		return
+	end
+	local baseId = egg.baseId
+	State.eggs[model] = nil
+	if not baseId then
+		model:Destroy()
+		return
+	end
+	task.spawn(crackEgg, model, egg, baseId)
 end
 
 -- Hatch loop: eggs on incubators pop when their rarity-scaled hatch time is up.
