@@ -128,9 +128,11 @@ Config.CARRY_MAX_HEIGHT = 3.6 -- a carried Rotling is at most 3.6 studs tall
 -- biggest placed Brainrot was 2.3x the smallest (Count Croissant 5.0
 -- vs Bloop 2.2) and the tall ones towered over the player. The
 -- per-type sizes live on only in the crater (1.5x spawns) and while
--- carried (CARRY_MAX_HEIGHT). 3.5 studs fits the pedestal and stays
--- below the player's eye line.
-Config.PLACED_DISPLAY_HEIGHT = 3.5 -- total height (body + hat) of a placed Brainrot
+-- carried (CARRY_MAX_HEIGHT). 4.5 studs (fix round 8, item 4): Malek
+-- said 3.5 read too small on the pedestal — the Brainrots are the
+-- collection on display, so they stand tall, just under the
+-- player's eye line (walk 16, eye ~5 studs up).
+Config.PLACED_DISPLAY_HEIGHT = 4.5 -- total height (body + hat) of a placed Brainrot
 Config.PLACE_RANGE = 14 -- how close to a free pad the carrier must stand
 
 -- Name tags: only the nearest few, only up close, so they never stack

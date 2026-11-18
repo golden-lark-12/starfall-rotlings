@@ -5641,8 +5641,8 @@ do
 		check("cu", false, "could not verify the uniform placed size — Config.luau, RotlingFactory.luau, CarryService.luau or WorldBuilder.luau missing")
 	else
 		local problems: { string } = {}
-		if not configSrc:find("PLACED_DISPLAY_HEIGHT = 3%.5") then
-			table.insert(problems, "no PLACED_DISPLAY_HEIGHT = 3.5 in Config")
+		if not configSrc:find("PLACED_DISPLAY_HEIGHT = 4%.5") then
+			table.insert(problems, "no PLACED_DISPLAY_HEIGHT = 4.5 in Config")
 		end
 		if not factorySrc:find("function RotlingFactory%.normalizeToHeight") then
 			table.insert(problems, "no normalizeToHeight in RotlingFactory")
@@ -5662,7 +5662,7 @@ do
 		if #problems > 0 then
 			check("cu", false, "the uniform placed size is incomplete — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, RotlingFactory.luau, CarryService.luau, WorldBuilder.luau")
 		else
-			check("cu", true, "placed Brainrots stand at one uniform height (3.5 studs, body + hat): placeOnPad normalizes every placement (restores + egg hatches ride the same path), the logo-stage heroes match; crater spawns keep per-type 1.5x sizes and carrying keeps CARRY_MAX_HEIGHT")
+			check("cu", true, "placed Brainrots stand at one uniform height (4.5 studs, body + hat): placeOnPad normalizes every placement (restores + egg hatches ride the same path), the logo-stage heroes match; crater spawns keep per-type 1.5x sizes and carrying keeps CARRY_MAX_HEIGHT")
 		end
 	end
 end
