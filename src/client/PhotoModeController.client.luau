@@ -2,12 +2,12 @@
 -- Space Rock Brainrots!: photo mode.
 -- Press P (or type /photo in chat) to step through FIVE fixed camera
 -- shots: the FINAL 4 submission shots, all real gameplay, full HUD in
--- every frame — (1) belt / grab moment — low and close down the
--- conveyor; (2) storm — the glowing storm wall, the green SAFE DOME
--- over a base, the (x2) income boost readout and the red banner in one
--- frame; (3) packed base — pads full of placed Rotlings with the Lv
--- sign; (4) hero Rotling close-up — low and close on the belt's
--- nearest Rotling, tags readable — plus (5) the ICON shot: the logo
+-- every frame — (1) hero Rotling close-up — low and close on the
+-- belt's nearest Rotling, tags readable; (2) belt / grab moment — low
+-- and close down the conveyor; (3) storm — the glowing storm wall,
+-- the green SAFE DOME over a base, the (x2) income boost readout and
+-- the red banner in one frame; (4) packed base — pads full of placed
+-- Rotlings with the Lv sign — plus (5) the ICON shot: the logo
 -- stage near spawn, one big bright Rotling front-centre with the fiery
 -- meteor behind it, framed square for the 512x512 icon. The title
 -- screen stays in the game but is NOT one of the 4 shots: the
@@ -44,18 +44,27 @@ local player = Players.LocalPlayer
 -- capture of that shot moves.
 local SHOTS = {
 	{
-		-- BELT / GRAB MOMENT, and the first thumbnail: low and close
-		-- behind the belt's near end, looking down the conveyor at
-		-- the crater and the beacon. The belt's Rotlings are ~15
-		-- studs away — big, with their rarity tags readable —
-		-- instead of a distant landscape.
-		name = "1/4 — Belt",
+		-- HERO ROTLING CLOSE-UP, and the first thumbnail: low and
+		-- close on the belt's nearest Rotling, ~12 studs away — one
+		-- big character filling the frame with its rarity tag
+		-- readable, instead of a distant landscape.
+		name = "1/4 — Hero",
+		detail = "Hero Rotling close-up: low and close on the belt's nearest Rotling, tags readable",
+		position = Vector3.new(10, 3.5, 7),
+		lookAt = Vector3.new(0, 2, 0),
+	},
+	{
+		-- BELT / GRAB MOMENT: low and close behind the belt's near
+		-- end, looking down the conveyor at the crater and the
+		-- beacon. The belt's Rotlings are ~15 studs away — big, with
+		-- their rarity tags readable — instead of a distant landscape.
+		name = "2/4 — Belt",
 		detail = "Grab moment: down the conveyor belt, Rotlings and the beacon",
 		position = Vector3.new(42, 4.5, 9),
 		lookAt = Vector3.new(0, 2, 0),
 	},
 	{
-		name = "2/4 — Storm",
+		name = "3/4 — Storm",
 		detail = "Storm wall + dome + income boost: the glowing front, the green SAFE DOME, the (x2) readout, the red banner",
 		-- Storm wall + dome + income boost in ONE frame: the glowing
 		-- front sweeping the map, the green SAFE DOME over a base,
@@ -66,20 +75,10 @@ local SHOTS = {
 		lookAt = Vector3.new(0, 12, 0),
 	},
 	{
-		name = "3/4 — Packed base",
+		name = "4/4 — Packed base",
 		detail = "Pads full of placed Rotlings, Lv sign and banked cash",
 		position = nil, -- computed from the nearest base, below
 		lookAt = nil,
-	},
-	{
-		name = "4/4 — Hero",
-		detail = "Hero Rotling close-up: low and close on the belt's nearest Rotling, tags readable",
-		-- Hero close-up: low and close on the belt's nearest
-		-- Rotling, ~12 studs away — one big character filling the
-		-- frame with its rarity tag readable, instead of a distant
-		-- landscape.
-		position = Vector3.new(10, 3.5, 7),
-		lookAt = Vector3.new(0, 2, 0),
 	},
 	{
 		name = "Icon — 512x512",
@@ -134,7 +133,7 @@ end
 
 local function shotCFrame(index: number): CFrame
 	local shot = SHOTS[index]
-	if index == 3 then
+	if index == 4 then
 		-- My base: 16 studs out on the crater side, 7 up, looking
 		-- back at the platform so the pads and the sign both show.
 		-- Closer than before (30 out / 12 up) so the base fills the

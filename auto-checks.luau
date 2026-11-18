@@ -1497,10 +1497,10 @@ end
 
 -- -- (ac) photo-mode cameras are the 4 bounty shots ---------------------------
 -- The judge sees only 4 screenshots, so photo mode has exactly 4 shots:
--- 1 belt (low, close down the conveyor), 2 storm (wide crater + sky
--- with the banner, the dome and the giant meteors), 3 packed base
--- close, 4 hero close-up (low and close on the belt's nearest
--- Rotling), 5 icon (the logo stage, one big Rotling + fiery meteor).
+-- 1 hero close-up (low and close on the belt's nearest Rotling),
+-- 2 belt (low, close down the conveyor), 3 storm (wide crater + sky
+-- with the banner, the dome and the giant meteors), 4 packed base
+-- close, 5 icon (the logo stage, one big Rotling + fiery meteor).
 -- The old crater isometric is gone.
 do
 	local photoSrc = read("src/client/PhotoModeController.client.luau")
@@ -1508,28 +1508,28 @@ do
 		check("ac", false, "could not verify photo-mode cameras — PhotoModeController.client.luau missing")
 	else
 		local problems: { string } = {}
-		-- Shot 1 (belt): low and close behind the belt's near end.
-		if not photoSrc:find("Vector3.new%(42, 4.5, 9%)") then
-			table.insert(problems, "shot 1 is not the close belt camera (42, 4.5, 9)")
-		end
-		-- Shot 2 (storm): wide crater + sky view, banner and meteors.
-		if not photoSrc:find("Vector3.new%(48, 10, 18%)") then
-			table.insert(problems, "shot 2 is not the wide storm camera (48, 10, 18)")
-		end
-		if not photoSrc:find("Vector3.new%(0, 12, 0%)") then
-			table.insert(problems, "shot 2 does not look at the crater + sky (0, 12, 0)")
-		end
-		-- Shot 3 (base): 16 out, 7 up — closer than the old 30/12.
-		if not photoSrc:find("%* 16") then
-			table.insert(problems, "shot 3 is not 16 studs out from the base")
-		end
-		if not photoSrc:find("Vector3.new%(0, 7, 0%)") then
-			table.insert(problems, "shot 3 is not 7 studs up")
-		end
-		-- Shot 4 (hero close-up): low and close on the belt's
+		-- Shot 1 (hero close-up): low and close on the belt's
 		-- nearest Rotling.
 		if not photoSrc:find("Vector3.new%(10, 3.5, 7%)") then
-			table.insert(problems, "shot 4 is not the hero close-up camera (10, 3.5, 7)")
+			table.insert(problems, "shot 1 is not the hero close-up camera (10, 3.5, 7)")
+		end
+		-- Shot 2 (belt): low and close behind the belt's near end.
+		if not photoSrc:find("Vector3.new%(42, 4.5, 9%)") then
+			table.insert(problems, "shot 2 is not the close belt camera (42, 4.5, 9)")
+		end
+		-- Shot 3 (storm): wide crater + sky view, banner and meteors.
+		if not photoSrc:find("Vector3.new%(48, 10, 18%)") then
+			table.insert(problems, "shot 3 is not the wide storm camera (48, 10, 18)")
+		end
+		if not photoSrc:find("Vector3.new%(0, 12, 0%)") then
+			table.insert(problems, "shot 3 does not look at the crater + sky (0, 12, 0)")
+		end
+		-- Shot 4 (base): 16 out, 7 up — closer than the old 30/12.
+		if not photoSrc:find("%* 16") then
+			table.insert(problems, "shot 4 is not 16 studs out from the base")
+		end
+		if not photoSrc:find("Vector3.new%(0, 7, 0%)") then
+			table.insert(problems, "shot 4 is not 7 studs up")
 		end
 		-- Shot 5 (icon): the logo stage near spawn, one big bright
 		-- Rotling front-centre with the fiery meteor behind it.
@@ -1561,7 +1561,7 @@ do
 		if #problems > 0 then
 			check("ac", false, "photo-mode cameras are not the 4 bounty shots + icon — " .. table.concat(problems, "; ") .. ". Parts: SHOTS / shotCFrame (PhotoModeController.client.luau)")
 		else
-			check("ac", true, "photo cameras are the 4 bounty shots + icon — belt close on the conveyor, storm wide (48, 10, 18) looking at the sky, base 16 out / 7 up, hero close-up (10, 3.5, 7), icon on the logo stage (-25, 4, 98)")
+			check("ac", true, "photo cameras are the 4 bounty shots + icon — hero close-up (10, 3.5, 7) first, belt close on the conveyor, storm wide (48, 10, 18) looking at the sky, base 16 out / 7 up, icon on the logo stage (-25, 4, 98)")
 		end
 	end
 end
@@ -2991,8 +2991,8 @@ do
 		if not flashBody or not flashBody:find("Brightness = 1%.5") then
 			table.insert(problems, "lightningFlash does not restore the softened Brightness 1.5")
 		end
-		-- The FINAL 4 photo shots: belt, storm, packed base, hero.
-		for _, name in ipairs({ "1/4 — Belt", "2/4 — Storm", "3/4 — Packed base", "4/4 — Hero" }) do
+		-- The FINAL 4 photo shots: hero, belt, storm, packed base.
+		for _, name in ipairs({ "1/4 — Hero", "2/4 — Belt", "3/4 — Storm", "4/4 — Packed base" }) do
 			if not photoSrc:find(name, 1, true) then
 				table.insert(problems, 'photo shot "' .. name .. '" not found in PhotoModeController')
 			end
@@ -3009,11 +3009,11 @@ do
 		end
 		-- The bounty package lists the same final 4, and says the
 		-- title screen is NOT one of them.
-		if not packageText:find("2-storm-wall.png", 1, true) then
-			table.insert(problems, "bounty-package.md shot list does not name 2-storm-wall.png")
+		if not packageText:find("1-hero-closeup.png", 1, true) then
+			table.insert(problems, "bounty-package.md shot list does not name 1-hero-closeup.png")
 		end
-		if not packageText:find("4-hero-closeup.png", 1, true) then
-			table.insert(problems, "bounty-package.md shot list does not name 4-hero-closeup.png")
+		if not packageText:find("3-storm-wall.png", 1, true) then
+			table.insert(problems, "bounty-package.md shot list does not name 3-storm-wall.png")
 		end
 		if not packageText:find("is NOT one of the 4 shots", 1, true) then
 			table.insert(problems, "bounty-package.md does not say the title screen is NOT one of the 4 shots")
@@ -3021,7 +3021,7 @@ do
 		if #problems > 0 then
 			check("bc", false, "the bright capture setup is missing — " .. table.concat(problems, "; ") .. ". Parts: Lighting / Ground (default.project.json), restoreSky / dimSky (StarfallService.luau), photo shots (PhotoModeController), shot list (bounty-package.md)")
 		else
-			check("bc", true, "bright capture setup: Saturation 1.0, Density 0.08, vivid green ground, storm restores to it, final 4 photo shots (belt, storm, packed base, hero close-up), title screen not one of the 4")
+			check("bc", true, "bright capture setup: Saturation 1.0, Density 0.08, vivid green ground, storm restores to it, final 4 photo shots (hero close-up, belt, storm, packed base), title screen not one of the 4")
 		end
 	end
 end

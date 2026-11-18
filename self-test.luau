@@ -1137,7 +1137,7 @@ do
 		if not starSrc:find("Lighting%.Brightness = 1%.5") then
 			table.insert(problems, "storm dark is not softened to Brightness 1.5")
 		end
-		for _, name in ipairs({ "1/4 — Belt", "2/4 — Storm", "3/4 — Packed base", "4/4 — Hero" }) do
+		for _, name in ipairs({ "1/4 — Hero", "2/4 — Belt", "3/4 — Storm", "4/4 — Packed base", "Icon — 512x512" }) do
 			if not photoSrc:find(name, 1, true) then
 				table.insert(problems, 'photo shot "' .. name .. '" not found')
 			end
@@ -1151,7 +1151,7 @@ do
 		if #problems > 0 then
 			step("bright-capture", false, table.concat(problems, "; "))
 		else
-			step("bright-capture", true, "brightest lighting (Saturation 1.0, Density 0.08, vivid ground), storm restores to it, final 4 photo shots (belt, storm, packed base, hero close-up)")
+			step("bright-capture", true, "brightest lighting (Saturation 1.0, Density 0.08, vivid ground), storm restores to it, final 4 photo shots (hero close-up, belt, storm, packed base) + icon shot")
 		end
 	end
 end
