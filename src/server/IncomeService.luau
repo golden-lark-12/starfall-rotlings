@@ -190,7 +190,6 @@ function IncomeService.broadcastHud()
 				if baseId then
 					WorldBuilder.setBaseCoins(baseId, profile.banked)
 					-- The base level sign: 1 + Rotlings placed here.
-					WorldBuilder.setBaseLevel(baseId, 1 + #BaseService.getPlacedForPlayer(player))
 					-- The shield label: "SAFE (Ns)" while locked, "SAFE DOME"
 					-- in green while the storm passes (every base is safe).
 					WorldBuilder.setShieldLabel(baseId, BaseService.lockRemaining(baseId), storm.phase == "storm")

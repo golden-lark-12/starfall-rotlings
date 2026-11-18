@@ -279,9 +279,6 @@ boostRow.Parent = gui
 -- Collect button (banking): bottom-left, above the boost chips. Moves
 -- everything banked at the base into the wallet. Bright while there is
 -- cash to collect, dimmed when the base is empty.
-local collectButton = GuiKit.makeButton(gui, "CollectButton", "💰 Collect", UDim2.new(0, 200, 0, 48), UDim2.new(0, 12, 1, -160), GuiKit.COLORS.Buy)
-collectButton.TextScaled = true
-collectButton.TextTruncate = Enum.TextTruncate.AtEnd
 
 -- Drop Egg button (fix round 7, item 8): bottom-left, above Collect.
 -- Hidden unless the player is carrying a meteor egg — then it drops
@@ -346,11 +343,6 @@ dailyButton.MouseButton1Click:Connect(function()
 	local ok, message = Remotes.dailyFunction():InvokeServer()
 	GuiKit.showBanner(gui, message, 4)
 end)
-collectButton.MouseButton1Click:Connect(function()
-	local ok, message = Remotes.collectBankFunction():InvokeServer()
-	GuiKit.showBanner(gui, message, 4)
-end)
-
 local function refreshRebirth()
 	local cost = hud.rebirthCost
 	local mult = 1 + 0.25 * hud.rebirths
@@ -418,6 +410,27 @@ end)
 -- on screen forever). The server sends phases "calm" / "warn" /
 -- "storm" — the names must match StarfallService.setPhase exactly.
 local hudEventReceived = false
+-- Place prompts only when carrying (real-base section): the "Place
+-- Brainrot" prompt on every pad is toggled client-side, so each
+-- player sees it only while THEY carry a Brainrot — an empty-handed
+-- player never gets a prompt that does nothing. The server still
+-- checks ownership + a free pad in tryPlace; this is the affordance,
+-- not the guard. Prompts are cached once (pads are built at boot).
+local placePrompts: { ProximityPrompt } = {}
+local function refreshPlacePrompts()
+	if #placePrompts == 0 then
+		for _, descendant in ipairs(workspace:GetDescendants()) do
+			if descendant:IsA("ProximityPrompt") and descendant.ActionText == "Place Brainrot" then
+				table.insert(placePrompts, descendant)
+			end
+		end
+	end
+	local enabled = hud.carried > 0
+	for _, prompt in ipairs(placePrompts) do
+		prompt.Enabled = enabled
+	end
+end
+
 local function onHudData(data: Remotes.HudData)
 	hud.coins = data.coins
 	hud.banked = data.banked or 0
@@ -434,6 +447,7 @@ local function onHudData(data: Remotes.HudData)
 	hud.carried = data.carried
 	hud.carrySlots = data.carrySlots
 	hud.carriedName = data.carriedName
+	refreshPlacePrompts()
 	hud.lockRemaining = data.lockRemaining
 	hud.lockCooldown = data.lockCooldown
 	hud.stormPhase = data.stormPhase
@@ -581,18 +595,6 @@ local function onHudData(data: Remotes.HudData)
 	else
 		dailyButton.Text = "🎁 Daily ✓"
 		dailyButton.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
-	end
-
-	-- Collect button: bright with the banked amount while the base
-	-- holds cash, dimmed when it is empty. The text names what is
-	-- waiting ("At base: $X") — the banked cash is only visible here
-	-- (and on the base sign) now that the top line no longer carries it.
-	if hud.banked > 0 then
-		collectButton.Text = "💰 At base: " .. Formatting.formatMoney(hud.banked)
-		collectButton.BackgroundColor3 = GuiKit.COLORS.Buy
-	else
-		collectButton.Text = "💰 Collect"
-		collectButton.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
 	end
 
 	-- Drop Egg button (fix round 7, item 8): only while the player

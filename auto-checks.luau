@@ -986,31 +986,35 @@ do
 	end
 end
 
--- -- (o) colourful bases with a level sign ------------------------------------
+-- -- (o) colourful bases, sign shows name + cash only -------------------------
+-- (simplify/polish, real-base section): the "Lv N" billboard under the
+-- owner sign is GONE — the sign shows the player name and the base cash
+-- and nothing else. Level still exists internally (missions use it) but
+-- the player never sees a level number on the base.
 do
 	local worldSrc = read("src/server/WorldBuilder.luau")
 	local incomeSrc = read("src/server/IncomeService.luau")
 	if not worldSrc or not incomeSrc then
-		check("o", false, "could not verify base level signs — WorldBuilder.luau or IncomeService.luau missing")
+		check("o", false, "could not verify base signs — WorldBuilder.luau or IncomeService.luau missing")
 	else
 		local problems: { string } = {}
 		if not worldSrc:find('sign%.Name = "BaseSign"') then
 			table.insert(problems, '"BaseSign" billboard not found')
 		end
-		-- A level billboard hangs under the owner sign.
-		if not worldSrc:find('levelSign%.Name = "BaseLevel"') then
-			table.insert(problems, '"BaseLevel" billboard not found in WorldBuilder.luau')
+		if not worldSrc:find('cashLabel%.Name = "CashLabel"') then
+			table.insert(problems, 'no "CashLabel" line on the base sign')
 		end
-		if not worldSrc:find("function WorldBuilder.setBaseLevel") then
-			table.insert(problems, "WorldBuilder.setBaseLevel not found")
+		if worldSrc:find('levelSign%.Name = "BaseLevel"') then
+			table.insert(problems, 'the "BaseLevel" billboard is still built')
 		end
-		-- The level text is "Lv N" with a star.
-		if not worldSrc:find('"Lv "%s*%.%.%s*tostring%(level%)') then
-			table.insert(problems, 'level label does not show "Lv N"')
+		if worldSrc:find("function WorldBuilder.setBaseLevel") then
+			table.insert(problems, "WorldBuilder.setBaseLevel still exists")
 		end
-		-- The HUD feed refreshes the level every second.
-		if not incomeSrc:find("WorldBuilder.setBaseLevel%(baseId,") then
-			table.insert(problems, "IncomeService.broadcastHud never calls WorldBuilder.setBaseLevel")
+		if worldSrc:find('"Lv "') then
+			table.insert(problems, 'a "Lv " string still exists in WorldBuilder')
+		end
+		if incomeSrc:find("WorldBuilder.setBaseLevel") then
+			table.insert(problems, "IncomeService still calls WorldBuilder.setBaseLevel")
 		end
 		-- Bases are colourful: at least 6 distinct theme colours.
 		local colorCount = 0
@@ -1021,9 +1025,9 @@ do
 			table.insert(problems, "fewer than 6 theme colours in WorldBuilder.luau")
 		end
 		if #problems > 0 then
-			check("o", false, "bases lack a level sign — " .. table.concat(problems, "; ") .. ". Parts: BaseSign / BaseLevel / setBaseLevel (WorldBuilder.luau), IncomeService.broadcastHud")
+			check("o", false, "the base sign still shows a level — " .. table.concat(problems, "; ") .. ". Parts: BaseSign / CashLabel (WorldBuilder.luau), IncomeService.broadcastHud")
 		else
-			check("o", true, "colourful bases with a level sign — BaseSign + BaseLevel (\"Lv N ★\") under it, refreshed every second from the HUD feed")
+			check("o", true, "colourful bases, sign shows name + base cash only — no Lv anywhere on the base")
 		end
 	end
 end
@@ -2897,22 +2901,23 @@ end
 
 -- -- (ba) banking ----------------------------------------------------------------
 -- Step 5: income banks at the base and must be collected. The tick pays
--- into profile.banked, the HUD shows "At base: $X" vs the wallet, a
--- Collect button moves it all into the wallet, and the base sign shows
--- the banked cash. Direct payouts (missions, daily, sell, bounty,
--- offline, index) still land in the wallet.
+-- into profile.banked, the glowing collect pad at the middle of the base
+-- shows the waiting amount and stepping on it moves it all into the
+-- wallet (real-base section — the pad replaced the HUD Collect button),
+-- and the base sign shows the banked cash. Direct payouts (missions,
+-- daily, sell, bounty, offline, index) still land in the wallet.
 do
 	local bankSrc = read("src/server/BankService.luau")
 	local incomeSrc = read("src/server/IncomeService.luau")
-	local hudSrc = read("src/client/HUDController.client.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
 	local dataSrc = read("src/server/DataService.luau")
 	local stateSrc = read("src/server/State.luau")
 	local baseSrc = read("src/server/BaseService.luau")
 	local mainSrc = read("src/server/Main.server.luau")
 	local projectSrc = read("default.project.json")
 	local remotesSrc = read("src/shared/Remotes.luau")
-	if not bankSrc or not incomeSrc or not hudSrc or not dataSrc or not stateSrc or not baseSrc or not mainSrc or not projectSrc or not remotesSrc then
-		check("ba", false, "could not verify banking — BankService.luau, IncomeService.luau, HUDController.client.luau, DataService.luau, State.luau, BaseService.luau, Main.server.luau, default.project.json or Remotes.luau missing")
+	if not bankSrc or not incomeSrc or not worldSrc or not dataSrc or not stateSrc or not baseSrc or not mainSrc or not projectSrc or not remotesSrc then
+		check("ba", false, "could not verify banking — BankService.luau, IncomeService.luau, WorldBuilder.luau, DataService.luau, State.luau, BaseService.luau, Main.server.luau, default.project.json or Remotes.luau missing")
 	else
 		local problems: { string } = {}
 		if not stateSrc:find("banked: number") then
@@ -2942,11 +2947,31 @@ do
 		if not remotesSrc:find("collectBankFunction") then
 			table.insert(problems, "no collectBankFunction accessor in Remotes")
 		end
-		if not hudSrc:find("CollectButton") then
-			table.insert(problems, "no Collect button in the HUD")
+		-- The collect pad (real-base section): a glowing pad in the
+		-- middle of the base, not a HUD button.
+		if not worldSrc:find('part%("CollectPad"') then
+			table.insert(problems, "no CollectPad in the base (WorldBuilder)")
 		end
-		if not hudSrc:find("At base: ") then
-			table.insert(problems, 'no "At base: $X" display in the HUD')
+		if not worldSrc:find("CollectLabel") then
+			table.insert(problems, "no CollectLabel showing the waiting cash on the pad")
+		end
+		if not worldSrc:find("step to collect") then
+			table.insert(problems, "the collect pad label does not say 'step to collect'")
+		end
+		if not worldSrc:find("collectLabel%.Text = ") then
+			table.insert(problems, "setBaseCoins never updates the collect pad label")
+		end
+		if not bankSrc:find("Touched:Connect") then
+			table.insert(problems, "no Touched wiring on the collect pad (BankService.init)")
+		end
+		if not bankSrc:find("BankService%.collectBank%(player%)") then
+			table.insert(problems, "stepping on the pad never calls collectBank")
+		end
+		if not bankSrc:find("getPlayerBase%(player%.UserId%)") then
+			table.insert(problems, "the pad does not check the toucher owns the base")
+		end
+		if worldSrc:find("CollectButton") then
+			table.insert(problems, "a Collect button still exists in WorldBuilder (the pad replaced it)")
 		end
 		if not incomeSrc:find("setBaseCoins%(baseId, profile%.banked%)") then
 			table.insert(problems, "the base sign does not show the banked cash")
@@ -2955,9 +2980,9 @@ do
 			table.insert(problems, "the base sign is not initialised from the banked balance")
 		end
 		if #problems > 0 then
-			check("ba", false, "banking is missing — " .. table.concat(problems, "; ") .. ". Parts: banked profile (State/DataService), tick (IncomeService.luau), collect (BankService.luau), HUD (HUDController)")
+			check("ba", false, "banking is missing — " .. table.concat(problems, "; ") .. ". Parts: banked profile (State/DataService), tick (IncomeService.luau), collect pad (WorldBuilder.luau + BankService.luau), base sign (WorldBuilder)")
 		else
-			check("ba", true, "banking: income banks at the base, HUD shows At base vs Wallet, Collect moves it all into the wallet, base sign shows the banked cash")
+			check("ba", true, "banking: income banks at the base, the glowing collect pad shows the waiting cash and pays it into the wallet on touch (owner only, debounced), base sign shows the banked cash")
 		end
 	end
 end
@@ -5632,8 +5657,9 @@ do
 	local incomeSrc = read("src/server/IncomeService.luau")
 	local mainSrc = read("src/server/Main.server.luau")
 	local stateSrc = read("src/server/State.luau")
-	if not baseSrc or not incomeSrc or not mainSrc or not stateSrc then
-		check("cv", false, "could not verify the lock-gate expiry — BaseService.luau, IncomeService.luau, Main.server.luau or State.luau missing")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not baseSrc or not incomeSrc or not mainSrc or not stateSrc or not worldSrc then
+		check("cv", false, "could not verify the lock-gate expiry — BaseService.luau, IncomeService.luau, Main.server.luau, State.luau or WorldBuilder.luau missing")
 	else
 		local problems: { string } = {}
 		if not stateSrc:find("gateShown") then
@@ -5651,16 +5677,27 @@ do
 		if not mainSrc:find("if not BaseService%.isLocked%(baseId%) then\n\t\tBaseService%.setGateVisible%(baseId, false%)") then
 			table.insert(problems, "join does not clear a stuck gate for an unlocked base")
 		end
-		if not baseSrc:find("descendant%.Transparency = if visible then 0%.3 else 1") then
+		if not baseSrc:find("descendant%.Transparency = if visible then 0%.9 else 1") then
 			table.insert(problems, "setGateVisible does not hide the gate (Transparency 1)")
+		end
+		-- (real-base section: the gate is lasers now — the slab is a
+		-- faint shimmer and six Neon beams do the visible work.)
+		if not baseSrc:find('descendant%.Name == "LockGateBeam"') then
+			table.insert(problems, "setGateVisible never toggles the laser beams")
+		end
+		if not baseSrc:find("descendant%.Transparency = if visible then 0 else 1") then
+			table.insert(problems, "the laser beams do not vanish when the gate opens")
 		end
 		if not baseSrc:find("descendant%.CanCollide = visible") then
 			table.insert(problems, "setGateVisible does not uncollide the hidden gate")
 		end
+		if not worldSrc:find('part%("LockGateBeam"') then
+			table.insert(problems, "no LockGateBeam parts built in WorldBuilder")
+		end
 		if #problems > 0 then
 			check("cv", false, "the lock-gate expiry is incomplete — " .. table.concat(problems, "; ") .. ". Parts: BaseService.luau, IncomeService.luau, Main.server.luau, State.luau")
 		else
-			check("cv", true, "the lock gate expires: lockBase records gateShown, the income broadcast hides the gate (and uncollides it) the moment lockRemaining hits 0, and a rejoining player with an expired lock gets the gate cleared on join; the shield dome already cleared via setShieldLabel (it was never solid — CanCollide false)")
+			check("cv", true, "the laser gate expires: lockBase records gateShown, the income broadcast hides the gate (faint slab + beams, and uncollides it) the moment lockRemaining hits 0, and a rejoining player with an expired lock gets the gate cleared on join; the shield dome already cleared via setShieldLabel (it was never solid — CanCollide false)")
 		end
 	end
 end
@@ -5861,6 +5898,139 @@ do
 			check("cz", false, "the simplified HUD is incomplete — " .. table.concat(problems, "; ") .. ". Parts: HUDController.client.luau")
 		else
 			check("cz", true, "HUD simplified: 68px top bar, one TextScaled top line (cash • rebirth tier/multiplier • income • index • stardust), 420px quest pill at y=112, rebirth progress on the button (fill + gold glow when ready), leaderboard top-right with 3 names")
+		end
+	end
+end
+
+-- (da) REAL BASE (simplify/polish): a clear plot with 8 visible
+-- pedestals, each showing its Brainrot + name + $/s; a glowing collect
+-- pad in the middle aisle; a laser gate at the entrance; a sign with
+-- the player name + base cash and no level; "Place Brainrot" only
+-- while carrying.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local baseSrc = read("src/server/BaseService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not worldSrc or not hudSrc or not baseSrc or not configSrc then
+		check("da", false, "could not verify the real base — WorldBuilder.luau, HUDController.client.luau, BaseService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		-- 8 pedestals: the PAD_OFFSETS table holds 8 offsets.
+		local padBlockStart = worldSrc:find("local PAD_OFFSETS = {", 1, true)
+		local padCount = 0
+		if padBlockStart then
+			local padBlockEnd = worldSrc:find("}", padBlockStart, true)
+			if padBlockEnd then
+				local padBlock = worldSrc:sub(padBlockStart, padBlockEnd)
+				for _ in padBlock:gmatch("Vector3%.new") do
+					padCount += 1
+				end
+			end
+		end
+		if padCount ~= 8 then
+			table.insert(problems, "PAD_OFFSETS does not hold 8 pedestals (found " .. tostring(padCount) .. ")")
+		end
+		if not worldSrc:find('part%("Pad"') then
+			table.insert(problems, "no Pad parts built in WorldBuilder")
+		end
+		if not worldSrc:find('part%("PadPlinth"') then
+			table.insert(problems, "no PadPlinth plinths under the pads")
+		end
+		-- Collect pad in the middle aisle.
+		if not worldSrc:find('part%("CollectPad"') then
+			table.insert(problems, "no CollectPad in the base")
+		end
+		if not worldSrc:find("CFrame%.new%(0, 1%.3, 0%)") then
+			table.insert(problems, "the collect pad is not in the middle aisle (0, 1.3, 0)")
+		end
+		-- Laser gate at the entrance.
+		if not worldSrc:find('part%("LockGate"') then
+			table.insert(problems, "no LockGate slab at the entrance")
+		end
+		if not worldSrc:find('part%("LockGateBeam"') then
+			table.insert(problems, "no LockGateBeam laser beams at the entrance")
+		end
+		-- Lock duration: 120s (Malek's explicit "add more time for the
+		-- lockups", fix round 6) — the brief's 30s is superseded.
+		if not configSrc:find("LOCK_DURATION = 120") then
+			table.insert(problems, "lock duration is not 120s (Config.LOCK_DURATION)")
+		end
+		-- Sign: name + cash, no level.
+		if not worldSrc:find('sign%.Name = "BaseSign"') then
+			table.insert(problems, 'no "BaseSign" billboard')
+		end
+		if worldSrc:find('"Lv "') then
+			table.insert(problems, 'the base still shows a "Lv " string')
+		end
+		-- "Place Brainrot" only while carrying (client-side gating).
+		if not hudSrc:find("refreshPlacePrompts") then
+			table.insert(problems, "no refreshPlacePrompts in the HUD")
+		end
+		if not hudSrc:find('ActionText == "Place Brainrot"') then
+			table.insert(problems, "the prompt gating does not target the Place Brainrot prompts")
+		end
+		if not hudSrc:find("prompt%.Enabled = enabled") then
+			table.insert(problems, "the prompts are never Enabled/Disabled from the carried state")
+		end
+		if not hudSrc:find("hud%.carried > 0") then
+			table.insert(problems, "the prompt gating does not read the carried count")
+		end
+		if #problems > 0 then
+			check("da", false, "the base is not a real base — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau (pads, collect pad, laser gate, sign), HUDController.client.luau (place prompts), BaseService.luau (lock)")
+		else
+			check("da", true, "the base is a real base: 8 pedestals, glowing collect pad in the middle aisle, laser gate (120s lock), sign with name + base cash and no level, Place Brainrot prompt only while carrying")
+		end
+	end
+end
+
+-- (db) REBIRTH-2 PROOF (simplify/polish, real-base section): Rebirth 2
+-- resets cash only and keeps the index. Static half of the proof (the
+-- replay half lives in verify-rebirth.luau, run before publish): the
+-- doRebirth body assigns ONLY coins/banked/rebirths and never touches
+-- placed, index, xp, level or Stardust, and DataService persists
+-- placed + index.
+do
+	local rebirthSrc = read("src/server/RebirthService.luau")
+	local dataSrc = read("src/server/DataService.luau")
+	if not rebirthSrc or not dataSrc then
+		check("db", false, "could not verify the Rebirth-2 proof — RebirthService.luau or DataService.luau missing")
+	else
+		local problems: { string } = {}
+		local bodyStart = rebirthSrc:find("function RebirthService.doRebirth", 1, true)
+		local bodyEnd = nil
+		if bodyStart then
+			bodyEnd = rebirthSrc:find("\nend\n\n-- Wire the DoRebirth", bodyStart, true)
+		end
+		if not bodyStart or not bodyEnd then
+			table.insert(problems, "doRebirth body not found")
+		else
+			local body = rebirthSrc:sub(bodyStart, bodyEnd)
+			if not body:find("profile%.coins = 0") then
+				table.insert(problems, "doRebirth does not reset profile.coins to 0")
+			end
+			if not body:find("profile%.banked = 0") then
+				table.insert(problems, "doRebirth does not reset profile.banked to 0")
+			end
+			if not body:find("profile%.rebirths %+= 1") then
+				table.insert(problems, "doRebirth does not increment profile.rebirths")
+			end
+			for _, forbidden in ipairs({ "placed", "index", "%.xp", "level", "stardust", "removePlaced", "clearPlaced", "State%.placed" }) do
+				if body:find(forbidden) then
+					table.insert(problems, "doRebirth touches '" .. forbidden .. "' — the reset is not cash-only")
+				end
+			end
+		end
+		if not dataSrc:find("placed = {},") then
+			table.insert(problems, "the default profile does not persist placed Brainrots")
+		end
+		if not dataSrc:find("index = {},") then
+			table.insert(problems, "the default profile does not persist the index")
+		end
+		if #problems > 0 then
+			check("db", false, "the Rebirth-2 proof is broken — " .. table.concat(problems, "; ") .. ". Parts: RebirthService.luau (doRebirth), DataService.luau, verify-rebirth.luau")
+		else
+			check("db", true, "Rebirth 2 resets cash only: doRebirth assigns coins/banked/rebirths and nothing else (no placed, index, xp, level or Stardust); placed + index persist in the profile (see verify-rebirth.luau replay)")
 		end
 	end
 end

@@ -56,7 +56,8 @@ local PAD_OFFSETS = {
 local padCFrames: { [number]: { [number]: CFrame } } = {}
 local baseCFrames: { [number]: CFrame } = {}
 local signLabels: { [number]: TextLabel } = {}
-local levelLabels: { [number]: TextLabel } = {}
+local collectLabels: { [number]: TextLabel } = {}
+local collectPads: { [number]: Part } = {}
 local padParts: { [number]: { [number]: Part } } = {}
 local baseTrims: { [number]: Part } = {}
 local baseFlags: { [number]: Part } = {}
@@ -171,16 +172,6 @@ function WorldBuilder.setBaseSign(baseId: number, text: string)
 	end
 end
 
--- The base level sign: "Lv N" under the owner sign. Level is 1 + the
--- Rotlings placed on that base, so a packed base visibly outranks an
--- empty one. Updated from the HUD feed every second.
-function WorldBuilder.setBaseLevel(baseId: number, level: number)
-	local label = levelLabels[baseId]
-	if label then
-		label.Text = "Lv " .. tostring(level) .. " ★"
-	end
-end
-
 -- The floating cash counter above a base (updated from the income feed).
 -- One shared money format: Formatting.formatMoney already carries the
 -- "$", so never prepend another one or the sign reads "$$".
@@ -188,6 +179,16 @@ function WorldBuilder.setBaseCoins(baseId: number, coins: number)
 	local label = cashLabels[baseId]
 	if label then
 		label.Text = Formatting.formatMoney(coins)
+	end
+	-- The collect pad shows the same banked amount in the world, and
+	-- glows brighter while it holds cash.
+	local collectLabel = collectLabels[baseId]
+	if collectLabel then
+		collectLabel.Text = "💰 " .. Formatting.formatMoney(coins) .. " — step to collect"
+	end
+	local collectPad = collectPads[baseId]
+	if collectPad then
+		collectPad.Transparency = if coins > 0 then 0.2 else 0.55
 	end
 end
 
@@ -401,28 +402,6 @@ local function buildBase(baseId: number)
 	cashLabel.TextStrokeTransparency = 0.3
 	cashLabel.Parent = sign
 	cashLabels[baseId] = cashLabel
-	-- Level sign: a small gold "Lv N" billboard hung under the owner
-	-- sign board, so every base shows its level at a glance.
-	local levelSign = Instance.new("BillboardGui")
-	levelSign.Name = "BaseLevel"
-	levelSign.Size = UDim2.fromOffset(140, 44)
-	levelSign.StudsOffsetWorldSpace = Vector3.new(0, -4.5, 0)
-	levelSign.AlwaysOnTop = true
-	levelSign.LightInfluence = 0
-	levelSign.MaxDistance = 60
-	levelSign.Parent = signBoard
-	local levelLabel = Instance.new("TextLabel")
-	levelLabel.Name = "LevelLabel"
-	levelLabel.Size = UDim2.new(1, 0, 1, 0)
-	levelLabel.BackgroundTransparency = 1
-	levelLabel.Text = "Lv 1 ★"
-	levelLabel.Font = Enum.Font.FredokaOne
-	levelLabel.TextScaled = true
-	levelLabel.TextColor3 = Color3.fromRGB(255, 225, 90)
-	levelLabel.TextStrokeTransparency = 0.3
-	levelLabel.Parent = levelSign
-	levelLabels[baseId] = levelLabel
-
 	-- Pads: glowing plates the Rotlings stand on, each on a plinth.
 	for padIndex, offset in ipairs(PAD_OFFSETS) do
 		local plinth = part("PadPlinth", Enum.PartType.Block, Vector3.new(6, 0.25, 6), darken(color, 0.7), cf * CFrame.new(offset + Vector3.new(0, 1.1, 0)))
@@ -451,12 +430,55 @@ local function buildBase(baseId: number)
 		end
 	end
 
-	-- Lock gate: a shimmering wall across the entrance, hidden until locked.
+	-- Collect pad (real-base section): a glowing gold pad in the
+	-- middle aisle, between the two pad rows. The banked cash builds
+	-- up here and stepping on it collects it all — it replaces the
+	-- HUD Collect button. Its label shows the waiting amount (updated
+	-- by setBaseCoins) and the pad glows brighter while it holds cash.
+	-- The owner spawns beside the platform, so nobody collects by
+	-- accident on join.
+	local collectPad = part("CollectPad", Enum.PartType.Block, Vector3.new(4, 0.6, 3.6), Color3.fromRGB(255, 200, 60), cf * CFrame.new(0, 1.3, 0), Enum.Material.Neon)
+	collectPad:SetAttribute("BaseId", baseId)
+	collectPad.Transparency = 0.55
+	collectPads[baseId] = collectPad
+	local collectSign = Instance.new("BillboardGui")
+	collectSign.Name = "CollectSign"
+	collectSign.Size = UDim2.fromOffset(220, 44)
+	collectSign.StudsOffsetWorldSpace = Vector3.new(0, 3, 0)
+	collectSign.AlwaysOnTop = false
+	collectSign.LightInfluence = 0
+	collectSign.MaxDistance = 40
+	collectSign.Parent = collectPad
+	local collectLabel = Instance.new("TextLabel")
+	collectLabel.Name = "CollectLabel"
+	collectLabel.Size = UDim2.new(1, 0, 1, 0)
+	collectLabel.BackgroundTransparency = 1
+	collectLabel.Text = "💰 $0 — step to collect"
+	collectLabel.Font = Enum.Font.FredokaOne
+	collectLabel.TextScaled = true
+	collectLabel.TextColor3 = Color3.fromRGB(255, 225, 90)
+	collectLabel.TextStrokeTransparency = 0.3
+	collectLabel.Parent = collectSign
+	collectLabels[baseId] = collectLabel
+
+	-- Laser gate (real-base section): Lock (L) closes it for 120s,
+	-- then it opens again. The slab is the physical barrier — a faint
+	-- red shimmer while locked, invisible while open. The visible
+	-- barrier is six vertical laser beams across the entrance, so the
+	-- lock reads as lasers, not a wall. Thieves cannot enter while it
+	-- is closed; setGateVisible (BaseService) toggles both parts.
 	local gate = part("LockGate", Enum.PartType.Block, Vector3.new(26, 7, 0.6), Color3.fromRGB(255, 60, 60), cf * CFrame.new(0, 4.5, -11), Enum.Material.ForceField)
 	gate:SetAttribute("BaseId", baseId)
 	gate.Transparency = 1
 	gate.CanCollide = false
 	gate.CanQuery = false
+	for _, beamX in ipairs({ -10.4, -6.24, -2.08, 2.08, 6.24, 10.4 }) do
+		local beam = part("LockGateBeam", Enum.PartType.Block, Vector3.new(0.5, 7, 0.5), Color3.fromRGB(255, 60, 60), cf * CFrame.new(beamX, 4.5, -11), Enum.Material.Neon)
+		beam:SetAttribute("BaseId", baseId)
+		beam.Transparency = 1
+		beam.CanCollide = false
+		beam.CanQuery = false
+	end
 
 	-- Incubator: a stone ring with a warm glow at the back-right corner
 	-- of the platform. Carry a meteor egg here and press E to place it;

@@ -131,13 +131,21 @@ end
 
 function BaseService.setGateVisible(baseId: number, visible: boolean)
 	for _, descendant in ipairs(workspace:GetDescendants()) do
-		if descendant.Name == "LockGate" and descendant:GetAttribute("BaseId") == baseId then
-			-- A locked gate glows red-hot (Neon) so it reads as a barrier;
-			-- unlocked it vanishes entirely.
-			descendant.Transparency = if visible then 0.3 else 1
-			descendant.CanCollide = visible
-			if descendant:IsA("BasePart") then
-				descendant.Material = if visible then Enum.Material.Neon else Enum.Material.ForceField
+		if descendant:GetAttribute("BaseId") == baseId then
+			if descendant.Name == "LockGate" then
+				-- The slab is the barrier: a faint red shimmer while
+				-- locked (the beams do the visible work), invisible
+				-- and uncollidable while open.
+				descendant.Transparency = if visible then 0.9 else 1
+				descendant.CanCollide = visible
+				if descendant:IsA("BasePart") then
+					descendant.Material = if visible then Enum.Material.Neon else Enum.Material.ForceField
+				end
+			elseif descendant.Name == "LockGateBeam" then
+				-- The laser beams: bright red Neon while locked,
+				-- invisible while open. They never collide — the slab
+				-- is the barrier.
+				descendant.Transparency = if visible then 0 else 1
 			end
 		end
 	end

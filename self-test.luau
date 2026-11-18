@@ -1059,13 +1059,14 @@ do
 	end
 end
 
--- 25. Banking: income banks at the base, Collect moves it to the wallet.
+-- 25. Banking: income banks at the base, the collect pad moves it to
+-- the wallet (real-base section — the pad replaced the HUD button).
 do
 	local bankSrc = read("src/server/BankService.luau")
 	local incomeSrc = read("src/server/IncomeService.luau")
-	local hudSrc = read("src/client/HUDController.client.luau")
-	if not bankSrc or not incomeSrc or not hudSrc then
-		step("banking", false, "BankService.luau, IncomeService.luau or HUDController.client.luau missing")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not bankSrc or not incomeSrc or not worldSrc then
+		step("banking", false, "BankService.luau, IncomeService.luau or WorldBuilder.luau missing")
 	else
 		local problems: { string } = {}
 		if not incomeSrc:find("profile%.banked %+= gained") then
@@ -1077,16 +1078,22 @@ do
 		if not bankSrc:find("profile%.coins %+= amount") then
 			table.insert(problems, "collecting never pays the wallet")
 		end
-		if not hudSrc:find("CollectButton") then
-			table.insert(problems, "no Collect button in the HUD")
+		if not worldSrc:find('part%("CollectPad"') then
+			table.insert(problems, "no CollectPad in the base")
 		end
-		if not hudSrc:find("At base: ") then
-			table.insert(problems, 'no "At base: $X" display')
+		if not worldSrc:find("step to collect") then
+			table.insert(problems, "the collect pad label does not say 'step to collect'")
+		end
+		if not bankSrc:find("Touched:Connect") then
+			table.insert(problems, "no Touched wiring on the collect pad")
+		end
+		if not bankSrc:find("BankService%.collectBank%(player%)") then
+			table.insert(problems, "stepping on the pad never calls collectBank")
 		end
 		if #problems > 0 then
 			step("banking", false, table.concat(problems, "; "))
 		else
-			step("banking", true, "income banks at the base, HUD shows At base vs Wallet, Collect moves it all into the wallet")
+			step("banking", true, "income banks at the base, the glowing collect pad shows the waiting cash and pays it into the wallet on touch")
 		end
 	end
 end
