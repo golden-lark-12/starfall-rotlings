@@ -557,11 +557,22 @@ function StarfallService.start()
 					end
 				end)
 				-- Bounty: earnings during this storm decide the bonus.
+				-- Each wrapped in its own pcall (fix round 4, item 4):
+				-- a failure in either used to abort the whole storm
+				-- pcall BEFORE the rain loop, so the first storm
+				-- dropped no rocks at all. Now a failure only warns
+				-- and the rain still falls.
 				local IncomeService = require(script.Parent.IncomeService)
-				IncomeService.resetStormEarnings()
+				local resetOk, resetErr = pcall(IncomeService.resetStormEarnings)
+				if not resetOk then
+					warn("[Starfall] resetStormEarnings failed: " .. tostring(resetErr) .. " — storm bounty starts unreset, rain continues")
+				end
 				-- Meteor eggs crash with the storm (1-2 of them).
 				local MeteorEggService = require(script.Parent.MeteorEggService)
-				MeteorEggService.spawnEggsForStorm()
+				local eggsOk, eggsErr = pcall(MeteorEggService.spawnEggsForStorm)
+				if not eggsOk then
+					warn("[Starfall] spawnEggsForStorm failed: " .. tostring(eggsErr) .. " — no meteor eggs this storm, rain continues")
+				end
 				-- Three hero meteors at storm start: big, slow, bright —
 				-- the threat shot needs a giant hazard visible in a still.
 				-- They spawn immediately (no wait before the first), so a

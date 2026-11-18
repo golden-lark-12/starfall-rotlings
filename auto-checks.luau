@@ -98,6 +98,9 @@
 --   (bu) the money/progress numbers lie (no REBIRTH READY state, the
 --       rebirth label ignores banked coins, "$40.00K" for $40,000, or
 --       the "place" mission never syncs to the live placed count)
+--   (bv) the first storm drops no rocks (resetStormEarnings or
+--       spawnEggsForStorm can still abort the storm before the rain
+--       loop, because neither is wrapped in its own pcall)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -4078,6 +4081,44 @@ do
 			check("bu", false, "the money/progress fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: HUDController.client.luau, Formatting.luau, MissionService.luau, CarryService.luau")
 		else
 			check("bu", true, "numbers honest: REBIRTH READY at progress >= 1 (label + button), label counts coins + banked, $40K not $40.00K, place mission syncs to the live placed count on join/restore and after completions")
+		end
+	end
+end
+
+-- -- (bv) every storm drops rocks, including the first (fix round 4, item 4) --
+-- Playtest 4: the storm killed the player once, but the FIRST storm
+-- dropped nothing at all. The rain loop itself is sound (meteors every
+-- 0.45s, ~17 per storm + 3 hero meteors, 50% aimed near players outside
+-- the dome with a 2s red target circle, hit = knockout + drop carried +
+-- respawn at base, never at a base or in the dome), and the excitement
+-- is already there (10s warning, big "SPACE ROCKS IN 10…" countdown,
+-- red edge flash, siren, red sky, glowing rocks). The unproven failure
+-- was resetStormEarnings() / spawnEggsForStorm() aborting the whole
+-- storm pcall before the rain loop ever started. Each is now wrapped
+-- in its own pcall, so a failure only warns and the rain still falls.
+do
+	local starfallSrc = read("src/server/StarfallService.luau")
+	local warnSrc = read("src/client/StormWarningController.client.luau")
+	if not starfallSrc or not warnSrc then
+		check("bv", false, "could not verify the storm fix — StarfallService.luau or StormWarningController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not starfallSrc:find("pcall%(IncomeService%.resetStormEarnings%)") then
+			table.insert(problems, "resetStormEarnings() is not wrapped in its own pcall — a failure there still kills the storm before the rain")
+		end
+		if not starfallSrc:find("pcall%(MeteorEggService%.spawnEggsForStorm%)") then
+			table.insert(problems, "spawnEggsForStorm() is not wrapped in its own pcall — a failure there still kills the storm before the rain")
+		end
+		if not starfallSrc:find("STORM_METEOR_INTERVAL") then
+			table.insert(problems, "no rain loop interval (STORM_METEOR_INTERVAL)")
+		end
+		if not warnSrc:find("SPACE ROCKS IN") then
+			table.insert(problems, "no big storm countdown in StormWarningController")
+		end
+		if #problems > 0 then
+			check("bv", false, "the storm fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: StarfallService.luau, StormWarningController.client.luau")
+		else
+			check("bv", true, "storm hardened: resetStormEarnings + spawnEggsForStorm each in their own pcall (a failure warns, rain still falls); rain every 0.45s + 3 hero meteors, 10s countdown, siren, red edges/sky")
 		end
 	end
 end
