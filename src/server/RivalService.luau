@@ -146,6 +146,15 @@ local function stormRunning(): boolean
 	return StarfallService.getStatus().phase == "storm"
 end
 
+-- Walk a rival to a point: MoveTo, wait until close (4 studs) or
+-- the timeout. A stuck rival hops (the 2-stud platform edge and the
+-- tiered crater rim need a jump). Roblox gives a MoveTo an internal
+-- ~8s timeout and then stops the Humanoid WITHOUT an error — the old
+-- code issued MoveTo ONCE and waited up to 40s, so a rival whose
+-- MoveTo timed out stood hopping in place for the rest of the walk
+-- and the steal aborted ("Ziggy couldn't reach the base", playtest
+-- 9). Re-issuing MoveTo every 2s keeps it pushing until the timeout
+-- (fix round 8, item 3).
 local function walkTo(model: Model, target: Vector3, timeout: number, shouldCancel: (() -> boolean)?): boolean
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	local root = model:FindFirstChild("HumanoidRootPart")
@@ -153,6 +162,7 @@ local function walkTo(model: Model, target: Vector3, timeout: number, shouldCanc
 		return false
 	end
 	humanoid:MoveTo(target)
+	local lastMoveAt = 0
 	local done = false
 	local connection
 	connection = humanoid.MoveToFinished:Connect(function(reached: boolean)
@@ -166,6 +176,12 @@ local function walkTo(model: Model, target: Vector3, timeout: number, shouldCanc
 		waited += 0.5
 		if not model.Parent then
 			break
+		end
+		-- MoveTo's internal ~8s timeout stops the Humanoid silently:
+		-- re-issue it every 2s so the walk never dies mid-route.
+		if waited - lastMoveAt >= 2 then
+			humanoid:MoveTo(target)
+			lastMoveAt = waited
 		end
 		-- Storm: stop the trip now — the next stepRival tick runs
 		-- for the Safe Dome. The shelter walk itself passes no
@@ -593,7 +609,23 @@ local function stepRival(rival: State.Rival, model: Model)
 			rival.phase = "idle"
 		else
 			local padCf = WorldBuilder.padCFrame(baseId, padIndex)
-			if padCf and walkAround(model, padCf.Position, 40, stormRunning) then
+			local homeCf = WorldBuilder.baseCFrame(baseId)
+			-- Entrance leg (fix round 8, item 3): the straight line
+			-- from the ring to the pad crosses the platform's
+			-- 2-stud edge anywhere — usually NOT at the 6-wide
+			-- entrance ramp — so the rival pushes against the edge
+			-- until the walk times out. Route through the ramp's low
+			-- end first (the only way up), then to the pad. Same
+			-- geometry as the steal leg below.
+			local entrancePos = if homeCf then (homeCf * CFrame.new(0, 0, -15)).Position else nil
+			local reachedPad = false
+			if padCf and entrancePos then
+				reachedPad = walkAround(model, entrancePos, 40, stormRunning)
+					and walkTo(model, padCf.Position, 40, stormRunning)
+			elseif padCf then
+				reachedPad = walkAround(model, padCf.Position, 40, stormRunning)
+			end
+			if padCf and reachedPad then
 				local carried = rival.carried
 				rival.carried = nil
 				if carried then
@@ -639,6 +671,8 @@ local function stepRival(rival: State.Rival, model: Model)
 					-- arrived → grabbed → running home → placed.
 					print("[Rival] " .. rival.name .. " placed " .. (if def then def.name else "a Brainrot") .. " on its base — earning now")
 				end
+			else
+				print("[Rival] " .. rival.name .. " could not reach its own base (pad " .. tostring(padIndex) .. ") — still carrying, will retry next cycle")
 			end
 			rival.phase = "idle"
 		end
@@ -689,7 +723,17 @@ local function stepRival(rival: State.Rival, model: Model)
 				local arrived = false
 				if padCf and victimAngle then
 					local around = Vector3.new(math.cos(victimAngle) * 45, 0, math.sin(victimAngle) * 45)
+					-- Entrance leg (fix round 8, item 3): the straight
+					-- line from the ring to the pad crosses the
+					-- platform's 2-stud edge anywhere — usually NOT
+					-- at the 6-wide entrance ramp — so the rival
+					-- pushes against the edge until the walk times
+					-- out ("Ziggy couldn't reach the base", playtest
+					-- 9). Route through the ramp's low end first
+					-- (the only way up), then to the pad.
+					local entrancePos = if victimCf then (victimCf * CFrame.new(0, 0, -15)).Position else padCf.Position
 					arrived = walkAround(model, around, 40, stormRunning)
+						and walkTo(model, entrancePos, 20, stormRunning)
 						and walkTo(model, padCf.Position, 40, stormRunning)
 				elseif padCf then
 					arrived = walkTo(model, padCf.Position, 60, stormRunning)
@@ -719,8 +763,14 @@ local function stepRival(rival: State.Rival, model: Model)
 					end
 				else
 					-- The walk failed: log it AND tell the victim, or
-					-- the sneak alert reads as a false alarm.
-					print("[Rival] " .. rival.name .. " could not reach " .. victim.Name .. "'s base (pad " .. tostring(padIndex) .. ") — steal aborted")
+					-- the sneak alert reads as a false alarm. The log
+					-- carries positions + the remaining distance, so
+					-- the F9 trail shows WHERE the walk died (ring?
+					-- entrance? pad?) instead of just "couldn't
+					-- reach" (fix round 8, item 3).
+					local rivalPos = if root then root.Position else Vector3.new(0, 0, 0)
+					local padPos = if padCf then padCf.Position else Vector3.new(0, 0, 0)
+					print("[Rival] " .. rival.name .. " could not reach " .. victim.Name .. "'s base (pad " .. tostring(padIndex) .. ") — steal aborted; rival at " .. tostring(rivalPos) .. ", pad at " .. tostring(padPos) .. ", " .. tostring(math.floor((rivalPos - padPos).Magnitude)) .. " studs short")
 					giveUpBanner(victim, rival.name, "couldn't reach your base")
 					setThiefSign(model, false)
 					rival.phase = "idle"

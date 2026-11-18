@@ -1298,6 +1298,32 @@ do
 	end
 end
 
+-- Fix round 8, item 3 — steal walk: MoveTo re-issued every 2s, steal +
+-- run-home legs route through the ramp's low end, abort log carries
+-- positions + remaining distance.
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	if not rivalSrc then
+		step("steal-walk", false, "RivalService.luau missing")
+	else
+		local problems: { string } = {}
+		if not rivalSrc:find("waited %- lastMoveAt >= 2") then
+			table.insert(problems, "walkTo does not re-issue MoveTo every 2s")
+		end
+		if not rivalSrc:find("walkTo%(model, entrancePos, 20, stormRunning%)") then
+			table.insert(problems, "no entrance leg on the steal walk")
+		end
+		if not rivalSrc:find("studs short") then
+			table.insert(problems, "the steal-abort log does not carry the remaining distance")
+		end
+		if #problems > 0 then
+			step("steal-walk", false, table.concat(problems, "; "))
+		else
+			step("steal-walk", true, "MoveTo re-issued every 2s, steal + run-home route through the ramp, abort log shows where the walk died")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

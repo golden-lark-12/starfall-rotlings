@@ -6325,6 +6325,44 @@ do
 	end
 end
 
+-- (dh) STEAL WALK COMPLETES (fix round 8, item 3): "Ziggy couldn't
+-- reach the base" — two causes: (a) walkTo issued MoveTo once and
+-- Roblox's internal ~8s MoveTo timeout stopped the rival silently,
+-- so it stood hopping for the rest of a 40s walk; (b) the straight
+-- leg from the ring to the pad crossed the platform's 2-stud edge
+-- anywhere but the 6-wide entrance ramp. Fixed: walkTo re-issues
+-- MoveTo every 2s, and both the steal leg and the run-home leg route
+-- through the ramp's low end first. The abort log carries positions
+-- + the remaining distance, so the F9 trail shows where a walk died.
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	if not rivalSrc then
+		check("dh", false, "could not verify the steal walk — RivalService.luau missing")
+	else
+		local problems: { string } = {}
+		if not rivalSrc:find("waited %- lastMoveAt >= 2") then
+			table.insert(problems, "walkTo does not re-issue MoveTo every 2s (a timed-out MoveTo still strands the rival)")
+		end
+		if not rivalSrc:find("entrancePos = if victimCf then %(victimCf %* CFrame%.new%(0, 0, %-15%)%)%.Position") then
+			table.insert(problems, "the steal leg does not route through the ramp's low end (entrancePos)")
+		end
+		if not rivalSrc:find("walkTo%(model, entrancePos, 20, stormRunning%)") then
+			table.insert(problems, "no entrance leg on the steal walk")
+		end
+		if not rivalSrc:find("entrancePos = if homeCf then %(homeCf %* CFrame%.new%(0, 0, %-15%)%)%.Position") then
+			table.insert(problems, "the run-home leg does not route through the ramp's low end (entrancePos)")
+		end
+		if not rivalSrc:find("studs short") then
+			table.insert(problems, "the steal-abort log does not carry the remaining distance (no proof where the walk died)")
+		end
+		if #problems > 0 then
+			check("dh", false, "the steal-walk fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau")
+		else
+			check("dh", true, "steal walk: walkTo re-issues MoveTo every 2s, steal + run-home legs route through the ramp's low end, abort log carries positions + remaining distance")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
