@@ -4698,6 +4698,39 @@ do
 	end
 end
 
+-- -- (cf) unweldable raider loot is scattered, never destroyed (fix round 6, item 2)
+-- removePlaced/unregister take a Rotling out of its pad / the free
+-- spawns BEFORE the weld runs, so a weld failure used to ghost it
+-- (off its pad, earning nothing, unsavable) and the escape path then
+-- destroyed it. Both raid paths now scatter the loot back to the
+-- crater the moment the weld fails, and the escape path only destroys
+-- loot whose State is actually "carried" — anything else scatters.
+do
+	local raiderSrc = read("src/server/RaiderService.luau")
+	if not raiderSrc then
+		check("cf", false, "could not verify the raider edge-case fix — RaiderService.luau missing")
+	else
+		local problems: { string } = {}
+		if not raiderSrc:find("could not weld") then
+			table.insert(problems, "no weld-failure log in the raid paths — an unweldable steal stays silent")
+		end
+		if not raiderSrc:find("scatterToCrater%(stolen%)") then
+			table.insert(problems, "weld-failure loot is not scattered back to the crater — it can still vanish")
+		end
+		if not raiderSrc:find("escaped but the loot was never carried") then
+			table.insert(problems, "the escape path has no never-carried guard — unwelded loot can still be destroyed on escape")
+		end
+		if not raiderSrc:find("GetAttribute%(\"State\"%) == \"carried\"") then
+			table.insert(problems, "the escape path does not check State == \"carried\" before destroying the loot")
+		end
+		if #problems > 0 then
+			check("cf", false, "the raider edge-case fix is incomplete — " .. table.concat(problems, "; ") .. ". Part: RaiderService.luau")
+		else
+			check("cf", true, "unweldable raider loot is scattered back to the crater, never destroyed: weld failure scatters + despawns in both raid paths, escape only destroys State == \"carried\" loot")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

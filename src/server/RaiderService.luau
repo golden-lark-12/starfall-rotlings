@@ -329,6 +329,7 @@ local function runRaid(model: Model)
 	raider.phase = "carry"
 	local body = model.PrimaryPart
 	local stolenBody = stolen.PrimaryPart
+	local welded = false
 	if body and stolenBody then
 		for _, part in ipairs(stolen:GetDescendants()) do
 			if part:IsA("BasePart") then
@@ -347,6 +348,23 @@ local function runRaid(model: Model)
 		-- nothing" (Playtest 5's grab). The prompt comes back when
 		-- the loot is bonked loose (scatterToCrater).
 		CarryService.setPromptState(stolen)
+		welded = true
+	end
+	if not welded then
+		-- (fix round 6, item 2) The weld failed — no PrimaryPart on
+		-- the raider or the Rotling — so the raider never actually
+		-- picked the Rotling up. But removePlaced already took it off
+		-- its pad, so leaving it here would ghost it: sitting on the
+		-- pad, earning nothing, unsavable — and the escape path below
+		-- would destroy it. Scatter it back to the crater instead,
+		-- where it is a free catch again. No steal banner fires: the
+		-- player was never actually robbed.
+		local failDef = RotlingCatalog.getDef(stolen:GetAttribute("DefId") :: string)
+		print("[Raider] " .. raider.name .. " could not weld " .. (if failDef then failDef.name else "a Brainrot") .. " (no PrimaryPart) — scattering it back to the crater instead of destroying it")
+		CarryService.scatterToCrater(stolen)
+		raider.stolen = nil
+		RaiderService.despawnRaider(model)
+		return
 	end
 	local ownerId = BaseService.getBaseOwner(raider.targetBase)
 	if ownerId then
@@ -380,14 +398,23 @@ local function runRaid(model: Model)
 		return
 	end
 	if raider.phase == "carry" and raider.stolen then
-		-- It escaped with the Rotling.
-		raider.stolen:Destroy()
-		raider.stolen = nil
-		if ownerId then
-			local owner = Players:GetPlayerByUserId(ownerId)
-			if owner then
-				Remotes.bannerEvent():FireClient(owner, raider.name .. " escaped with your Brainrot!", 4)
+		if raider.stolen:GetAttribute("State") == "carried" then
+			-- It escaped with the Rotling.
+			raider.stolen:Destroy()
+			raider.stolen = nil
+			if ownerId then
+				local owner = Players:GetPlayerByUserId(ownerId)
+				if owner then
+					Remotes.bannerEvent():FireClient(owner, raider.name .. " escaped with your Brainrot!", 4)
+				end
 			end
+		else
+			-- Belt and braces (fix round 6, item 2): loot that was
+			-- never welded on is not really carried — scatter it back
+			-- to the crater instead of destroying it.
+			print("[Raider] " .. raider.name .. " escaped but the loot was never carried — scattering it back to the crater")
+			CarryService.scatterToCrater(raider.stolen)
+			raider.stolen = nil
 		end
 	end
 	RaiderService.despawnRaider(model)
@@ -445,6 +472,7 @@ local function runCraterRaid(model: Model)
 	raider.phase = "carry"
 	local raiderBody = model.PrimaryPart
 	local stolenBody = stolen.PrimaryPart
+	local welded = false
 	if raiderBody and stolenBody then
 		for _, part in ipairs(stolen:GetDescendants()) do
 			if part:IsA("BasePart") then
@@ -463,6 +491,22 @@ local function runCraterRaid(model: Model)
 		-- nothing" (Playtest 5's grab). The prompt comes back when
 		-- the loot is bonked loose (scatterToCrater).
 		CarryService.setPromptState(stolen)
+		welded = true
+	end
+	if not welded then
+		-- (fix round 6, item 2) Same as the base raid: the weld
+		-- failed, so the raider never picked the Brainrot up — but
+		-- unregister already took it out of the free spawns, so
+		-- leaving it here would ghost it and the escape path would
+		-- destroy it. Scatter it back to the crater (which
+		-- re-registers it as a free catch). No snatch banner and no
+		-- guardian chase: nothing was actually stolen.
+		local failDef = RotlingCatalog.getDef(stolen:GetAttribute("DefId") :: string)
+		print("[Raider] " .. raider.name .. " could not weld " .. (if failDef then failDef.name else "a Brainrot") .. " from the crater (no PrimaryPart) — scattering it back to the crater instead of destroying it")
+		CarryService.scatterToCrater(stolen)
+		raider.stolen = nil
+		RaiderService.despawnRaider(model)
+		return
 	end
 	-- The guardian wakes: it chases whoever grabs from the crater,
 	-- raider included. Everyone sees the chase start.
@@ -492,10 +536,19 @@ local function runCraterRaid(model: Model)
 		return
 	end
 	if raider.phase == "carry" and raider.stolen then
-		raider.stolen:Destroy()
-		raider.stolen = nil
-		for _, player in ipairs(Players:GetPlayers()) do
-			Remotes.bannerEvent():FireClient(player, raider.name .. " escaped with " .. name .. "!", 4)
+		if raider.stolen:GetAttribute("State") == "carried" then
+			raider.stolen:Destroy()
+			raider.stolen = nil
+			for _, player in ipairs(Players:GetPlayers()) do
+				Remotes.bannerEvent():FireClient(player, raider.name .. " escaped with " .. name .. "!", 4)
+			end
+		else
+			-- Belt and braces (fix round 6, item 2): loot that was
+			-- never welded on is not really carried — scatter it back
+			-- to the crater instead of destroying it.
+			print("[Raider] " .. raider.name .. " escaped but the loot was never carried — scattering it back to the crater")
+			CarryService.scatterToCrater(raider.stolen)
+			raider.stolen = nil
 		end
 	end
 	RaiderService.despawnRaider(model)
