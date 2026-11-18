@@ -888,8 +888,8 @@ do
 	end
 end
 
--- 20. Cheap wins: NEXT REBIRTH bar, danger meter, belt list, title
--- billboard, shield dome, global events.
+-- 20. Cheap wins: rebirth progress on the button, danger meter, belt
+-- list, title billboard, shield dome, global events.
 do
 	local hudSrc = read("src/client/HUDController.client.luau")
 	local worldSrc = read("src/server/WorldBuilder.luau")
@@ -898,8 +898,14 @@ do
 		step("cheap-wins", false, "HUDController.client.luau, WorldBuilder.luau or GlobalEventService.luau missing")
 	else
 		local problems: { string } = {}
-		if not hudSrc:find("NEXT REBIRTH") then
-			table.insert(problems, "no NEXT REBIRTH bar in the HUD")
+		-- Rebirth progress lives ON the Rebirth button now (simplify/
+		-- polish HUD): the full-width NEXT REBIRTH bar is gone. This
+		-- step proves the bar is GONE and the button fill is present.
+		if hudSrc:find("RebirthBar") or hudSrc:find("RebirthProgressLabel") then
+			table.insert(problems, "the old NEXT REBIRTH bar is still in the HUD (progress lives on the Rebirth button now)")
+		end
+		if not hudSrc:find("RebirthButtonFill") then
+			table.insert(problems, "no progress fill on the Rebirth button")
 		end
 		if not hudSrc:find("DangerBar") then
 			table.insert(problems, "no Meteor Danger meter in the HUD")
@@ -928,7 +934,7 @@ do
 		if #problems > 0 then
 			step("cheap-wins", false, table.concat(problems, "; "))
 		else
-			step("cheap-wins", true, "NEXT REBIRTH bar, danger meter, belt list, no title billboard (removed per playtest), shield dome, 2 global events")
+			step("cheap-wins", true, "rebirth progress on the button, danger meter, belt list, no title billboard (removed per playtest), shield dome, 2 global events")
 		end
 	end
 end

@@ -1097,12 +1097,14 @@ do
 		check("q", false, "could not verify the top HUD — HUDController.client.luau or ShopController.client.luau missing")
 	else
 		local problems: { string } = {}
-		-- Cash + income per second at the top.
-		if not hudSrc:find('makeLabel%(gui, "Coins"') then
-			table.insert(problems, 'no "Coins" label in HUDController.client.luau')
+		-- ONE top line (simplify/polish HUD): cash • income • index •
+		-- stardust, centred, scale width + TextScaled so a narrow
+		-- phone screen never cuts it. The old Coins / Cps labels are gone.
+		if not hudSrc:find('makeLabel%(gui, "TopLine"') then
+			table.insert(problems, 'no "TopLine" label in HUDController.client.luau')
 		end
-		if not hudSrc:find('makeLabel%(gui, "Cps"') then
-			table.insert(problems, 'no "Cps" label in HUDController.client.luau')
+		if not hudSrc:find("topLineLabel%.TextScaled = true") then
+			table.insert(problems, "the top line is not TextScaled (it will clip on a narrow phone)")
 		end
 		-- Shop button in the top row (y <= 60), not down the side.
 		-- The position UDim2 is the SECOND UDim2 in the makeButton
@@ -1133,17 +1135,18 @@ do
 		if not hudSrc:find("Remotes.dailyFunction%(%)") then
 			table.insert(problems, "DailyButton does not call Remotes.dailyFunction")
 		end
-		-- The mission bar under the top bar.
-		if not hudSrc:find('missionBar%.Name = "MissionBar"') then
-			table.insert(problems, '"MissionBar" frame not found in HUDController.client.luau')
+		-- The quest pill under the top line (simplify/polish HUD): one
+		-- small centred pill, not a full-width strip.
+		if not hudSrc:find('questPill%.Name = "QuestPill"') then
+			table.insert(problems, '"QuestPill" frame not found in HUDController.client.luau')
 		end
-		if not hudSrc:find('missionFill%.Name = "MissionFill"') then
-			table.insert(problems, '"MissionFill" progress fill not found in HUDController.client.luau')
+		if not hudSrc:find('questFill%.Name = "QuestFill"') then
+			table.insert(problems, '"QuestFill" progress fill not found in HUDController.client.luau')
 		end
 		if #problems > 0 then
-			check("q", false, "the top HUD is incomplete — " .. table.concat(problems, "; ") .. ". Parts: Coins / Cps / UpgradeButton / DailyButton / MissionBar (HUDController.client.luau), ShopButton (ShopController.client.luau)")
+			check("q", false, "the top HUD is incomplete — " .. table.concat(problems, "; ") .. ". Parts: TopLine / UpgradeButton / DailyButton / QuestPill (HUDController.client.luau), ShopButton (ShopController.client.luau)")
 		else
-			check("q", true, "top HUD complete — cash + income/s centred, Shop / Upgrade / Daily in the top row, mission bar with progress fill under the top bar")
+			check("q", true, "top HUD complete — one line (cash • income • index • stardust) centred and TextScaled, Shop / Upgrade / Daily in the top row, quest pill with progress fill under the top line")
 		end
 	end
 end
@@ -2580,8 +2583,15 @@ do
 		if not factorySrc:find('" ✦ "') then
 			table.insert(problems, 'no "✦ RAINBOW x5" multiplier line in the Rotling tags')
 		end
-		if not hudSrc:find("NEXT REBIRTH") then
-			table.insert(problems, "no NEXT REBIRTH progress bar in the HUD")
+		-- Rebirth progress lives ON the Rebirth button now (simplify/
+		-- polish HUD): the full-width NEXT REBIRTH bar is gone. The
+		-- button carries a fill that grows with progress and turns gold
+		-- with a gold outline when ready.
+		if hudSrc:find("RebirthBar") or hudSrc:find("RebirthProgressLabel") then
+			table.insert(problems, "the old NEXT REBIRTH bar is still in the HUD (progress lives on the Rebirth button now)")
+		end
+		if not hudSrc:find("RebirthButtonFill") then
+			table.insert(problems, "no progress fill on the Rebirth button")
 		end
 		if not shopSrc:find("now %+") then
 			table.insert(problems, "no upgrade levels with current effects in the shop rows")
@@ -2620,7 +2630,7 @@ do
 		if #problems > 0 then
 			check("au", false, "cheap wins are missing — " .. table.concat(problems, "; ") .. ". Parts: tags (RotlingFactory.luau), HUD bars (HUDController), shop rows (ShopController), billboard/dome (WorldBuilder), events (GlobalEventService.luau)")
 		else
-			check("au", true, "cheap wins: multiplier in tags + index, NEXT REBIRTH bar, upgrade levels, no title billboard (removed per playtest), shield dome + SAFE label, pursuit banner, 2 global events, danger meter, no belt list (removed in the simplify/polish pass), Disco Donut")
+			check("au", true, "cheap wins: multiplier in tags + index, rebirth progress on the Rebirth button (fill + gold glow when ready), upgrade levels, no title billboard (removed per playtest), shield dome + SAFE label, pursuit banner, 2 global events, danger meter, no belt list (removed in the simplify/polish pass), Disco Donut")
 		end
 	end
 end
@@ -4698,11 +4708,13 @@ do
 		check("cd", false, "could not verify the HUD text fix — HUDController.client.luau, TagController.client.luau or Config.luau missing")
 	else
 		local problems: { string } = {}
-		if not hudSrc:find("missionLabel%.TextXAlignment = Enum%.TextXAlignment%.Left") then
-			table.insert(problems, "mission label is still centre-aligned — a long mission string clips at the left edge")
+		-- (simplify/polish HUD: the mission bar became the quest pill —
+		-- same behaviour, new names.)
+		if not hudSrc:find("questLabel%.TextXAlignment = Enum%.TextXAlignment%.Left") then
+			table.insert(problems, "quest pill label is still centre-aligned — a long mission string clips at the left edge")
 		end
-		if not hudSrc:find("missionLabel%.TextTruncate = Enum%.TextTruncate%.AtEnd") then
-			table.insert(problems, "mission label does not truncate — a long mission string overflows instead of ellipsizing")
+		if not hudSrc:find("questLabel%.TextTruncate = Enum%.TextTruncate%.AtEnd") then
+			table.insert(problems, "quest pill label does not truncate — a long mission string overflows instead of ellipsizing")
 		end
 		if not configSrc:find("TAG_MIN_DISTANCE = 6") then
 			table.insert(problems, "no TAG_MIN_DISTANCE — close name tags still fill the screen")
@@ -4713,7 +4725,7 @@ do
 		if #problems > 0 then
 			check("cd", false, "the HUD text fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: HUDController.client.luau, TagController.client.luau, Config.luau")
 		else
-			check("cd", true, "HUD text readable: mission label left-aligned + truncated (no 'Place Bra...' cut-off); name tags hide closer than 6 studs (no tag over the base sign/banner); money/storm/buddy/belt/guardian verified intact, not rebuilt")
+			check("cd", true, "HUD text readable: quest pill label left-aligned + truncated (no 'Place Bra...' cut-off); name tags hide closer than 6 studs (no tag over the base sign/banner); money/storm/buddy/belt/guardian verified intact, not rebuilt")
 		end
 	end
 end
@@ -5547,8 +5559,11 @@ do
 		if not hudSrc:find("rebirthButton%.TextScaled = true") then
 			table.insert(problems, "the Rebirth button text does not scale to fit")
 		end
-		if not hudSrc:find("rebirthProgressLabel%.TextTruncate = Enum%.TextTruncate%.AtEnd") then
-			table.insert(problems, "the REBIRTH READY label has no truncate backstop")
+		-- (simplify/polish HUD: the READY text lives on the Rebirth
+		-- button now, not on the removed NEXT REBIRTH bar — the
+		-- truncate backstop lives on the button.)
+		if not hudSrc:find("rebirthButton%.TextTruncate = Enum%.TextTruncate%.AtEnd") then
+			table.insert(problems, "the REBIRTH READY button has no truncate backstop")
 		end
 		if mainSrc:find("attachBuddy") then
 			table.insert(problems, "the buddy is still attached on spawn")
@@ -5773,6 +5788,79 @@ do
 			check("cy", false, "the REMOVE section is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, HUDController.client.luau, IndexWallController.client.luau (deleted)")
 		else
 			check("cy", true, "REMOVE done: floating islands + float loop, world Index Wall + controller, mountains, SPAWN sign, belt list and XP bar all gone; Stardust kept (real currency), moon kept, HUD index kept")
+		end
+	end
+end
+
+-- -- (cz) simplify/polish SIMPLIFY THE HUD ------------------------------------
+-- The HUD collapses to one top line + one quest pill + progress on the
+-- Rebirth button. Phone-sized check (by the numbers, 667x375 landscape):
+-- the top line is 70% scale width + TextScaled, so it can never
+-- overflow a narrow screen (the old 680px fixed line did); the title
+-- is 440px centred (fits 667); the quest pill is 420px centred at
+-- y=112, below the left buttons (end y=104) and clear of the
+-- right-aligned event label (its text starts around x=443, the pill's
+-- left-aligned text ends around x=415); the right column (Rebirth /
+-- Lock / Leaderboard) keeps its 24px right margin; the leaderboard
+-- still shows 3 names max.
+do
+	local hudSrc = read("src/client/HUDController.client.luau")
+	if not hudSrc then
+		check("cz", false, "could not verify the simplified HUD — HUDController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not hudSrc:find("topBar%.Size = UDim2%.new%(1, 0, 0, 68%)") then
+			table.insert(problems, "the top bar is not 68px tall (title + one line only)")
+		end
+		if not hudSrc:find('makeLabel%(gui, "TopLine"') then
+			table.insert(problems, "no single top-line label")
+		end
+		if not hudSrc:find("UDim2%.new%(0%.7, 0, 0, 28%)") then
+			table.insert(problems, "the top line is not 70% scale width (a fixed width clips on a phone)")
+		end
+		if not hudSrc:find("topLineLabel%.TextScaled = true") then
+			table.insert(problems, "the top line is not TextScaled")
+		end
+		if not hudSrc:find("topLineLabel%.Text = Formatting%.formatMoney%(hud%.coins%)") then
+			table.insert(problems, "the top line does not start with the cash total")
+		end
+		if not hudSrc:find("Rebirth ") or not hudSrc:find("· x") then
+			table.insert(problems, "the top line does not carry the rebirth tier + multiplier next to the cash")
+		end
+		if not hudSrc:find("📖") or not hudSrc:find("💎") then
+			table.insert(problems, "the top line does not carry the index count and Stardust")
+		end
+		if hudSrc:find("local coinsLabel") or hudSrc:find("local cpsLabel") or hudSrc:find("local stardustLabel") then
+			table.insert(problems, "the old separate Coins / Cps / Stardust labels are still there")
+		end
+		if not hudSrc:find('questPill%.Position = UDim2%.new%(0%.5, %-210, 0, 112%)') then
+			table.insert(problems, "the quest pill is not a 420px centred pill at y=112")
+		end
+		if hudSrc:find("local missionBar") or hudSrc:find("local missionFill") then
+			table.insert(problems, "the old full-width mission bar is still there")
+		end
+		if hudSrc:find("local rebirthBar") or hudSrc:find("local rebirthFill") or hudSrc:find("local rebirthProgressLabel") then
+			table.insert(problems, "the old NEXT REBIRTH bar is still there")
+		end
+		if not hudSrc:find("RebirthButtonFill") then
+			table.insert(problems, "no progress fill on the Rebirth button")
+		end
+		if not hudSrc:find("rebirthButton%.ZIndex = 3") then
+			table.insert(problems, "the Rebirth button is not above its fill (text would hide under it)")
+		end
+		if not hudSrc:find("255, 215, 0") then
+			table.insert(problems, "the Rebirth button has no gold ready state")
+		end
+		if not hudSrc:find("LeaderboardRow") then
+			table.insert(problems, "the leaderboard rows are gone (top right, 3 names max)")
+		end
+		if not hudSrc:find("UDim2%.new%(1, %-244, 0, 252%)") then
+			table.insert(problems, "the leaderboard is not top-right with its 24px margin")
+		end
+		if #problems > 0 then
+			check("cz", false, "the simplified HUD is incomplete — " .. table.concat(problems, "; ") .. ". Parts: HUDController.client.luau")
+		else
+			check("cz", true, "HUD simplified: 68px top bar, one TextScaled top line (cash • rebirth tier/multiplier • income • index • stardust), 420px quest pill at y=112, rebirth progress on the button (fill + gold glow when ready), leaderboard top-right with 3 names")
 		end
 	end
 end

@@ -53,14 +53,16 @@ task.spawn(function()
 	updateHudScale()
 end)
 
--- Dark top bar behind the coins, income and storm timer: the HUD must
+-- Dark top bar behind the title and the one-line summary: the HUD must
 -- stay readable over any bright 3D background (bloom, beam, crystals),
 -- so the top row always sits on a dark strip instead of bare sky.
 -- Created first, so it renders behind every label and button.
--- 128px tall: a title row on top, then the coins + income line.
+-- 68px tall: a title row on top, then the one line (cash • income •
+-- index • stardust). The old 128px bar held three stacked labels;
+-- the simplify/polish HUD collapses them into one line.
 local topBar = Instance.new("Frame")
 topBar.Name = "TopBar"
-topBar.Size = UDim2.new(1, 0, 0, 128)
+topBar.Size = UDim2.new(1, 0, 0, 68)
 topBar.Position = UDim2.new(0, 0, 0, 0)
 topBar.BackgroundColor3 = Color3.fromRGB(20, 15, 40)
 topBar.BackgroundTransparency = 0.4
@@ -73,16 +75,19 @@ topBar.Parent = gui
 local titleLabel = GuiKit.makeLabel(gui, "GameTitle", "⭐ SPACE ROCK BRAINROTS! ⭐", UDim2.new(0, 440, 0, 32), UDim2.new(0.5, 0, 0, 4), 26, GuiKit.COLORS.Gold)
 titleLabel.AnchorPoint = Vector2.new(0.5, 0)
 
--- Coins, big and top-centre (clear of Roblox's own top-left buttons).
--- Anchored to the centre by scale, so a narrow window never pushes
--- them into the storm timer on the right. Narrowed so the top-left
--- Shop / Upgrade / Daily buttons fit beside them.
-local coinsLabel = GuiKit.makeLabel(gui, "Coins", "$0", UDim2.new(0, 220, 0, 48), UDim2.new(0.5, 0, 0, 36), 36, GuiKit.COLORS.Gold)
-coinsLabel.AnchorPoint = Vector2.new(0.5, 0)
--- Stardust (the second currency) sits right of the coins, same row.
-local stardustLabel = GuiKit.makeLabel(gui, "Stardust", "💎 0", UDim2.new(0, 130, 0, 40), UDim2.new(0.5, 130, 0, 40), 24, Color3.fromRGB(160, 225, 255))
-local cpsLabel = GuiKit.makeLabel(gui, "Cps", "+$0/s", UDim2.new(0, 680, 0, 26), UDim2.new(0.5, 0, 0, 88), 20, GuiKit.COLORS.Green)
-cpsLabel.AnchorPoint = Vector2.new(0.5, 0)
+-- ONE top line (simplify/polish HUD): cash • income • index • stardust,
+-- top-centre, one line. Scale width (70% of the screen) + TextScaled +
+-- truncate, so a narrow phone screen never cuts it — the old 680px
+-- fixed-width income line overflowed a 667px phone on both sides.
+-- The old three labels are gone: Coins, Stardust and the long income
+-- line. What they carried moved: banked cash lives on the Collect
+-- button ("💰 Collect $X"), the rebirth tier/multiplier lives in the
+-- Rebirth panel, and the storm boost rides as an (x2) suffix on the
+-- income. Stardust rides at the end of the line.
+local topLineLabel = GuiKit.makeLabel(gui, "TopLine", "$0 • +$0/s • 📖 0/20 • 💎 0", UDim2.new(0.7, 0, 0, 28), UDim2.new(0.5, 0, 0, 34), 20, GuiKit.COLORS.Gold)
+topLineLabel.AnchorPoint = Vector2.new(0.5, 0)
+topLineLabel.TextScaled = true
+topLineLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
 -- Top-left buttons at y=60: below Roblox's own top-left menu (which
 -- ends around y=48), so they are never covered by it. Shop lives in
@@ -90,31 +95,42 @@ cpsLabel.AnchorPoint = Vector2.new(0.5, 0)
 local upgradeButton = GuiKit.makeButton(gui, "UpgradeButton", "⬆️ Upgrade", UDim2.new(0, 120, 0, 44), UDim2.new(0, 140, 0, 60), GuiKit.COLORS.Pink)
 local dailyButton = GuiKit.makeButton(gui, "DailyButton", "🎁 Daily", UDim2.new(0, 120, 0, 44), UDim2.new(0, 268, 0, 60), GuiKit.COLORS.Buy)
 
--- Mission bar: one thin strip under the top bar with the active
--- mission, its progress and its reward. The fill grows left to right.
-local missionBar = Instance.new("Frame")
-missionBar.Name = "MissionBar"
-missionBar.Size = UDim2.new(1, 0, 0, 32)
-missionBar.Position = UDim2.new(0, 0, 0, 128)
-missionBar.BackgroundColor3 = Color3.fromRGB(20, 15, 40)
-missionBar.BackgroundTransparency = 0.3
-missionBar.BorderSizePixel = 0
-missionBar.Parent = gui
-local missionFill = Instance.new("Frame")
-missionFill.Name = "MissionFill"
-missionFill.Size = UDim2.new(0, 0, 1, 0)
-missionFill.BackgroundColor3 = Color3.fromRGB(80, 200, 100)
-missionFill.BackgroundTransparency = 0.4
-missionFill.BorderSizePixel = 0
-missionFill.Parent = missionBar
-local missionLabel = GuiKit.makeLabel(missionBar, "MissionLabel", "🎯 Grab 3 Brainrots — 0/3 • $300", UDim2.new(1, -16, 1, 0), UDim2.new(0, 8, 0, 0), 18, GuiKit.COLORS.White)
+-- Quest pill (simplify/polish HUD): ONE small centred pill under the
+-- top line with the active mission, its progress and its reward — not
+-- a full-width strip. 420px wide, at y=112: below the left buttons
+-- (Shop/Upgrade/Daily end at y=104) and clear of the right-side event
+-- label (right-aligned, its text starts around x=443 on a 667px phone;
+-- the pill's left-aligned text ends around x=415). The fill grows
+-- left to right inside the pill.
+local questPill = Instance.new("Frame")
+questPill.Name = "QuestPill"
+questPill.Size = UDim2.new(0, 420, 0, 32)
+questPill.Position = UDim2.new(0.5, -210, 0, 112)
+questPill.BackgroundColor3 = Color3.fromRGB(20, 15, 40)
+questPill.BackgroundTransparency = 0.3
+questPill.BorderSizePixel = 0
+questPill.Parent = gui
+local questPillCorner = Instance.new("UICorner")
+questPillCorner.CornerRadius = UDim.new(0, 16)
+questPillCorner.Parent = questPill
+local questFill = Instance.new("Frame")
+questFill.Name = "QuestFill"
+questFill.Size = UDim2.new(0, 0, 1, 0)
+questFill.BackgroundColor3 = Color3.fromRGB(80, 200, 100)
+questFill.BackgroundTransparency = 0.4
+questFill.BorderSizePixel = 0
+questFill.Parent = questPill
+local questFillCorner = Instance.new("UICorner")
+questFillCorner.CornerRadius = UDim.new(0, 16)
+questFillCorner.Parent = questFill
+local questLabel = GuiKit.makeLabel(questPill, "QuestLabel", "🎯 Grab 3 Brainrots — 0/3 • $300", UDim2.new(1, -24, 1, 0), UDim2.new(0, 12, 0, 0), 18, GuiKit.COLORS.White)
 -- Left-aligned + truncated (fix round 5, item 5): the label is
 -- centre-aligned by default, so a long mission string on a narrow
 -- screen clipped on BOTH sides and read as "Place Bra..." cut off at
 -- the left edge. Left-aligned it reads from the left and ellipsizes
 -- at the right if it ever runs long.
-missionLabel.TextXAlignment = Enum.TextXAlignment.Left
-missionLabel.TextTruncate = Enum.TextTruncate.AtEnd
+questLabel.TextXAlignment = Enum.TextXAlignment.Left
+questLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
 -- XP display REMOVED (simplify/polish REMOVE): rebirth is the only
 -- progress system the player sees — no level/XP numbers anywhere.
@@ -123,23 +139,10 @@ missionLabel.TextTruncate = Enum.TextTruncate.AtEnd
 -- The NEXT REBIRTH progress bar (coins / cost) — cheap win 2 — sits
 -- right under the mission bar instead, so the rebirth goal is always
 -- visible, not hidden inside the panel.
-local rebirthBar = Instance.new("Frame")
-rebirthBar.Name = "RebirthBar"
-rebirthBar.Size = UDim2.new(1, 0, 0, 18)
-rebirthBar.Position = UDim2.new(0, 0, 0, 178)
-rebirthBar.BackgroundColor3 = Color3.fromRGB(20, 15, 40)
-rebirthBar.BackgroundTransparency = 0.3
-rebirthBar.BorderSizePixel = 0
-rebirthBar.Parent = gui
-local rebirthFill = Instance.new("Frame")
-rebirthFill.Name = "RebirthFill"
-rebirthFill.Size = UDim2.new(0, 0, 1, 0)
-rebirthFill.BackgroundColor3 = Color3.fromRGB(255, 110, 180)
-rebirthFill.BackgroundTransparency = 0.4
-rebirthFill.BorderSizePixel = 0
-rebirthFill.Parent = rebirthBar
-local rebirthProgressLabel = GuiKit.makeLabel(rebirthBar, "RebirthProgressLabel", "NEXT REBIRTH: $0 / $10,000", UDim2.new(1, -16, 1, 0), UDim2.new(0, 8, 0, 0), 14, GuiKit.COLORS.White)
-rebirthProgressLabel.TextTruncate = Enum.TextTruncate.AtEnd
+-- The full-width NEXT REBIRTH bar is REMOVED (simplify/polish HUD):
+-- rebirth progress lives ON the Rebirth button now (fill + gold glow
+-- when ready — see the button setup below). Nothing about rebirth
+-- progress shows in the main HUD anymore.
 
 -- Storm timer, top-right at y=60: below the player list (which ends
 -- around y=48), 12px clear of the screen edge.
@@ -188,6 +191,36 @@ eventLabel.Visible = false
 local rebirthButton = GuiKit.makeButton(gui, "RebirthButton", "✨ Rebirth (R)", UDim2.new(0, 220, 0, 48), UDim2.new(1, -244, 0, 140), GuiKit.COLORS.Pink)
 rebirthButton.TextScaled = true
 rebirthButton.TextTruncate = Enum.TextTruncate.AtEnd
+-- Rebirth progress lives ON this button (simplify/polish HUD): the
+-- old full-width NEXT REBIRTH bar is gone. The button's own background
+-- is transparent; a pink background frame and a progress fill frame
+-- sit inside it (ZIndex 1 and 2), and the button itself sits at
+-- ZIndex 3 so its text always renders on top of the fill. When ready
+-- the fill turns gold and the button's outline glows gold.
+rebirthButton.BackgroundTransparency = 1
+rebirthButton.ZIndex = 3
+local rebirthButtonBg = Instance.new("Frame")
+rebirthButtonBg.Name = "RebirthButtonBg"
+rebirthButtonBg.Size = UDim2.new(1, 0, 1, 0)
+rebirthButtonBg.BackgroundColor3 = GuiKit.COLORS.Pink
+rebirthButtonBg.BorderSizePixel = 0
+rebirthButtonBg.ZIndex = 1
+rebirthButtonBg.Parent = rebirthButton
+local rebirthButtonBgCorner = Instance.new("UICorner")
+rebirthButtonBgCorner.CornerRadius = UDim.new(0, 10)
+rebirthButtonBgCorner.Parent = rebirthButtonBg
+local rebirthButtonFill = Instance.new("Frame")
+rebirthButtonFill.Name = "RebirthButtonFill"
+rebirthButtonFill.Size = UDim2.new(0, 0, 1, 0)
+rebirthButtonFill.BackgroundColor3 = Color3.fromRGB(255, 110, 180)
+rebirthButtonFill.BackgroundTransparency = 0.25
+rebirthButtonFill.BorderSizePixel = 0
+rebirthButtonFill.ZIndex = 2
+rebirthButtonFill.Parent = rebirthButton
+local rebirthButtonFillCorner = Instance.new("UICorner")
+rebirthButtonFillCorner.CornerRadius = UDim.new(0, 10)
+rebirthButtonFillCorner.Parent = rebirthButtonFill
+local rebirthButtonStroke = rebirthButton:FindFirstChildOfClass("UIStroke")
 local lockButton = GuiKit.makeButton(gui, "LockButton", "🔓 Lock Base (L)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -184, 0, 196), GuiKit.COLORS.Red)
 
 -- Hint line, bottom-centre, anchored so it never clips at the sides.
@@ -195,8 +228,8 @@ local lockButton = GuiKit.makeButton(gui, "LockButton", "🔓 Lock Base (L)", UD
 local hintLabel = GuiKit.makeLabel(gui, "Hint", "Grab a Brainrot in the crater!", UDim2.new(0, 760, 0, 30), UDim2.new(0.5, 0, 1, -44), 22, GuiKit.COLORS.White)
 hintLabel.AnchorPoint = Vector2.new(0.5, 0)
 
--- Banner line, centre screen, fades on its own. Sits below the XP and
--- rebirth bars (which end at y=196).
+-- Banner line, centre screen, fades on its own. Sits below the quest
+-- pill (which ends at y=144).
 local bannerLabel = GuiKit.makeLabel(gui, "Banner", "", UDim2.new(0, 640, 0, 44), UDim2.new(0.5, 0, 0, 204), 30, GuiKit.COLORS.Gold)
 bannerLabel.AnchorPoint = Vector2.new(0.5, 0)
 bannerLabel.Visible = false
@@ -247,6 +280,8 @@ boostRow.Parent = gui
 -- everything banked at the base into the wallet. Bright while there is
 -- cash to collect, dimmed when the base is empty.
 local collectButton = GuiKit.makeButton(gui, "CollectButton", "💰 Collect", UDim2.new(0, 200, 0, 48), UDim2.new(0, 12, 1, -160), GuiKit.COLORS.Buy)
+collectButton.TextScaled = true
+collectButton.TextTruncate = Enum.TextTruncate.AtEnd
 
 -- Drop Egg button (fix round 7, item 8): bottom-left, above Collect.
 -- Hidden unless the player is carrying a meteor egg — then it drops
@@ -319,7 +354,11 @@ end)
 local function refreshRebirth()
 	local cost = hud.rebirthCost
 	local mult = 1 + 0.25 * hud.rebirths
-	rebirthInfo.Text = "Rebirths: " .. tostring(hud.rebirths) .. " (income x" .. string.format("%.2f", mult) .. ")\nReset your coins for +25% income forever,\nand your base wears a new colour."
+	-- The panel shows live progress toward the next rebirth: the
+	-- numerator is coins + banked, matching the server's progress
+	-- (which counts the banked cash too) — the wallet alone would lie.
+	local totalWealth = hud.coins + hud.banked
+	rebirthInfo.Text = "Rebirths: " .. tostring(hud.rebirths) .. " (income x" .. string.format("%.2f", mult) .. ")\nProgress: " .. Formatting.formatMoney(totalWealth) .. " / " .. Formatting.formatMoney(cost) .. "\nReset your coins for +25% income forever,\nand your base wears a new colour."
 	rebirthBuy.Text = "Rebirth — " .. Formatting.formatMoney(cost)
 end
 
@@ -418,39 +457,43 @@ local function onHudData(data: Remotes.HudData)
 		print("[HUD] first UpdateHud received: phase=" .. tostring(hud.stormPhase) .. " seconds=" .. tostring(hud.stormSeconds) .. " coins=" .. tostring(hud.coins))
 	end
 
-	coinsLabel.Text = Formatting.formatMoney(hud.coins)
-	stardustLabel.Text = "💎 " .. tostring(hud.stardust)
-	-- Income line: income/s, the cash sitting at the base, the
-	-- current rebirth tier and its multiplier, then the Index count.
-	-- The big number is TOTAL wealth (wallet + At base, fix 3) — the
-	-- income that banks at the base is part of what the player has,
-	-- and it is spendable (shop/rebirth collect the shortfall first).
-	-- "At base" still shows the banked part on its own line.
-	-- Storm income readout: while the player shelters in their own
-	-- Safe Dome during the storm, the boosted rate shows with (x2)
-	-- NEXT TO the normal rate — the threat shot proves the event
-	-- with a doubled income number. The rebirth segment shortens
-	-- while boosted so the line still fits the 680px label.
+	-- ONE top line (simplify/polish HUD): cash • income • index •
+	-- stardust. The big number is TOTAL wealth (wallet + At base,
+	-- fix 3) — the income that banks at the base is part of what the
+	-- player has, and it is spendable (shop/rebirth collect the
+	-- shortfall first). The storm boost rides as an (x2) suffix on the
+	-- income while the player shelters in their own Safe Dome during
+	-- the storm. Banked cash lives on the Collect button; the rebirth
+	-- tier/multiplier lives in the Rebirth panel.
+	-- Rebirth tier + multiplier next to the cash (cheap HUD win): the
+	-- player should always see what their rebirth is worth.
 	local rebirthMult = 1 + 0.25 * hud.rebirths
 	local multText = string.format("%.2f", rebirthMult):gsub("0$", ""):gsub("%.$", "")
-	if hud.stormBoost then
-		cpsLabel.Text = Formatting.formatCps(hud.cps) .. " (x2)  •  " .. Formatting.formatCps(hud.baseCps) .. "  •  🏦 At base: " .. Formatting.formatMoney(hud.banked) .. "  •  R" .. tostring(hud.rebirths) .. " · x" .. multText .. "  •  📖 " .. tostring(hud.indexCount) .. "/" .. tostring(hud.indexTotal)
-	else
-		cpsLabel.Text = Formatting.formatCps(hud.cps) .. "  •  🏦 At base: " .. Formatting.formatMoney(hud.banked) .. "  •  Rebirth " .. tostring(hud.rebirths) .. " · x" .. multText .. " cash  •  📖 " .. tostring(hud.indexCount) .. "/" .. tostring(hud.indexTotal)
-	end
+	local cpsText = Formatting.formatCps(hud.cps) .. (if hud.stormBoost then " (x2)" else "")
+	topLineLabel.Text = Formatting.formatMoney(hud.coins) .. " • Rebirth " .. tostring(hud.rebirths) .. " · x" .. multText .. " cash  • " .. cpsText .. " • 📖 " .. tostring(hud.indexCount) .. "/" .. tostring(hud.indexTotal) .. " • 💎 " .. tostring(hud.stardust)
 
-	-- NEXT REBIRTH bar (cheap win 2): coins / cost.
-	rebirthFill.Size = UDim2.new(math.clamp(hud.rebirthProgress, 0, 1), 0, 1, 0)
-	-- READY state (fix round 4, item 3): at progress >= 1 the player
-	-- can afford the rebirth — say so. The old text kept showing the
-	-- progress line even at $2.07M / $40K, so it read as "not ready".
-	-- The numerator is coins + banked, matching the server's
+	-- Rebirth progress ON the button (simplify/polish HUD): the fill
+	-- grows with progress; at >= 1 it turns gold and the outline
+	-- glows gold. READY state (fix round 4, item 3): at progress >= 1
+	-- the player can afford the rebirth — say so on the button. The
+	-- numerator is coins + banked, matching the server's
 	-- rebirthProgress (which counts the banked cash too).
+	rebirthButtonFill.Size = UDim2.new(math.clamp(hud.rebirthProgress, 0, 1), 0, 1, 0)
 	if hud.rebirthProgress >= 1 then
-		rebirthProgressLabel.Text = "✨ REBIRTH READY! Press R ✨"
-		rebirthButton.Text = "✨ REBIRTH READY! ✨"
+		rebirthButtonFill.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+		if rebirthButtonStroke then
+			rebirthButtonStroke.Color = Color3.fromRGB(255, 215, 0)
+			rebirthButtonStroke.Thickness = 3
+			rebirthButtonStroke.Transparency = 0.1
+		end
+		rebirthButton.Text = "✨ REBIRTH READY! Press R ✨"
 	else
-		rebirthProgressLabel.Text = "NEXT REBIRTH: " .. Formatting.formatMoney(hud.coins + hud.banked) .. " / " .. Formatting.formatMoney(hud.rebirthCost)
+		rebirthButtonFill.BackgroundColor3 = Color3.fromRGB(255, 110, 180)
+		if rebirthButtonStroke then
+			rebirthButtonStroke.Color = Color3.fromRGB(20, 10, 40)
+			rebirthButtonStroke.Thickness = 2
+			rebirthButtonStroke.Transparency = 0.5
+		end
 		rebirthButton.Text = "✨ Rebirth (R)"
 	end
 
@@ -527,9 +570,9 @@ local function onHudData(data: Remotes.HudData)
 
 	-- Mission bar: text + progress + reward, fill grows left to right.
 	local target = math.max(1, hud.missionTarget)
-	missionLabel.Text = "🎯 " .. hud.missionText .. " — " .. tostring(math.min(hud.missionProgress, target)) .. "/" .. tostring(target)
+	questLabel.Text = "🎯 " .. hud.missionText .. " — " .. tostring(math.min(hud.missionProgress, target)) .. "/" .. tostring(target)
 		.. " • " .. Formatting.formatMoney(hud.missionReward)
-	missionFill.Size = UDim2.new(math.clamp(hud.missionProgress / target, 0, 1), 0, 1, 0)
+	questFill.Size = UDim2.new(math.clamp(hud.missionProgress / target, 0, 1), 0, 1, 0)
 
 	-- Daily button: bright when a claim is up, dimmed once claimed.
 	if hud.dailyReady then
@@ -541,9 +584,11 @@ local function onHudData(data: Remotes.HudData)
 	end
 
 	-- Collect button: bright with the banked amount while the base
-	-- holds cash, dimmed when it is empty.
+	-- holds cash, dimmed when it is empty. The text names what is
+	-- waiting ("At base: $X") — the banked cash is only visible here
+	-- (and on the base sign) now that the top line no longer carries it.
 	if hud.banked > 0 then
-		collectButton.Text = "💰 Collect " .. Formatting.formatMoney(hud.banked)
+		collectButton.Text = "💰 At base: " .. Formatting.formatMoney(hud.banked)
 		collectButton.BackgroundColor3 = GuiKit.COLORS.Buy
 	else
 		collectButton.Text = "💰 Collect"
