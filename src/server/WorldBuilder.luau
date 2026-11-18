@@ -660,7 +660,7 @@ local function buildSpawnArea()
 	spawnSignGui.StudsOffsetWorldSpace = Vector3.new(0, 0, 0)
 	spawnSignGui.AlwaysOnTop = true
 	spawnSignGui.LightInfluence = 0
-	spawnSignGui.MaxDistance = 100
+	spawnSignGui.MaxDistance = 60
 	spawnSignGui.Parent = spawnSign
 	local spawnLabel = Instance.new("TextLabel")
 	spawnLabel.Name = "SpawnLabel"
@@ -791,7 +791,7 @@ local function buildSellArea()
 	sign.StudsOffsetWorldSpace = Vector3.new(0, 0, 0)
 	sign.AlwaysOnTop = true
 	sign.LightInfluence = 0
-	sign.MaxDistance = 100
+	sign.MaxDistance = 60
 	sign.Parent = sellSign
 	local sellLabel = Instance.new("TextLabel")
 	sellLabel.Name = "SellLabel"
@@ -1232,7 +1232,7 @@ local function buildIndexWall()
 	-- both the Bounty Board and the SPAWN sign. Now it is at (35, 0,
 	-- 70) — further from spawn, further right, ~55 studs from the
 	-- Bounty Board on the opposite side of the path.
-	local wallCf = CFrame.lookAt(Vector3.new(35, 0, 70), Vector3.new(0, 0, 96))
+	local wallCf = CFrame.lookAt(Vector3.new(48, 0, 58), Vector3.new(0, 0, 96))
 	local board = part("IndexWallBoard", Enum.PartType.Block, Vector3.new(26, 9, 0.6), Color3.fromRGB(40, 30, 70), wallCf * CFrame.new(0, 4.5, 0))
 	board.CanCollide = false
 	local titleGui = Instance.new("BillboardGui")
@@ -1241,7 +1241,7 @@ local function buildIndexWall()
 	titleGui.StudsOffsetWorldSpace = Vector3.new(0, 5.4, 0)
 	titleGui.AlwaysOnTop = true
 	titleGui.LightInfluence = 0
-	titleGui.MaxDistance = 80
+	titleGui.MaxDistance = 60
 	titleGui.Parent = board
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Size = UDim2.new(1, 0, 1, 0)
@@ -1511,7 +1511,7 @@ local function buildBountyBoard()
 	-- overlapped on screen from spawn. Now the board is on the LEFT
 	-- side of the path (-18) and the wall is on the RIGHT (35, 70) —
 	-- ~55 studs apart, never in the same frame.
-	local boardCf = CFrame.lookAt(Vector3.new(-18, 0, 85), Vector3.new(0, 0, 96))
+	local boardCf = CFrame.lookAt(Vector3.new(-32, 0, 90), Vector3.new(0, 0, 96))
 	for _, x in ipairs({ -4, 4 }) do
 		local post = part("BountyPost", Enum.PartType.Cylinder, Vector3.new(7, 0.8, 0.8), Color3.fromRGB(120, 85, 50), boardCf * CFrame.new(x, 3.5, 0) * CFrame.Angles(0, 0, math.rad(90)))
 		post.CanCollide = false
@@ -1520,10 +1520,10 @@ local function buildBountyBoard()
 	board.CanCollide = false
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "BountyBoardGui"
-	gui.Size = UDim2.fromOffset(500, 300)
+	gui.Size = UDim2.fromOffset(280, 140)
 	gui.AlwaysOnTop = true
 	gui.LightInfluence = 0
-	gui.MaxDistance = 80
+	gui.MaxDistance = 60
 	gui.Parent = board
 	local title = Instance.new("TextLabel")
 	title.Name = "BountyTitle"

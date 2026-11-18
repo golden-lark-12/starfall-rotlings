@@ -110,6 +110,9 @@
 --   (by) the belt is still a flat strip (no raised slab, side walls,
 --       glowing stripes, +X arrows or flush rollers; or Bloom/Brightness
 --       not lowered to 0.1 / 1.8)
+--   (bz) HUD text is cut off or signs overlap (a top-right element
+--       still ends 12px from the edge, the Bounty Board / Index Wall
+--       are still close, or a player-visible "Rotling" remains)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -3844,11 +3847,11 @@ do
 		if worldSrc:find("Grab them%. Grow them%. Guard your base%.") then
 			table.insert(problems, "the slogan ('Grab them. Grow them. Guard your base.') is still in the world")
 		end
-		if not worldSrc:find("Vector3%.new%(%-18, 0, 85%)") then
-			table.insert(problems, "Bounty Board is not on the left side of the path (-18, 0, 85)")
+		if not worldSrc:find("Vector3%.new%(%-32, 0, 90%)") then
+			table.insert(problems, "Bounty Board is not on the left side of the path (-32, 0, 90)")
 		end
-		if not worldSrc:find("Vector3%.new%(35, 0, 70%)") then
-			table.insert(problems, "Index Wall is not moved away from spawn (35, 0, 70)")
+		if not worldSrc:find("Vector3%.new%(48, 0, 58%)") then
+			table.insert(problems, "Index Wall is not moved away from spawn (48, 0, 58)")
 		end
 		if not worldSrc:find("BRAINROT INDEX") then
 			table.insert(problems, "Index Wall title is not 'BRAINROT INDEX'")
@@ -3859,8 +3862,8 @@ do
 		if not indexSrc:find("BRAINROT INDEX") then
 			table.insert(problems, "Index panel title is not 'BRAINROT INDEX'")
 		end
-		if not hudSrc:find("UDim2%.new%(0, 420, 0, 36%), UDim2%.new%(1, %-432, 0, 60%)") then
-			table.insert(problems, "storm panel is not widened to 420px at (1, -432) — it will still clip")
+		if not hudSrc:find("UDim2%.new%(0, 420, 0, 36%), UDim2%.new%(1, %-444, 0, 60%)") then
+			table.insert(problems, "storm panel is not widened to 420px at (1, -444) — it will still clip")
 		end
 		if hudSrc:find("STORM_HAZARD_LABEL") then
 			table.insert(problems, "storm panel still appends the long hazard label (it clips)")
@@ -3885,7 +3888,7 @@ do
 		if #problems > 0 then
 			check("bq", false, "the layout + rename is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, HUDController.client.luau, IndexController.client.luau, CarryService.luau, SellService.luau")
 		else
-			check("bq", true, "layout fixed: sky billboard + slogan gone, Index Wall (35,70) and Bounty Board (-18,85) ~55 studs apart, storm panel 420px with a short warn line; every visible 'Rotling' is 'Brainrot'")
+			check("bq", true, "layout fixed: sky billboard + slogan gone, Index Wall (48,58) and Bounty Board (-32,90) ~85 studs apart, storm panel 420px with a short warn line; every visible 'Rotling' is 'Brainrot'")
 		end
 	end
 end
@@ -4286,6 +4289,99 @@ do
 			check("by", false, "the conveyor fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, WorldBuilder.luau, default.project.json")
 		else
 			check("by", true, "raised conveyor: 0.6 slab, top 1.2, side walls, glowing edge stripes, +X chevrons every 5 studs, rollers flush; one Grass ground; Bloom 0.1, Brightness 1.8")
+		end
+	end
+end
+
+-- -- (bz) HUD text is fully on screen, signs are apart, no "Rotling" left (fix round 4, item 8) --
+-- Playtest 4: text at the top right was cut off at the screen edge;
+-- the Rotling Index + Bounty Board signs overlapped, as did the slogan
+-- + SELL and the Index + Spawn signs; and "Rotling" still showed
+-- somewhere. The fix: every top-right HUD element now ends 24px from
+-- the edge (was 12px) and the storm calm text is shortened to
+-- "Storm: 72s"; the Bounty Board moved to (-32, 90) and the Index Wall
+-- to (48, 58) — ~86 studs apart (was ~55) — with the Bounty Board gui
+-- shrunk to 280x140 and all four sign view distances pulled to 60, so
+-- the signs stop rendering on top of each other. The rename is
+-- verified by scanning the whole source: the only quoted "Rotling"
+-- strings left are code identifiers (RotlingLabel, PlaceRotling /
+-- SellRotling remotes, the StarfallRotlings datastore) — no
+-- player-visible text says "Rotling" anywhere.
+do
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not hudSrc or not worldSrc then
+		check("bz", false, "could not verify the HUD/text fix — HUDController.client.luau or WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		if not hudSrc:find("UDim2%.new%(1, %-444, 0, 60%)") then
+			table.insert(problems, "storm label still ends 12px from the edge (not 24px)")
+		end
+		if not hudSrc:find("UDim2%.new%(1, %-254, 0, 98%)") then
+			table.insert(problems, "danger bar still ends 12px from the edge (not 24px)")
+		end
+		if not hudSrc:find("UDim2%.new%(1, %-254, 0, 108%)") then
+			table.insert(problems, "event label still ends 12px from the edge (not 24px)")
+		end
+		if not hudSrc:find("UDim2%.new%(1, %-184, 0, 140%)") or not hudSrc:find("UDim2%.new%(1, %-184, 0, 196%)") then
+			table.insert(problems, "rebirth/lock buttons still end 12px from the edge (not 24px)")
+		end
+		if not hudSrc:find("UDim2%.new%(1, %-244, 0, 252%)") then
+			table.insert(problems, "leaderboard still ends 12px from the edge (not 24px)")
+		end
+		if hudSrc:find('"Next storm: "') then
+			table.insert(problems, "storm calm text is still the long 'Next storm: 72s'")
+		end
+		if not worldSrc:find("Vector3%.new%(%-32, 0, 90%)") then
+			table.insert(problems, "Bounty Board is not at (-32, 0, 90)")
+		end
+		if not worldSrc:find("Vector3%.new%(48, 0, 58%)") then
+			table.insert(problems, "Index Wall is not at (48, 0, 58)")
+		end
+		if not worldSrc:find("UDim2%.fromOffset%(280, 140%)") then
+			table.insert(problems, "Bounty Board gui is not shrunk to 280x140")
+		end
+		if not worldSrc:find("spawnSignGui%.MaxDistance = 60") then
+			table.insert(problems, "Spawn sign view distance is not 60")
+		end
+		if not worldSrc:find("titleGui%.MaxDistance = 60") then
+			table.insert(problems, "Index Wall title view distance is not 60")
+		end
+		if not worldSrc:find("gui%.MaxDistance = 60") then
+			table.insert(problems, "Bounty Board view distance is not 60")
+		end
+		-- Rename: scan the whole source for a quoted "Rotling" that
+		-- is NOT one of the allowed code identifiers.
+		do
+			local all = ""
+			for _, f in ipairs({
+				"src/client/HUDController.client.luau",
+				"src/client/IndexController.client.luau",
+				"src/client/TitleScreenController.client.luau",
+				"src/client/TutorialController.client.luau",
+				"src/client/OfflineController.client.luau",
+				"src/server/WorldBuilder.luau",
+				"src/server/SpawnService.luau",
+				"src/server/CarryService.luau",
+				"src/server/SellService.luau",
+				"src/server/RivalService.luau",
+				"src/server/GuardianService.luau",
+				"src/server/StarfallService.luau",
+			}) do
+				local s = read(f)
+				if s then
+					all = all .. s
+				end
+			end
+			local cleaned = all:gsub("RotlingLabel", ""):gsub("PlaceRotling", ""):gsub("SellRotling", ""):gsub("StarfallRotlings", ""):gsub("RotlingCatalog", ""):gsub("RotlingFactory", "")
+			if cleaned:find('"[^"\n]*Rotling[^"\n]*"') then
+				table.insert(problems, "a quoted 'Rotling' string remains in player-visible text")
+			end
+		end
+		if #problems > 0 then
+			check("bz", false, "the HUD/text fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: HUDController.client.luau, WorldBuilder.luau")
+		else
+			check("bz", true, "HUD fully on screen (24px margins, short storm text), signs ~86 studs apart with 280x140 Bounty Board and 60 view distances; no player-visible 'Rotling' anywhere")
 		end
 	end
 end

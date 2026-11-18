@@ -155,7 +155,7 @@ local rebirthProgressLabel = GuiKit.makeLabel(rebirthBar, "RebirthProgressLabel"
 -- 12px from the right edge, and the warning line is short ("Storm in
 -- 10s!") — the hazard label already rides on the banner and the
 -- full-width warning bar.
-local stormLabel = GuiKit.makeLabel(gui, "Storm", "Next storm: --", UDim2.new(0, 420, 0, 36), UDim2.new(1, -432, 0, 60), 22, GuiKit.COLORS.White)
+local stormLabel = GuiKit.makeLabel(gui, "Storm", "Next storm: --", UDim2.new(0, 420, 0, 36), UDim2.new(1, -444, 0, 60), 22, GuiKit.COLORS.White)
 stormLabel.TextXAlignment = Enum.TextXAlignment.Right
 
 -- Meteor Danger meter (cheap win 8): a thin bar under the storm
@@ -164,7 +164,7 @@ stormLabel.TextXAlignment = Enum.TextXAlignment.Right
 local dangerBar = Instance.new("Frame")
 dangerBar.Name = "DangerBar"
 dangerBar.Size = UDim2.new(0, 230, 0, 8)
-dangerBar.Position = UDim2.new(1, -242, 0, 98)
+dangerBar.Position = UDim2.new(1, -254, 0, 98)
 dangerBar.BackgroundColor3 = Color3.fromRGB(20, 15, 40)
 dangerBar.BackgroundTransparency = 0.3
 dangerBar.BorderSizePixel = 0
@@ -179,14 +179,14 @@ dangerFill.Parent = dangerBar
 
 -- Global event label (cheap win 7): "✨ 2x Cash Hour — 0:42" while an
 -- event runs, hidden otherwise.
-local eventLabel = GuiKit.makeLabel(gui, "Event", "", UDim2.new(0, 230, 0, 24), UDim2.new(1, -242, 0, 108), 18, GuiKit.COLORS.Gold)
+local eventLabel = GuiKit.makeLabel(gui, "Event", "", UDim2.new(0, 230, 0, 24), UDim2.new(1, -254, 0, 108), 18, GuiKit.COLORS.Gold)
 eventLabel.TextXAlignment = Enum.TextXAlignment.Right
 eventLabel.Visible = false
 
 -- Right-side buttons, stacked below the event label, 12px clear of
 -- the screen edge.
-local rebirthButton = GuiKit.makeButton(gui, "RebirthButton", "✨ Rebirth (R)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -172, 0, 140), GuiKit.COLORS.Pink)
-local lockButton = GuiKit.makeButton(gui, "LockButton", "🔓 Lock Base (L)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -172, 0, 196), GuiKit.COLORS.Red)
+local rebirthButton = GuiKit.makeButton(gui, "RebirthButton", "✨ Rebirth (R)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -184, 0, 140), GuiKit.COLORS.Pink)
+local lockButton = GuiKit.makeButton(gui, "LockButton", "🔓 Lock Base (L)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -184, 0, 196), GuiKit.COLORS.Red)
 
 -- Hint line, bottom-centre, anchored so it never clips at the sides.
 -- Widened to 760 so the buddy name fits on the same line.
@@ -220,7 +220,7 @@ local carryBannerLabel = GuiKit.makeLabel(carryBanner, "CarryBannerLabel", "", U
 -- Leaderboard panel, top-right under the Lock button: the top 3 players
 -- by coins, always visible, so every shot shows the competition (like the
 -- top entries' leaderboard panels). Fed by the HUD broadcast's top3.
-local leaderboardPanel = GuiKit.makePanel(gui, "LeaderboardPanel", UDim2.new(0, 220, 0, 104), UDim2.new(1, -232, 0, 252))
+local leaderboardPanel = GuiKit.makePanel(gui, "LeaderboardPanel", UDim2.new(0, 220, 0, 104), UDim2.new(1, -244, 0, 252))
 local leaderboardTitle = GuiKit.makeLabel(leaderboardPanel, "LeaderboardTitle", "🏆 LEADERBOARD", UDim2.new(1, 0, 0, 24), UDim2.new(0, 0, 0, 4), 18, GuiKit.COLORS.Gold)
 local leaderboardRows = {}
 for i = 1, 3 do
@@ -505,7 +505,7 @@ local function onHudData(data: Remotes.HudData)
 		stormLabel.Text = "⚠ Storm in " .. tostring(hud.stormSeconds) .. "s!"
 		stormLabel.TextColor3 = Color3.fromRGB(255, 180, 60)
 	else
-		stormLabel.Text = "Next storm: " .. tostring(hud.stormSeconds) .. "s"
+		stormLabel.Text = "Storm: " .. tostring(hud.stormSeconds) .. "s"
 		stormLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	end
 
