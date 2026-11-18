@@ -2989,14 +2989,15 @@ do
 			table.insert(problems, "restoreSky does not restore Atmosphere Density 0.08 (the new bright preset)")
 		end
 		-- The storm dark is softened so the storm shot reads: dimSky
-		-- and the lightning-flash restore must both use 1.5.
+		-- and the lightning-flash restore must both use 1.2 (base 2,
+		-- fix round 2 lighting — was 1.5 on base 3).
 		local dimBody = functionBody(starSrc, "dimSky")
 		local flashBody = functionBody(starSrc, "lightningFlash")
-		if not dimBody or not dimBody:find("Brightness = 1%.5") then
-			table.insert(problems, "dimSky does not use the softened Brightness 1.5")
+		if not dimBody or not dimBody:find("Brightness = 1%.2") then
+			table.insert(problems, "dimSky does not use the softened Brightness 1.2")
 		end
-		if not flashBody or not flashBody:find("Brightness = 1%.5") then
-			table.insert(problems, "lightningFlash does not restore the softened Brightness 1.5")
+		if not flashBody or not flashBody:find("Brightness = 1%.2") then
+			table.insert(problems, "lightningFlash does not restore the softened Brightness 1.2")
 		end
 		-- The FINAL 4 photo shots: hero, belt, storm, packed base.
 		for _, name in ipairs({ "1/4 — Hero", "2/4 — Belt", "3/4 — Storm", "4/4 — Packed base" }) do
@@ -3845,6 +3846,56 @@ do
 			check("bq", false, "the layout + rename is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, HUDController.client.luau, IndexController.client.luau, CarryService.luau, SellService.luau")
 		else
 			check("bq", true, "layout fixed: sky billboard + slogan gone, Index Wall (35,70) and Bounty Board (-18,85) ~55 studs apart, storm panel 420px with a short warn line; every visible 'Rotling' is 'Brainrot'")
+		end
+	end
+end
+
+-- -- (br) lighting: daytime + bright, nothing glows white (fix round 2, lighting) --
+-- Malek (Nov 18 16:43): keep it daytime and bright, but lower the
+-- bloom and exposure so nothing glows white; the ground a real colour
+-- (green grass), the sky blue, so the Brainrots and the HUD stand out.
+-- Bloom 0.35 -> 0.15, base Brightness 3 -> 2, ColorCorrection
+-- Brightness 0.2 -> 0.0, ground Slate -> Grass material in a natural
+-- green, sky stays blue. The storm must restore to the NEW base (2)
+-- and darken to 1.2, not to the old values.
+do
+	local projectSrc = read("default.project.json")
+	local starSrc = read("src/server/StarfallService.luau")
+	if not projectSrc or not starSrc then
+		check("br", false, "could not verify the lighting — default.project.json or StarfallService.luau missing")
+	else
+		local problems: { string } = {}
+		if not projectSrc:find('"Brightness": 2') then
+			table.insert(problems, "base Lighting Brightness is not 2 (exposure not lowered)")
+		end
+		if not projectSrc:find('"Intensity": 0%.15') then
+			table.insert(problems, "Bloom Intensity is not 0.15 (bloom not lowered)")
+		end
+		if not projectSrc:find('"Brightness": 0%.0') then
+			table.insert(problems, "ColorCorrection Brightness is not 0.0 (exposure not lowered)")
+		end
+		if not projectSrc:find('"Color": %[%s*0%.35,%s*0%.68,%s*0%.3%s*%]') then
+			table.insert(problems, "ground is not the natural grass green [0.35, 0.68, 0.3]")
+		end
+		if not projectSrc:find('"Material": "Grass"') then
+			table.insert(problems, "ground Material is not Grass")
+		end
+		if not projectSrc:find('"ClockTime": 12%.5') then
+			table.insert(problems, "ClockTime is not 12.5 (not daytime)")
+		end
+		if not projectSrc:find('"Color": %[%s*0%.65,%s*0%.75,%s*1%.0%s*%]') then
+			table.insert(problems, "Atmosphere color is not the blue [0.65, 0.75, 1.0]")
+		end
+		if not starSrc:find("Lighting%.Brightness = 2") then
+			table.insert(problems, "restoreSky does not restore the new base Brightness 2")
+		end
+		if not starSrc:find("Lighting%.Brightness = 1%.2") then
+			table.insert(problems, "dimSky does not darken to the softened 1.2")
+		end
+		if #problems > 0 then
+			check("br", false, "the lighting is not the fixed preset — " .. table.concat(problems, "; ") .. ". Parts: default.project.json, StarfallService.luau")
+		else
+			check("br", true, "lighting: daytime + bright (ClockTime 12.5, Saturation 1.0, blue sky), Bloom 0.15, Brightness 2, ColorCorrection 0.0 — nothing glows white; natural grass ground; storm restores to 2, darkens to 1.2")
 		end
 	end
 end
