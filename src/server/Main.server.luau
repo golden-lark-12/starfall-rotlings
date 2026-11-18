@@ -92,7 +92,9 @@ end
 local function onCharacterAdded(player: Player, character: Model)
 	ShopService.applyWalkSpeed(player)
 	BoostService.applyWalkSpeed(player)
-	BuddyService.attachBuddy(player, character)
+	-- BUDDY_PARKED (simplify pass, v74): the buddy pet is not
+	-- spawned on join — its label overlapped the player and the pet
+	-- blocked the camera. The code stays for a later return.
 	-- Spawn at your own base, facing the crater: stand beside the
 	-- platform's front corner, so the glowing pads are right beside you
 	-- and the crater is straight ahead. (The SpawnLocation alone can't

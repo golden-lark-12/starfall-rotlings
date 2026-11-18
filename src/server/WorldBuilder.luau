@@ -1112,10 +1112,13 @@ local function buildStarShop()
 	signBoard.CanCollide = false
 	local signGui = Instance.new("BillboardGui")
 	signGui.Name = "ShopSign"
-	signGui.Size = UDim2.fromOffset(360, 60)
-	signGui.AlwaysOnTop = true
+	-- Depth-tested and shorter-range (v74, plaza fix): the old
+	-- AlwaysOnTop sign at MaxDistance 120 rendered over the
+	-- Contract Board from the plaza. It still reads from the shop.
+	signGui.Size = UDim2.fromOffset(300, 50)
+	signGui.AlwaysOnTop = false
 	signGui.LightInfluence = 0
-	signGui.MaxDistance = 120
+	signGui.MaxDistance = 60
 	signGui.Parent = signBoard
 	local signLabel = Instance.new("TextLabel")
 	signLabel.Size = UDim2.new(1, 0, 1, 0)
@@ -1466,8 +1469,13 @@ end
 -- meteor prop — the in-game render of the logo, bright and readable
 -- at 150px for the Roblox icon (item 13). Display models only: their
 -- State is "display", so rivals, the belt list and grabs ignore them.
+-- Logo stage: the three hero Brainrots + meteor for the icon shot
+-- (photo mode P, shot 5). It used to stand at (-25, 0, 88), right
+-- beside the spawn path — three 1.5x Brainrots with huge eyes
+-- blocking the plaza view. Now it sits BEHIND spawn (0, 0, 118),
+-- out of the walkway, heroes facing north toward the path.
 local function buildLogoStage()
-	local stageCf = CFrame.new(-25, 0, 88)
+	local stageCf = CFrame.new(0, 0, 118)
 	local stage = part("LogoStage", Enum.PartType.Block, Vector3.new(16, 1, 10), Color3.fromRGB(60, 45, 90), stageCf * CFrame.new(0, 0.5, 0))
 	stage.CanCollide = false
 	local heroIds = { "gummy", "couch", "bloop" }
@@ -1481,7 +1489,9 @@ local function buildLogoStage()
 				model:SetAttribute("State", "display")
 				model:SetAttribute("BaseId", 0)
 				model:SetAttribute("PadIndex", 0)
-				model:PivotTo(CFrame.new(pos))
+				-- Face north, toward spawn and the path (the face is
+				-- built on the model's +Z side).
+				model:PivotTo(CFrame.new(pos) * CFrame.Angles(0, math.rad(180), 0))
 			end
 		end
 	end
@@ -1494,16 +1504,18 @@ local function buildLogoStage()
 	meteorLight.Parent = meteor
 end
 
--- Contract Board in the plaza (-32, 0, 90): the visible board where
+-- Contract Board in the plaza (16, 0, 94): the visible board where
 -- the player picks up contracts and claims rewards. The board itself
 -- is a sign + a prompt — contracts are per-player, so the board's
 -- text is the same for everyone ("3 contracts, claim rewards here")
 -- and pressing E opens the player's own board panel (MissionService
--- wires the prompt to the OpenContracts remote). It takes the old
--- Bounty Board's spot, on the LEFT side of the spawn path, ~55 studs
--- from the Index Wall on the right — never in the same frame.
+-- wires the prompt to the OpenContracts remote). It stands on the
+-- EAST side of the spawn path, away from the STAR SHOP sign on the
+-- west — in v72 the two signs overlapped on screen from the plaza.
+-- ~48 studs from the Index Wall — never in the same frame as it.
 local function buildContractBoard()
-	local boardCf = CFrame.lookAt(Vector3.new(-32, 0, 90), Vector3.new(0, 0, 96))
+	-- East side of the spawn path, facing the path.
+	local boardCf = CFrame.lookAt(Vector3.new(16, 0, 94), Vector3.new(0, 0, 96))
 	for _, x in ipairs({ -4, 4 }) do
 		local post = part("ContractPost", Enum.PartType.Cylinder, Vector3.new(7, 0.8, 0.8), Color3.fromRGB(120, 85, 50), boardCf * CFrame.new(x, 3.5, 0) * CFrame.Angles(0, 0, math.rad(90)))
 		post.CanCollide = false
@@ -1516,10 +1528,15 @@ local function buildContractBoard()
 	trim.CanCollide = false
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "ContractBoardGui"
-	gui.Size = UDim2.fromOffset(280, 160)
-	gui.AlwaysOnTop = true
+	-- Small and depth-tested (v74, plaza fix): the old 280x160
+	-- AlwaysOnTop board rendered giant centre-screen text over the
+	-- world at close range and drew over the STAR SHOP sign. At
+	-- 220x110 with fixed text sizes it reads as a sign, not a
+	-- fullscreen overlay, and it hides behind nearer geometry.
+	gui.Size = UDim2.fromOffset(220, 110)
+	gui.AlwaysOnTop = false
 	gui.LightInfluence = 0
-	gui.MaxDistance = 60
+	gui.MaxDistance = 40
 	gui.Parent = board
 	local title = Instance.new("TextLabel")
 	title.Name = "ContractTitle"
@@ -1527,7 +1544,7 @@ local function buildContractBoard()
 	title.BackgroundTransparency = 1
 	title.Text = "📋 CONTRACT BOARD"
 	title.Font = Enum.Font.FredokaOne
-	title.TextScaled = true
+	title.TextSize = 22
 	title.TextColor3 = Color3.fromRGB(255, 220, 90)
 	title.TextStrokeTransparency = 0.3
 	title.Parent = gui
@@ -1538,7 +1555,7 @@ local function buildContractBoard()
 	text.BackgroundTransparency = 1
 	text.Text = "3 contracts at a time.\nFinish one, claim the reward!"
 	text.Font = Enum.Font.FredokaOne
-	text.TextScaled = true
+	text.TextSize = 15
 	text.TextColor3 = Color3.fromRGB(255, 255, 255)
 	text.TextStrokeTransparency = 0.3
 	text.Parent = gui

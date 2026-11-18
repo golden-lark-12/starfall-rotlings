@@ -856,7 +856,10 @@ do
 	end
 end
 
--- 19. Buddy: half-size follower, +5% cash, swappable from the Index.
+-- 19. Buddy: PARKED (simplify pass, v74) — the pet is not spawned, so
+-- it cannot overlap the player or block the camera. The code stays
+-- for a later return: attachBuddy still exists, refreshBuddy is a
+-- no-op, the Index button is hidden.
 do
 	local buddySrc = read("src/server/BuddyService.luau")
 	local indexSrc = read("src/client/IndexController.client.luau")
@@ -866,24 +869,21 @@ do
 	else
 		local problems: { string } = {}
 		if not buddySrc:find("function BuddyService%.attachBuddy") then
-			table.insert(problems, "attachBuddy not found")
+			table.insert(problems, "attachBuddy gone — the pet cannot return later")
 		end
-		if not buddySrc:find("Buddy: ") then
-			table.insert(problems, 'no "Buddy: <name>" tag')
+		if mainSrc:find("attachBuddy") then
+			table.insert(problems, "the buddy is still attached on spawn")
 		end
-		if not buddySrc:find("%+5%% cash") then
-			table.insert(problems, "no +5% cash on the buddy tag")
+		if not buddySrc:find("BUDDY_PARKED") then
+			table.insert(problems, "refreshBuddy is not parked — a placement would re-spawn the pet")
 		end
-		if not indexSrc:find("Set as Buddy") then
-			table.insert(problems, "no Set as Buddy button in the Index")
-		end
-		if not mainSrc:find("BuddyService%.attachBuddy") then
-			table.insert(problems, "the buddy is never attached on spawn")
+		if not indexSrc:find("buddyButton%.Visible = false") then
+			table.insert(problems, "the Set as Buddy button is not hidden")
 		end
 		if #problems > 0 then
 			step("buddy", false, table.concat(problems, "; "))
 		else
-			step("buddy", true, "half-size follower with +5% cash tag, swappable from the Index, attached on spawn")
+			step("buddy", true, "buddy pet parked: never spawned, no label over the player, no +5% bonus, Index button hidden — code kept for a later return")
 		end
 	end
 end

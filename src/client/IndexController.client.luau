@@ -203,9 +203,12 @@ do
 		GuiKit.makeLabel(card, "Cps", Formatting.formatMoney(math.floor(RotlingCatalog.baseCps(def, nil))) .. "/s · ✦ up to x" .. tostring(maxMult), UDim2.new(1, -8, 0, 16), UDim2.new(0, 4, 0, 104), 14, Color3.fromRGB(255, 230, 90))
 		local flavorLabel = GuiKit.makeLabel(card, "Flavor", def.flavor, UDim2.new(1, -8, 0, 14), UDim2.new(0, 4, 0, 120), 11, Color3.fromRGB(200, 200, 220))
 		flavorLabel.TextWrapped = true
-		-- Set as Buddy: swap your buddy Rotling from the Index.
+		-- BUDDY_PARKED (simplify pass, v74): the buddy pet is off, so
+		-- its button stays hidden. The button and its handler stay in
+		-- the tree for a later return.
 		local buddyButton = GuiKit.makeButton(card, "Buddy", "Set as Buddy", UDim2.new(1, -8, 0, 20), UDim2.new(0, 4, 0, 136), GuiKit.COLORS.Purple)
 		buddyButton.TextSize = 14
+		buddyButton.Visible = false
 		buddyButton.MouseButton1Click:Connect(function()
 			if not foundSet[def.id] then
 				GuiKit.showBanner(gui, "Find " .. def.name .. " first!", 3)

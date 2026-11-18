@@ -152,6 +152,7 @@ rebirthFill.BackgroundTransparency = 0.4
 rebirthFill.BorderSizePixel = 0
 rebirthFill.Parent = rebirthBar
 local rebirthProgressLabel = GuiKit.makeLabel(rebirthBar, "RebirthProgressLabel", "NEXT REBIRTH: $0 / $10,000", UDim2.new(1, -16, 1, 0), UDim2.new(0, 8, 0, 0), 14, GuiKit.COLORS.White)
+rebirthProgressLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
 -- Storm timer, top-right at y=60: below the player list (which ends
 -- around y=48), 12px clear of the screen edge.
@@ -192,7 +193,14 @@ eventLabel.Visible = false
 
 -- Right-side buttons, stacked below the event label, 12px clear of
 -- the screen edge.
-local rebirthButton = GuiKit.makeButton(gui, "RebirthButton", "✨ Rebirth (R)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -184, 0, 140), GuiKit.COLORS.Pink)
+-- 220 wide, not 160 (v74, plaza fix): the READY text
+-- ("✨ REBIRTH READY! ✨") is ~210px at 20px, so it overflowed the
+-- 160px button and ran off the screen's right edge. TextScaled
+-- shrinks it to fit; truncate is the backstop. Right edge stays
+-- 24px from the screen edge.
+local rebirthButton = GuiKit.makeButton(gui, "RebirthButton", "✨ Rebirth (R)", UDim2.new(0, 220, 0, 48), UDim2.new(1, -244, 0, 140), GuiKit.COLORS.Pink)
+rebirthButton.TextScaled = true
+rebirthButton.TextTruncate = Enum.TextTruncate.AtEnd
 local lockButton = GuiKit.makeButton(gui, "LockButton", "🔓 Lock Base (L)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -184, 0, 196), GuiKit.COLORS.Red)
 
 -- Hint line, bottom-centre, anchored so it never clips at the sides.

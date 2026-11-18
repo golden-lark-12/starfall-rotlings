@@ -153,13 +153,11 @@ end
 -- Rebuild the buddy when the best placed Rotling changes (place, sell,
 -- pickup, rebirth) or the player picks a new one in the Index.
 function BuddyService.refreshBuddy(player: Player)
-	local defId, _ = pickBuddyDef(player)
-	local current = State.buddies[player.UserId]
-	local currentDef = if current then current:GetAttribute("DefId") :: string else nil
-	if defId == currentDef then
-		return
-	end
-	BuddyService.attachBuddy(player)
+	-- BUDDY_PARKED (simplify pass, v74): the buddy pet is off — do
+	-- not attach one on placement. The old body (pick the best
+	-- buddy, attach if it changed) is in git history; it returns
+	-- with the pet. Nothing spawns, no label, no +5% cash while parked.
+	return
 end
 
 -- Set the buddy from the Index. Returns (ok, message).

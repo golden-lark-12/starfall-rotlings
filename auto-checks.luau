@@ -2639,8 +2639,12 @@ do
 		check("av", false, "could not verify the buddy — BuddyService.luau, IndexController.client.luau or Main.server.luau missing")
 	else
 		local problems: { string } = {}
-		if not buddySrc:find("BUDDY_SCALE") and not buddySrc:find("0.5") then
-			table.insert(problems, "the buddy is not half size")
+		-- PARKED (simplify pass, v74): the pet is off, so nothing may
+		-- spawn it — but the code stays so it can return. The tag,
+		-- the +5% bonus and the Index button still exist; they are
+		-- just unreachable while parked.
+		if not buddySrc:find("function BuddyService%.attachBuddy") then
+			table.insert(problems, "attachBuddy gone — the pet cannot return later")
 		end
 		if not buddySrc:find("Buddy: ") then
 			table.insert(problems, 'no "Buddy: <name>" tag on the follower')
@@ -2651,13 +2655,19 @@ do
 		if not indexSrc:find("Set as Buddy") then
 			table.insert(problems, "no Set as Buddy button in the Index")
 		end
-		if not mainSrc:find("BuddyService.attachBuddy") then
-			table.insert(problems, "the buddy is never attached on spawn (Main.server)")
+		if mainSrc:find("attachBuddy") then
+			table.insert(problems, "the buddy is still attached on spawn (Main.server)")
+		end
+		if not buddySrc:find("BUDDY_PARKED") then
+			table.insert(problems, "refreshBuddy is not parked — a placement would re-spawn the pet")
+		end
+		if not indexSrc:find("buddyButton%.Visible = false") then
+			table.insert(problems, "the Set as Buddy button is not hidden")
 		end
 		if #problems > 0 then
-			check("av", false, "the buddy is missing — " .. table.concat(problems, "; ") .. ". Parts: BuddyService.luau, Index swap (IndexController), wiring (Main.server.luau)")
+			check("av", false, "the buddy park is broken — " .. table.concat(problems, "; ") .. ". Parts: BuddyService.luau, Index swap (IndexController), wiring (Main.server.luau)")
 		else
-			check("av", true, "buddy: half-size highest-income follower with a +5% cash tag, swappable from the Index, attached on spawn")
+			check("av", true, "buddy parked: pet never spawned (no label over the player), +5% bonus and Index button kept but unreachable — code ready to return")
 		end
 	end
 end
@@ -3913,8 +3923,11 @@ do
 		if worldSrc:find("Grab them%. Grow them%. Guard your base%.") then
 			table.insert(problems, "the slogan ('Grab them. Grow them. Guard your base.') is still in the world")
 		end
-		if not worldSrc:find("Vector3%.new%(%-32, 0, 90%)") then
-			table.insert(problems, "Bounty Board is not on the left side of the path (-32, 0, 90)")
+		-- v74 plaza fix: the Contract Board moved to the EAST side of
+		-- the path (16, 0, 94), away from the STAR SHOP sign on the
+		-- west — the two signs overlapped on screen from the plaza.
+		if not worldSrc:find("Vector3%.new%(16, 0, 94%)") then
+			table.insert(problems, "Contract Board is not on the east side of the path (16, 0, 94)")
 		end
 		if not worldSrc:find("Vector3%.new%(48, 0, 58%)") then
 			table.insert(problems, "Index Wall is not moved away from spawn (48, 0, 58)")
@@ -3957,7 +3970,7 @@ do
 		if #problems > 0 then
 			check("bq", false, "the layout + rename is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, HUDController.client.luau, IndexController.client.luau, CarryService.luau, SellService.luau")
 		else
-			check("bq", true, "layout fixed: sky billboard + slogan gone, Index Wall (48,58) and Bounty Board (-32,90) ~85 studs apart, storm panel 420px with a short warn line; every visible 'Rotling' is 'Brainrot'")
+			check("bq", true, "layout fixed: sky billboard + slogan gone, Index Wall (48,58) and Contract Board (16,94) ~48 studs apart, storm panel 420px with a short warn line; every visible 'Rotling' is 'Brainrot'")
 		end
 	end
 end
@@ -4395,7 +4408,11 @@ do
 		if not hudSrc:find("UDim2%.new%(1, %-254, 0, 108%)") then
 			table.insert(problems, "event label still ends 12px from the edge (not 24px)")
 		end
-		if not hudSrc:find("UDim2%.new%(1, %-184, 0, 140%)") or not hudSrc:find("UDim2%.new%(1, %-184, 0, 196%)") then
+		-- v74 plaza fix: the Rebirth button widened to 220 (its READY
+		-- text overflowed the 160px button off the screen edge), so
+		-- it sits at (1, -244) now — right edge still 24px in. The
+		-- Lock button stays at (1, -184).
+		if not hudSrc:find("UDim2%.new%(1, %-244, 0, 140%)") or not hudSrc:find("UDim2%.new%(1, %-184, 0, 196%)") then
 			table.insert(problems, "rebirth/lock buttons still end 12px from the edge (not 24px)")
 		end
 		if not hudSrc:find("UDim2%.new%(1, %-244, 0, 252%)") then
@@ -4404,14 +4421,14 @@ do
 		if hudSrc:find('"Next storm: "') then
 			table.insert(problems, "storm calm text is still the long 'Next storm: 72s'")
 		end
-		if not worldSrc:find("Vector3%.new%(%-32, 0, 90%)") then
-			table.insert(problems, "Contract Board is not at (-32, 0, 90)")
+		if not worldSrc:find("Vector3%.new%(16, 0, 94%)") then
+			table.insert(problems, "Contract Board is not at (16, 0, 94)")
 		end
 		if not worldSrc:find("Vector3%.new%(48, 0, 58%)") then
 			table.insert(problems, "Index Wall is not at (48, 0, 58)")
 		end
-		if not worldSrc:find("UDim2%.fromOffset%(280, 160%)") then
-			table.insert(problems, "Contract Board gui is not 280x160")
+		if not worldSrc:find("UDim2%.fromOffset%(220, 110%)") then
+			table.insert(problems, "Contract Board gui is not 220x110")
 		end
 		if not worldSrc:find("spawnSignGui%.MaxDistance = 60") then
 			table.insert(problems, "Spawn sign view distance is not 60")
@@ -4419,8 +4436,8 @@ do
 		if not worldSrc:find("titleGui%.MaxDistance = 60") then
 			table.insert(problems, "Index Wall title view distance is not 60")
 		end
-		if not worldSrc:find("gui%.MaxDistance = 60") then
-			table.insert(problems, "Contract Board view distance is not 60")
+		if not worldSrc:find("gui%.MaxDistance = 40") then
+			table.insert(problems, "Contract Board view distance is not 40")
 		end
 		-- Rename: scan the whole source for a quoted "Rotling" that
 		-- is NOT one of the allowed code identifiers.
@@ -4453,7 +4470,7 @@ do
 		if #problems > 0 then
 			check("bz", false, "the HUD/text fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: HUDController.client.luau, WorldBuilder.luau")
 		else
-			check("bz", true, "HUD fully on screen (24px margins, short storm text), signs ~86 studs apart with 280x160 Contract Board and 60 view distances; no player-visible 'Rotling' anywhere")
+			check("bz", true, "HUD fully on screen (24px margins, short storm text), signs ~48 studs apart with 220x110 Contract Board and 40 view distance; no player-visible 'Rotling' anywhere")
 		end
 	end
 end
@@ -5463,6 +5480,76 @@ do
 			check("cs", false, "mutations are not visible — " .. table.concat(problems, "; ") .. ". Parts: RotlingFactory.luau, SpawnService.luau, IndexService.luau, IndexController.client.luau, CarryService.luau, MutationConfig.luau")
 		else
 			check("cs", true, "mutations are visible: label names the mutation in its colour + multiplier line, Neon beam + sparkle on mutated Rotlings, server-wide spawn banner, opening mix guarantees a Gold and a Rainbow, grab/place logs the find, index shows all six mutations as chips (found in colour, unfound ???)")
+		end
+	end
+end
+
+-- (ct) Plaza fix (v74): the Contract Board and the STAR SHOP sign no
+-- longer overlap; the board's text is a sign, not a fullscreen
+-- overlay; the logo stage is out of the walkway; the REBIRTH READY
+-- pill fits on screen; the buddy pet is parked.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	local buddySrc = read("src/server/BuddyService.luau")
+	local indexSrc = read("src/client/IndexController.client.luau")
+	if not worldSrc or not hudSrc or not mainSrc or not buddySrc or not indexSrc then
+		check("ct", false, "could not verify the plaza fix — WorldBuilder.luau, HUDController.client.luau, Main.server.luau, BuddyService.luau or IndexController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find("Vector3%.new%(16, 0, 94%)") then
+			table.insert(problems, "the Contract Board is not on the east side of the spawn path (16, 0, 94)")
+		end
+		if worldSrc:find("Vector3%.new%(-32, 0, 90%)") then
+			table.insert(problems, "the Contract Board is still at the old west-side spot (-32, 0, 90)")
+		end
+		if not worldSrc:find("UDim2%.fromOffset%(220, 110%)\n\tgui%.AlwaysOnTop = false") then
+			table.insert(problems, "the Contract Board billboard is not 220x110 depth-tested")
+		end
+		if not worldSrc:find("CONTRACT BOARD\"\n\ttitle%.Font = Enum%.Font%.FredokaOne\n\ttitle%.TextSize = 22") then
+			table.insert(problems, "the Contract Board title is not a fixed 22px (TextScaled blows up at close range)")
+		end
+		if not worldSrc:find("3 contracts at a time%.\\nFinish one, claim the reward!\"\n\ttext%.Font = Enum%.Font%.FredokaOne\n\ttext%.TextSize = 15") then
+			table.insert(problems, "the Contract Board body text is not a fixed 15px")
+		end
+		if not worldSrc:find("signGui%.Size = UDim2%.fromOffset%(300, 50%)\n\tsignGui%.AlwaysOnTop = false") then
+			table.insert(problems, "the STAR SHOP sign is not 300x50 depth-tested")
+		end
+		if not worldSrc:find("signGui%.MaxDistance = 60") then
+			table.insert(problems, "the STAR SHOP sign still renders from 120 studs (over the plaza)")
+		end
+		if not worldSrc:find("CFrame%.new%(0, 0, 118%)") then
+			table.insert(problems, "the logo stage is not behind spawn (0, 0, 118)")
+		end
+		if worldSrc:find("CFrame%.new%(-25, 0, 88%)") then
+			table.insert(problems, "the logo stage is still beside the spawn path (-25, 0, 88)")
+		end
+		if not worldSrc:find("model:PivotTo%(CFrame%.new%(pos%) %* CFrame%.Angles%(0, math%.rad%(180%), 0%)%)") then
+			table.insert(problems, "the logo-stage heroes do not face north toward the path")
+		end
+		if not hudSrc:find("UDim2%.new%(0, 220, 0, 48%), UDim2%.new%(1, %-244, 0, 140%)") then
+			table.insert(problems, "the Rebirth button is not 220 wide at (1, -244)")
+		end
+		if not hudSrc:find("rebirthButton%.TextScaled = true") then
+			table.insert(problems, "the Rebirth button text does not scale to fit")
+		end
+		if not hudSrc:find("rebirthProgressLabel%.TextTruncate = Enum%.TextTruncate%.AtEnd") then
+			table.insert(problems, "the REBIRTH READY label has no truncate backstop")
+		end
+		if mainSrc:find("attachBuddy") then
+			table.insert(problems, "the buddy is still attached on spawn")
+		end
+		if not buddySrc:find("BUDDY_PARKED") then
+			table.insert(problems, "refreshBuddy is not parked — a placement would re-spawn the pet")
+		end
+		if not indexSrc:find("buddyButton%.Visible = false") then
+			table.insert(problems, "the Set as Buddy button is not hidden")
+		end
+		if #problems > 0 then
+			check("ct", false, "the plaza fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, HUDController.client.luau, Main.server.luau, BuddyService.luau, IndexController.client.luau")
+		else
+			check("ct", true, "the plaza is uncluttered: Contract Board east of the path (small, depth-tested, fixed text), STAR SHOP sign depth-tested at 60 studs, logo stage behind spawn facing the path, REBIRTH READY button 220 wide that scales to fit, buddy pet parked (never spawned, no label, Index button hidden)")
 		end
 	end
 end
