@@ -446,6 +446,18 @@ local function tryStartSteal(rival: State.Rival, model: Model): boolean
 	if not victim or not victimBase then
 		return false
 	end
+	-- One thief per victim (rev 78): if another rival is already
+	-- stealing from this victim, wait for the next roll/clock beat
+	-- instead of piling four thieves on the same base at once.
+	-- Malek is the only player with placed Brainrots, so all four
+	-- rivals could pick him at once — a swarm, not a thief. (Pairs
+	-- with the gate fix: once the gate clears, they enter one by
+	-- one instead of piling up at the entrance.)
+	for _, other in pairs(State.rivals) do
+		if other ~= rival and other.phase == "steal" and other.targetUserId == victim.UserId then
+			return false
+		end
+	end
 	rival.phase = "steal"
 	rival.targetUserId = victim.UserId
 	rival.targetBase = victimBase

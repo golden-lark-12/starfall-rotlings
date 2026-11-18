@@ -5688,6 +5688,33 @@ do
 	end
 end
 
+-- (cx) One thief at a time per victim (rev 78): tryStartSteal refuses
+-- to start a second steal on a victim another rival is already
+-- stealing from, so thieves arrive one by one instead of a 4-thief
+-- swarm on the only player with placed Brainrots.
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	if not rivalSrc then
+		check("cx", false, "could not verify the one-thief rule — RivalService.luau missing")
+	else
+		local problems: { string } = {}
+		if not rivalSrc:find('other%.phase == "steal"') then
+			table.insert(problems, "tryStartSteal does not check whether another rival is already stealing")
+		end
+		if not rivalSrc:find("other%.targetUserId == victim%.UserId") then
+			table.insert(problems, "the check does not match the same victim")
+		end
+		if not rivalSrc:find("other ~= rival") then
+			table.insert(problems, "the check does not exclude the rival itself")
+		end
+		if #problems > 0 then
+			check("cx", false, "the one-thief rule is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau")
+		else
+			check("cx", true, "one thief at a time per victim: tryStartSteal returns false while another rival is already stealing from the same victim, so thieves stagger (one comes, you bonk/lock, the next comes later) instead of a 4-thief swarm")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
