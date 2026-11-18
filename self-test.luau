@@ -471,6 +471,35 @@ do
 	end
 end
 
+-- 12b. Storm hit feedback (fix 1): a meteor hit is no longer silent.
+-- The victim gets a METEOR HIT banner, the screen flashes red on a
+-- close impact, and the storm bar says sheltering pays x2 and throbs
+-- while the storm runs — banner, wall and effect in the same moment.
+do
+	local starSrc = read("src/server/StarfallService.luau")
+	local camSrc = read("src/client/CameraFX.client.luau")
+	local warnSrc = read("src/client/StormWarningController.client.luau")
+	if not starSrc or not camSrc or not warnSrc then
+		step("storm-hit-feedback", false, "StarfallService.luau, CameraFX.client.luau or StormWarningController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not starSrc:find("METEOR HIT!") then
+			table.insert(problems, 'no "METEOR HIT!" banner in StarfallService.onMeteorLanded')
+		end
+		if not camSrc:find("MeteorHitFlash") or not camSrc:find("distance <= 15") then
+			table.insert(problems, "CameraFX has no red flash on a close (<= 15 stud) meteor impact")
+		end
+		if not warnSrc:find("x2 INCOME") or not warnSrc:find("startPulse") then
+			table.insert(problems, "storm bar does not say SHELTER = x2 INCOME and throb")
+		end
+		if #problems > 0 then
+			step("storm-hit-feedback", false, table.concat(problems, "; "))
+		else
+			step("storm-hit-feedback", true, "METEOR HIT banner to the victim + red screen flash on a close impact; storm bar says SHELTER = x2 INCOME and throbs")
+		end
+	end
+end
+
 -- 13. Sell is 25x: selling clears a pad, never beats placing.
 do
 	local configSrc = read("src/shared/Config.luau")

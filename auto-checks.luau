@@ -3013,6 +3013,58 @@ do
 	end
 end
 
+-- -- (bd) storm hit feedback + storm-now pill (fix 1) ----------------------
+-- The storm ran and hit, but a player caught outside their base got no
+-- banner, no flash and no sound — damage + knockback + dropped carries
+-- with no visible cue, so the storm felt like nothing. And a sheltered
+-- player saw only a small "(x2)" in the HUD income line. Now: a hit
+-- banners the victim AND flashes the screen red, and the storm bar
+-- itself says sheltering on your base pays x2 and throbs while the
+-- storm runs — banner, wall and effect all land in the same moment.
+do
+	local starSrc = read("src/server/StarfallService.luau")
+	local camSrc = read("src/client/CameraFX.client.luau")
+	local warnSrc = read("src/client/StormWarningController.client.luau")
+	if not starSrc or not camSrc or not warnSrc then
+		check("bd", false, "could not verify storm hit feedback — StarfallService.luau, CameraFX.client.luau or StormWarningController.client.luau missing")
+	else
+		local problems: { string } = {}
+		-- A meteor hit banners the victim.
+		if not starSrc:find("METEOR HIT!") then
+			table.insert(problems, 'no "METEOR HIT!" banner in StarfallService.onMeteorLanded')
+		end
+		if not starSrc:find("bannerEvent%(%)%:FireClient%(player, \"🌠 METEOR HIT!") then
+			table.insert(problems, "the hit banner is not fired to the hit player")
+		end
+		-- A close impact flashes the screen red.
+		if not camSrc:find("MeteorHitFlash") then
+			table.insert(problems, "no MeteorHitFlash frame in CameraFX.client.luau")
+		end
+		if not camSrc:find("distance <= 15") then
+			table.insert(problems, "CameraFX does not flash on a close (<= 15 stud) meteor impact")
+		end
+		-- The storm bar says sheltering pays x2, and throbs.
+		if not warnSrc:find("x2 INCOME") then
+			table.insert(problems, 'storm bar does not say sheltering pays "x2 INCOME"')
+		end
+		if not warnSrc:find("startPulse") or not warnSrc:find("TweenInfo.new%(0%.5") then
+			table.insert(problems, "storm bar does not pulse while the storm runs")
+		end
+		-- Simultaneous at storm start: banner + wall + heroes + rain.
+		if not starSrc:find('bannerEvent%(%)%:FireAllClients%("🌠 STORM FRONT INCOMING') then
+			table.insert(problems, "no STORM FRONT INCOMING banner at storm start")
+		end
+		if not starSrc:find("task.spawn%(function%(%)%s+local ok, err = pcall%(spawnStormFront%)") then
+			table.insert(problems, "storm front wall is not spawned at storm start")
+		end
+		if #problems > 0 then
+			check("bd", false, "the storm's effect is not unmistakable — " .. table.concat(problems, "; ") .. ". Parts: onMeteorLanded hit banner (StarfallService.luau), MeteorHitFlash (CameraFX.client.luau), storm bar x2 + pulse (StormWarningController.client.luau)")
+		else
+			check("bd", true, "storm hit feedback: METEOR HIT banner + red screen flash on a close impact; storm bar says SHELTER = x2 INCOME and throbs; banner + wall + heroes + rain all fire at storm start")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

@@ -255,6 +255,12 @@ local function onMeteorLanded(target: Vector3, isHero: boolean)
 					CarryService.dropAllCarried(player)
 					local MeteorEggService = require(script.Parent.MeteorEggService)
 					MeteorEggService.dropEgg(player)
+					-- Hit feedback (fix 1): a meteor hit used to be
+					-- silent — damage + knockback + dropped carries
+					-- with no banner, no flash, no sound, so a player
+					-- caught outside their base felt nothing and
+					-- thought the storm did nothing. Say it out loud.
+					Remotes.bannerEvent():FireClient(player, "🌠 METEOR HIT! -" .. tostring(Config.STORM_DAMAGE) .. " HP — you dropped what you were carrying! Get to your base!", 4)
 				end
 			end
 		end

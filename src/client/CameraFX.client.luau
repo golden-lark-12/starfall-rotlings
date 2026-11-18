@@ -7,14 +7,30 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local GuiKit = require(script.Parent:WaitForChild("GuiKit"))
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 local trauma = 0
 local stormPhase = "calm"
+
+-- Red damage flash (fix 1): a meteor hit used to be silent — the
+-- player took damage and dropped their carry with no visible cue, so
+-- the storm felt like nothing. When a meteor lands close enough to
+-- hurt (near-player range), the whole screen flashes red and fades.
+local gui = GuiKit.getGui()
+local flash = Instance.new("Frame")
+flash.Name = "MeteorHitFlash"
+flash.Size = UDim2.new(1, 0, 1, 0)
+flash.Position = UDim2.new(0, 0, 0, 0)
+flash.BackgroundColor3 = Color3.fromRGB(255, 30, 30)
+flash.BackgroundTransparency = 1
+flash.BorderSizePixel = 0
+flash.Parent = gui
 
 local function addTrauma(amount: number)
 	trauma = math.min(1, trauma + amount)
@@ -38,6 +54,15 @@ Remotes.meteorImpactEvent().OnClientEvent:Connect(function(impact: Vector3)
 	local strength = math.clamp(1 - (distance - 20) / 80, 0, 1)
 	if strength > 0.05 then
 		addTrauma(strength * 0.6)
+	end
+	-- Red flash when the impact is close enough to hurt: the hit
+	-- reads on screen, not just in the camera shake.
+	if distance <= 15 then
+		flash.BackgroundTransparency = 0.3
+		local fade = TweenService:Create(flash, TweenInfo.new(0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundTransparency = 1,
+		})
+		fade:Play()
 	end
 end)
 
