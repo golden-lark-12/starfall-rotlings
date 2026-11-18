@@ -749,8 +749,8 @@ do
 		if not raiderSrc:find("Vector3%.new%(math%.cos%(angle%) %* 45, 8, math%.sin%(angle%) %* 45%)") then
 			table.insert(problems, "raiders do not spawn at radius 45, Y=8")
 		end
-		if not configSrc:find("RAIDER_FIRST = 15") or not configSrc:find("RAIDER_INTERVAL = 45") then
-			table.insert(problems, "raider timing is not first 15s / every 45s")
+		if not configSrc:find("RAIDER_FIRST = 15") or not configSrc:find("RAIDER_INTERVAL = 75") then
+			table.insert(problems, "raider timing is not first 15s / every 75s")
 		end
 		if not raiderSrc:find("humanoid%.Jump = true") or not rivalSrc:find("humanoid%.Jump = true") then
 			table.insert(problems, "walkTo has no stuck-jump in RaiderService or RivalService")
@@ -761,7 +761,7 @@ do
 		if #problems > 0 then
 			step("bots-move", false, table.concat(problems, "; "))
 		else
-			step("bots-move", true, "BaseRamp wedge at every base front, raiders spawn radius 45 / Y=8, first raid 15s then every 45s, stuck bots jump, raiders + rivals shelter during storms")
+			step("bots-move", true, "BaseRamp wedge at every base front, raiders spawn radius 45 / Y=8, first raid 15s then every 75s, stuck bots jump, raiders + rivals shelter during storms")
 		end
 	end
 end

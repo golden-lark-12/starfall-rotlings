@@ -17,10 +17,8 @@ Config.CRATER_FLOOR_Y = 0.4 -- top of the crater disc: Rotlings spawn and meteor
 Config.GROUND_SIZE = 480
 
 -- Spawning.
-Config.SPAWN_INTERVAL = 4 -- seconds between spawn attempts
-Config.CRATER_MAX_FREE = 10 -- free Rotlings at once in the crater
-Config.CRATER_MIN_FREE = 6 -- the conveyor never drops below this: top up fast
-Config.CRATER_INITIAL = 8 -- Rotlings waiting when the first player arrives
+Config.SPAWN_INTERVAL = 17 -- seconds between spawn attempts (competition via scarcity: a new Brainrot walks in every 15-20s)
+Config.CRATER_MAX_FREE = 5 -- free Brainrots at once in the crater (competition via scarcity: 3-5 at a time)
 
 -- Contracts: the Contract Board's pool. Three are active at a time,
 -- dealt in pool order; claiming one deals the next pool contract not
@@ -170,7 +168,7 @@ Config.BASE_WALKSPEED = 16
 
 -- Rot Raiders: NPC thieves that raid bases on a timer.
 Config.RAIDER_FIRST = 15 -- seconds after server start before the first raid (was 45: too slow to notice in a short playtest)
-Config.RAIDER_INTERVAL = 45 -- seconds between raids (was 75)
+Config.RAIDER_INTERVAL = 75 -- seconds between raids (competition via scarcity: raider/thief bots every 60-90s; was 45 — the 45s cadence was set when thieves were broken and silent, now they work)
 Config.RAIDER_LIFETIME = 90 -- seconds before a raider gives up and leaves
 Config.RAIDER_WALK_SPEED = 14
 

@@ -208,17 +208,55 @@ local function findSpawnPosition(): Vector3
 	return Vector3.new(x, Config.BELT_TOP_Y - 0.1, z)
 end
 
--- Announce a mutated spawn server-wide: mutations were invisible
--- because nothing ever said one had arrived. A mutated Brainrot gets
--- a banner with its mutation + name ("✨ A GOLD Boba Blob spawned in
--- the crater!") so everyone — players and bots — can race for it.
--- Unmutated spawns stay silent: a banner every 4 seconds would be noise.
-local function announceSpawn(def: RotlingCatalog.RotlingDef, mutation: string?)
-	if not mutation then
+-- A light beam marks a Rare-or-better (or mutated) spawn: a tall Neon
+-- pillar in the rarity colour at the spawn point, fading over 5s, so
+-- the whole map can see the race target. Beams are cheap (one part,
+-- destroyed after the fade) and only fire for Rare+ — Commons never
+-- get one.
+local function spawnBeam(position: Vector3, color: Color3)
+	local beam = Instance.new("Part")
+	beam.Name = "SpawnBeam"
+	beam.Shape = Enum.PartType.Cylinder
+	beam.Size = Vector3.new(40, 1.2, 1.2)
+	beam.CFrame = CFrame.new(position + Vector3.new(0, 20, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	beam.Material = Enum.Material.Neon
+	beam.Color = color
+	beam.Transparency = 0.25
+	beam.Anchored = true
+	beam.CanCollide = false
+	beam.CanQuery = false
+	beam.Parent = workspace
+	task.spawn(function()
+		for i = 1, 10 do
+			task.wait(0.5)
+			if beam.Parent then
+				beam.Transparency = 0.25 + 0.075 * i
+			end
+		end
+		beam:Destroy()
+	end)
+end
+
+-- Announce a mutated or Rare-or-better spawn server-wide: mutations
+-- were invisible because nothing ever said one had arrived, and a Rare
+-- with no mutation spawned in silence. Either kind gets a beam + a
+-- banner ("✨ A GOLD Boba Blob spawned in the crater!" / "🌟 A RARE
+-- Boba Blob spawned in the crater!") so everyone — players and bots —
+-- can race for it. Commons stay silent: a banner every 17 seconds
+-- would be noise.
+local function announceSpawn(def: RotlingCatalog.RotlingDef, mutation: string?, position: Vector3)
+	local tier = RarityConfig.rarityTier(def.rarity)
+	if not mutation and tier < 2 then
 		return
 	end
-	Remotes.bannerEvent():FireAllClients("✨ A " .. mutation:upper() .. " " .. def.name .. " spawned in the crater!", 4)
-	print("[Spawn] mutated " .. mutation .. " " .. def.name .. " (" .. def.rarity .. ") spawned")
+	spawnBeam(position, RarityConfig.rarityByName(def.rarity).color)
+	if mutation then
+		Remotes.bannerEvent():FireAllClients("✨ A " .. mutation:upper() .. " " .. def.name .. " spawned in the crater!", 4)
+		print("[Spawn] mutated " .. mutation .. " " .. def.name .. " (" .. def.rarity .. ") spawned")
+	else
+		Remotes.bannerEvent():FireAllClients("🌟 A " .. def.rarity:upper() .. " " .. def.name .. " spawned in the crater!", 4)
+		print("[Spawn] rare " .. def.name .. " (" .. def.rarity .. ") spawned")
+	end
 end
 
 function SpawnService.spawnOne(): Model?
@@ -236,7 +274,7 @@ function SpawnService.spawnOne(): Model?
 	model.Parent = workspace
 	SpawnService.connectPrompt(model)
 	SpawnService.registerFree(model)
-	announceSpawn(def, mutation)
+	announceSpawn(def, mutation, position)
 	return model
 end
 
@@ -275,7 +313,7 @@ function SpawnService.spawnRareAt(position: Vector3): Model?
 	model.Parent = workspace
 	SpawnService.connectPrompt(model)
 	SpawnService.registerFree(model)
-	announceSpawn(def, mutation)
+	announceSpawn(def, mutation, buildPos)
 	-- A storm rare only stays for its lifetime: after 30s it is gone
 	-- if it is still free (nobody grabbed it).
 	task.delay(Config.STORM_RARE_LIFETIME, function()
@@ -302,7 +340,7 @@ local function spawnForced(defId: string, mutation: string?): Model?
 	model.Parent = workspace
 	SpawnService.connectPrompt(model)
 	SpawnService.registerFree(model)
-	announceSpawn(def, mutation)
+	announceSpawn(def, mutation, position)
 	return model
 end
 
@@ -312,24 +350,24 @@ function SpawnService.start()
 	end
 	running = true
 	-- A few Rotlings are already waiting when the first player arrives:
-	-- the conveyor starts full (CRATER_INITIAL), never empty. The
-	-- opening mix is forced, not random: several rarity tiers together
-	-- (Common, Rare, Epic, Legendary, Mythic) and at least 2 mutated
-	-- Rotlings, so the hero and base shots always show the ladder and
-	-- the mutations (item 13).
+	-- the crater starts with 5 (competition via scarcity: 3-5 at a
+	-- time), never empty, never a pile. The opening mix is forced, not
+	-- random: several rarity tiers together (Common, Rare, Legendary)
+	-- and TWO mutated Rotlings (Gold crumb, Rainbow bloop — the (cs)
+	-- guarantee, so the player meets mutations in the first minute), so
+	-- the hero and base shots always show the ladder and the mutations
+	-- (item 13). The other three (quokka, avocado, narwhal) roll in
+	-- later through the normal spawn.
 	local opening: { { defId: string, mutation: string? } } = {
 		{ defId = "wombat", mutation = nil },
 		{ defId = "boba", mutation = nil },
 		{ defId = "puddles", mutation = nil },
-		{ defId = "avocado", mutation = nil },
-		{ defId = "crumb", mutation = "Gold" },
-		{ defId = "quokka", mutation = nil },
 		{ defId = "bloop", mutation = "Rainbow" },
-		{ defId = "narwhal", mutation = nil },
+		{ defId = "crumb", mutation = "Gold" },
 	}
 	-- GRADUAL, not all at once: 2 waiting when the first player
 	-- arrives, then one more every 3s until the opening mix is out.
-	-- A crater that starts with 8 stacked Rotlings reads as a pile;
+	-- A crater that starts with 5 stacked Rotlings reads as a pile;
 	-- a few at a time, spread out, reads as a living conveyor.
 	local openingDone = false
 	task.spawn(function()
@@ -338,10 +376,6 @@ function SpawnService.start()
 				task.wait(3)
 			end
 			spawnForced(entry.defId, entry.mutation)
-		end
-		for _ = 1, Config.CRATER_INITIAL - #opening do
-			task.wait(3)
-			SpawnService.spawnOne()
 		end
 		openingDone = true
 	end)
@@ -355,12 +389,11 @@ function SpawnService.start()
 		end
 		while true do
 			task.wait(Config.SPAWN_INTERVAL)
-			-- The conveyor never drops below CRATER_MIN_FREE: top it
-			-- back up fast so there is always something to grab.
-			while SpawnService.countFree() < Config.CRATER_MIN_FREE
-				and SpawnService.countFree() < Config.CRATER_MAX_FREE do
-				SpawnService.spawnOne()
-			end
+			-- Scarcity: ONE new Brainrot per tick, only while the crater
+			-- holds fewer than CRATER_MAX_FREE (5). No fast refill — if
+			-- the crater is picked clean it stays thin until the next
+			-- tick, and that thinness is the competition: a Rare+ spawn
+			-- is a race, not a pile to browse.
 			if SpawnService.countFree() < Config.CRATER_MAX_FREE then
 				SpawnService.spawnOne()
 			end

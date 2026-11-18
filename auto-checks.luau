@@ -870,7 +870,12 @@ do
 	end
 end
 
--- -- (m) conveyor: always 6-10 Rotlings to grab ------------------------------
+-- -- (m) conveyor: scarcity — 3-5 Brainrots, one every 15-20s --------------
+-- (simplify/polish, competition via scarcity): the old conveyor kept
+-- 6-10 Rotlings with a fast refill. Now the crater holds 3-5 at a
+-- time and a new one walks in every 15-20s, one per tick — a picked-
+-- clean crater stays thin until the next tick, and that thinness is
+-- the competition.
 do
 	local configSrc = read("src/shared/Config.luau")
 	local spawnSrc = read("src/server/SpawnService.luau")
@@ -878,35 +883,48 @@ do
 		check("m", false, "could not verify the conveyor — Config.luau or SpawnService.luau missing")
 	else
 		local problems: { string } = {}
-		local minFree = configValue(configSrc, "CRATER_MIN_FREE")
+		local interval = configValue(configSrc, "SPAWN_INTERVAL")
 		local maxFree = configValue(configSrc, "CRATER_MAX_FREE")
-		local initial = configValue(configSrc, "CRATER_INITIAL")
-		if not minFree then
-			table.insert(problems, "Config.CRATER_MIN_FREE not found")
-		elseif minFree < 6 then
-			table.insert(problems, "conveyor floor " .. tostring(minFree) .. " (under 6)")
+		if not interval then
+			table.insert(problems, "Config.SPAWN_INTERVAL not found")
+		elseif interval < 15 or interval > 20 then
+			table.insert(problems, "spawn interval " .. tostring(interval) .. "s (not 15-20s)")
 		end
 		if not maxFree then
 			table.insert(problems, "Config.CRATER_MAX_FREE not found")
-		elseif maxFree < 10 then
-			table.insert(problems, "conveyor cap " .. tostring(maxFree) .. " (under 10)")
+		elseif maxFree ~= 5 then
+			table.insert(problems, "conveyor cap " .. tostring(maxFree) .. " (not 5)")
 		end
-		if not initial then
-			table.insert(problems, "Config.CRATER_INITIAL not found")
-		elseif initial < 6 then
-			table.insert(problems, "conveyor starts with " .. tostring(initial) .. " Rotlings (under 6)")
+		-- The old fast-refill constants are gone: no floor, no initial.
+		if configSrc:find("CRATER_MIN_FREE") then
+			table.insert(problems, "Config.CRATER_MIN_FREE still exists (fast refill is gone)")
 		end
-		-- The spawn loop tops the conveyor back up to the floor.
+		if configSrc:find("CRATER_INITIAL") then
+			table.insert(problems, "Config.CRATER_INITIAL still exists (opening mix is explicit now)")
+		end
+		-- The spawn loop tops up one per tick, capped at CRATER_MAX_FREE.
 		local startBody = functionBody(spawnSrc, "SpawnService.start")
 		if not startBody then
 			table.insert(problems, "SpawnService.start not found")
-		elseif not startBody:find("CRATER_MIN_FREE") then
-			table.insert(problems, "SpawnService.start never tops up to CRATER_MIN_FREE")
+		else
+			if startBody:find("CRATER_MIN_FREE") then
+				table.insert(problems, "SpawnService.start still fast-refills to CRATER_MIN_FREE")
+			end
+			if not startBody:find("countFree%(%) < Config%.CRATER_MAX_FREE") then
+				table.insert(problems, "the spawn loop is not capped at CRATER_MAX_FREE")
+			end
+			if not startBody:find("task%.wait%(Config%.SPAWN_INTERVAL%)") then
+				table.insert(problems, "the spawn loop does not tick on SPAWN_INTERVAL")
+			end
+		end
+		-- The opening mix is 5 explicit entries (no CRATER_INITIAL top-up).
+		if spawnSrc:find("CRATER_INITIAL") then
+			table.insert(problems, "SpawnService still tops up the opening from CRATER_INITIAL")
 		end
 		if #problems > 0 then
-			check("m", false, "the conveyor can run empty — " .. table.concat(problems, "; ") .. ". Parts: SpawnService.start, Config.CRATER_MIN_FREE / CRATER_MAX_FREE / CRATER_INITIAL")
+			check("m", false, "the conveyor is not scarce — " .. table.concat(problems, "; ") .. ". Parts: SpawnService.start, Config.SPAWN_INTERVAL / CRATER_MAX_FREE")
 		else
-			check("m", true, "the conveyor stays populated — floor " .. tostring(minFree) .. ", cap " .. tostring(maxFree) .. ", starts with " .. tostring(initial) .. ", spawn loop tops up")
+			check("m", true, "the conveyor is scarce: cap 5, one new Brainrot every " .. tostring(interval) .. "s, opening mix of 5, no fast refill")
 		end
 	end
 end
@@ -3277,8 +3295,11 @@ do
 		if first ~= 15 then
 			table.insert(problems, "Config.RAIDER_FIRST is " .. tostring(first) .. " (not 15)")
 		end
-		if interval ~= 45 then
-			table.insert(problems, "Config.RAIDER_INTERVAL is " .. tostring(interval) .. " (not 45)")
+		-- (competition via scarcity: raids every 60-90s, 75 matches the
+		-- 75s steal clock; the 45s cadence was set when thieves were
+		-- broken and silent.)
+		if interval ~= 75 then
+			table.insert(problems, "Config.RAIDER_INTERVAL is " .. tostring(interval) .. " (not 75)")
 		end
 		-- A stuck bot jumps (both services).
 		if not raiderSrc:find("humanoid%.Jump = true") then
@@ -3297,7 +3318,7 @@ do
 		if #problems > 0 then
 			check("be", false, "the bots cannot move — " .. table.concat(problems, "; ") .. ". Parts: BaseRamp (WorldBuilder.luau), raider spawn/timing (RaiderService.luau, Config.luau), stuck-jump + storm cover (RaiderService.luau, RivalService.luau)")
 		else
-			check("be", true, "bots move: wedge ramp at every base front, raiders spawn at radius 45 / Y=8, first raid 15s then every 45s, stuck bots jump, raiders + rivals shelter on a base during storms")
+			check("be", true, "bots move: wedge ramp at every base front, raiders spawn at radius 45 / Y=8, first raid 15s then every 75s, stuck bots jump, raiders + rivals shelter on a base during storms")
 		end
 	end
 end
@@ -6031,6 +6052,68 @@ do
 			check("db", false, "the Rebirth-2 proof is broken — " .. table.concat(problems, "; ") .. ". Parts: RebirthService.luau (doRebirth), DataService.luau, verify-rebirth.luau")
 		else
 			check("db", true, "Rebirth 2 resets cash only: doRebirth assigns coins/banked/rebirths and nothing else (no placed, index, xp, level or Stardust); placed + index persist in the profile (see verify-rebirth.luau replay)")
+		end
+	end
+end
+
+-- (dc) COMPETITION VIA SCARCITY (simplify/polish): Rare+ spawns get a
+-- light beam + a server alert and bots race for them; raider/thief
+-- bots every 60-90s; the guardian is verified, not rebuilt.
+do
+	local spawnSrc = read("src/server/SpawnService.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	local guardianSrc = read("src/server/GuardianService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not spawnSrc or not rivalSrc or not guardianSrc or not configSrc then
+		check("dc", false, "could not verify competition — SpawnService.luau, RivalService.luau, GuardianService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		-- Rare+ beam + server alert.
+		if not spawnSrc:find("local function spawnBeam") then
+			table.insert(problems, "no spawnBeam in SpawnService")
+		end
+		if not spawnSrc:find('beam%.Name = "SpawnBeam"') then
+			table.insert(problems, "the beam part is not named SpawnBeam")
+		end
+		if not spawnSrc:find("rarityTier%(def%.rarity%)") then
+			table.insert(problems, "announceSpawn does not read the rarity tier")
+		end
+		if not spawnSrc:find("tier < 2") then
+			table.insert(problems, "the Rare-or-better gate (tier >= 2) is missing")
+		end
+		if not spawnSrc:find("🌟 A ") then
+			table.insert(problems, "no Rare spawn banner")
+		end
+		if not spawnSrc:find("FireAllClients") then
+			table.insert(problems, "the Rare spawn is not announced server-wide")
+		end
+		-- The beam fires for every Rare+ spawn path (belt, storm, opening).
+		if not spawnSrc:find("announceSpawn%(def, mutation, position%)") then
+			table.insert(problems, "spawnOne does not pass its position to announceSpawn")
+		end
+		if not spawnSrc:find("announceSpawn%(def, mutation, buildPos%)") then
+			table.insert(problems, "spawnRareAt does not pass its position to announceSpawn")
+		end
+		-- Bots race for it: rivals grab the RAREST free Brainrot.
+		if not rivalSrc:find("Rarest first") then
+			table.insert(problems, "RivalService does not grab rarest-first")
+		end
+		if not rivalSrc:find("tier > bestTier") then
+			table.insert(problems, "the rival rarest pick does not compare rarity tiers")
+		end
+		-- Raider/thief cadence 60-90s.
+		local interval = configValue(configSrc, "RAIDER_INTERVAL")
+		if interval ~= 75 then
+			table.insert(problems, "raider interval is " .. tostring(interval) .. "s (not 75)")
+		end
+		-- Guardian verified, not rebuilt: chase + catch still present.
+		if not guardianSrc:find("catch") and not guardianSrc:find("Catch") then
+			table.insert(problems, "GuardianService has no catch mechanic (was it rebuilt?)")
+		end
+		if #problems > 0 then
+			check("dc", false, "competition via scarcity is incomplete — " .. table.concat(problems, "; ") .. ". Parts: SpawnService.luau (beam + alert), RivalService.luau (rarest race), Config.RAIDER_INTERVAL, GuardianService.luau (verify only)")
+		else
+			check("dc", true, "competition via scarcity: Rare+ spawns get a rarity-coloured beam + server banner, rivals race for the rarest free Brainrot, raiders every 75s, guardian chase + catch verified intact")
 		end
 	end
 end
