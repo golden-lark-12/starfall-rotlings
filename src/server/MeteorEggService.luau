@@ -3,8 +3,9 @@
 -- During each storm, 1-2 glowing meteor eggs crash somewhere on the
 -- map. Heavy — walk slower carrying one (BoostService applies the
 -- slow); rivals chase you for it (RivalService.notifyEggCarrier). Bring
--- it to the incubator on your base and it hatches after 60s into a
--- random Rotling, with a chance of Epic, Legendary or a mutation
+-- it to the incubator on your base and it hatches into a random Rotling
+-- after a rarity-scaled wait (Common 60s, Cosmic 300s — rarer takes
+-- longer), with a chance of Epic, Legendary or a mutation
 -- (15% Meteor-scorched). Hatch animation + reveal popup, and the hatch
 -- pays Stardust. Eggs drop if you are hit, slapped, or die.
 
@@ -222,7 +223,41 @@ function MeteorEggService.dropEgg(player: Player)
 	BoostService.applyWalkSpeed(player)
 end
 
--- Place a carried egg on your base's incubator: it hatches after 60s.
+-- Roll the hatch: a random Rotling, with a real chance of Epic or
+-- Legendary, and 15% Meteor-scorched. Common/Rare rolls get one bump
+-- chance toward Epic/Legendary so an egg never feels wasted.
+-- Declared BEFORE placeEgg on purpose: placeEgg rolls the hatch at
+-- place time (fix round 6, item 6), and a local declared after its
+-- caller is invisible to that caller — the same class of bug as fix
+-- round 3's calmDuration-after-getStatus.
+local function rollHatchDef(): (RotlingCatalog.RotlingDef, string?)
+	local rarityName = RarityConfig.rollRarity()
+	if RarityConfig.rarityTier(rarityName) < 3 and math.random() < 0.4 then
+		rarityName = if math.random() < 0.6 then "Epic" else "Legendary"
+	end
+	local defs = RotlingCatalog.defsOfRarity(rarityName)
+	local def = defs[math.random(1, #defs)]
+	local mutation: string? = nil
+	if math.random() < Config.EGG_SCORCHED_CHANCE then
+		mutation = "Scorched"
+	else
+		mutation = MutationConfig.rollMutation()
+	end
+	return def, mutation
+end
+
+-- (fix round 6, item 6) The hatch wait scales with the rarity of
+-- what's inside: Common 60s, Rare 90s, Epic 120s, Legendary 180s,
+-- Mythic 240s, Cosmic 300s. Rarer eggs take longer, so the wait itself
+-- tells the player something special is coming — and gives everyone
+-- (bots included) more time to race for the next egg.
+local function hatchTimeForRarity(rarity: string): number
+	local tier = RarityConfig.rarityTier(rarity)
+	return Config.EGG_HATCH_TIME[tier] or Config.EGG_HATCH_TIME[1]
+end
+
+-- Place a carried egg on your base's incubator: it hatches after a
+-- rarity-scaled wait (see hatchTimeForRarity).
 function MeteorEggService.placeEgg(player: Player)
 	local model = State.eggCarriedByUser[player.UserId]
 	if not model then
@@ -257,33 +292,25 @@ function MeteorEggService.placeEgg(player: Player)
 		shell.Anchored = true
 		model:PivotTo(incubatorCf * CFrame.new(0, 2.2, 0))
 	end
+	-- (fix round 6, item 6) Roll the hatch NOW: the hatch time scales
+	-- with the rarity of what's inside (rarer = longer), so the wait
+	-- itself tells the player something special is coming. The result
+	-- stays hidden until the hatch reveal — the banner shows only the
+	-- wait, never the rarity.
+	local hatchTime = Config.EGG_HATCH_TIME[1]
 	if egg then
 		egg.phase = "incubating"
 		egg.carrier = nil
 		egg.baseId = baseId
-		egg.hatchAt = time() + Config.EGG_HATCH_TIME
+		local def, mutation = rollHatchDef()
+		egg.hatchDef = def.id
+		egg.hatchMutation = mutation
+		hatchTime = hatchTimeForRarity(def.rarity)
+		egg.hatchAt = time() + hatchTime
+		print("[MeteorEgg] " .. player.Name .. " placed an egg (" .. def.rarity .. ") — hatches in " .. tostring(hatchTime) .. "s")
 	end
 	BoostService.applyWalkSpeed(player)
-	Remotes.bannerEvent():FireClient(player, "🥚 Egg on the incubator — hatches in 60s!", 4)
-end
-
--- Roll the hatch: a random Rotling, with a real chance of Epic or
--- Legendary, and 15% Meteor-scorched. Common/Rare rolls get one bump
--- chance toward Epic/Legendary so an egg never feels wasted.
-local function rollHatchDef(): (RotlingCatalog.RotlingDef, string?)
-	local rarityName = RarityConfig.rollRarity()
-	if RarityConfig.rarityTier(rarityName) < 3 and math.random() < 0.4 then
-		rarityName = if math.random() < 0.6 then "Epic" else "Legendary"
-	end
-	local defs = RotlingCatalog.defsOfRarity(rarityName)
-	local def = defs[math.random(1, #defs)]
-	local mutation: string? = nil
-	if math.random() < Config.EGG_SCORCHED_CHANCE then
-		mutation = "Scorched"
-	else
-		mutation = MutationConfig.rollMutation()
-	end
-	return def, mutation
+	Remotes.bannerEvent():FireClient(player, "🥚 Egg on the incubator — hatches in " .. tostring(hatchTime) .. "s!", 4)
 end
 
 local function hatchEgg(model: Model)
@@ -298,6 +325,17 @@ local function hatchEgg(model: Model)
 		return
 	end
 	local def, mutation = rollHatchDef()
+	if egg.hatchDef then
+		-- (fix round 6, item 6) The hatch was rolled at place time
+		-- (so the hatch time could scale with its rarity) — use the
+		-- stored result; a fresh roll is only the fallback for an egg
+		-- placed before this change.
+		local stored = RotlingCatalog.getDef(egg.hatchDef)
+		if stored then
+			def = stored
+			mutation = egg.hatchMutation
+		end
+	end
 	local ownerId = BaseService.getBaseOwner(baseId)
 	local owner = if ownerId then Players:GetPlayerByUserId(ownerId) else nil
 	-- Hatch onto a free pad of that base, or back into the crater.
@@ -341,7 +379,7 @@ local function hatchEgg(model: Model)
 	end
 end
 
--- Hatch loop: eggs on incubators pop after 60s.
+-- Hatch loop: eggs on incubators pop when their rarity-scaled hatch time is up.
 function MeteorEggService.start()
 	task.spawn(function()
 		while true do

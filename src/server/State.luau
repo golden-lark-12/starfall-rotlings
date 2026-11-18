@@ -69,6 +69,8 @@ export type Egg = {
 	carrier: number?, -- UserId carrying it
 	baseId: number?, -- base whose incubator holds it
 	hatchAt: number?,
+	hatchDef: string?, -- rolled at place time, so the hatch time can scale with its rarity (fix round 6, item 6)
+	hatchMutation: string?, -- rolled with the hatch def above
 	bornAt: number,
 }
 

@@ -185,7 +185,7 @@ Config.SLAP_KNOCKBACK = 38
 -- 60s into a random Rotling, with a chance of Epic, Legendary or a
 -- mutation. Eggs also pay Stardust on hatch.
 Config.EGGS_PER_STORM = 2
-Config.EGG_HATCH_TIME = 60 -- seconds on the incubator before hatching
+Config.EGG_HATCH_TIME = { [1] = 60, [2] = 90, [3] = 120, [4] = 180, [5] = 240, [6] = 300 } -- seconds on the incubator before hatching, by rarity tier (fix round 6, item 6: rarer eggs take longer — Common 60s, Rare 90s, Epic 120s, Legendary 180s, Mythic 240s, Cosmic 300s)
 Config.EGG_SLOW = 6 -- WalkSpeed lost while carrying an egg
 Config.EGG_STARDUST = 25 -- Stardust paid when an egg hatches
 Config.EGG_SCORCHED_CHANCE = 0.15 -- hatch comes out Meteor-scorched

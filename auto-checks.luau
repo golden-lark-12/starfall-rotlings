@@ -2287,11 +2287,12 @@ do
 		elseif perStorm < 1 or perStorm > 2 then
 			table.insert(problems, "EGGS_PER_STORM is " .. tostring(perStorm) .. " (must be 1-2)")
 		end
-		local hatch = configValue(configSrc, "EGG_HATCH_TIME")
-		if not hatch then
-			table.insert(problems, "Config.EGG_HATCH_TIME not found")
-		elseif hatch ~= 60 then
-			table.insert(problems, "EGG_HATCH_TIME is " .. tostring(hatch) .. "s (must be 60s)")
+		-- (fix round 6, item 6) The hatch time is a per-rarity table
+		-- now, not a flat 60s: Common 60s scaling up to Cosmic 300s.
+		if not configSrc:find("EGG_HATCH_TIME = {") then
+			table.insert(problems, "Config.EGG_HATCH_TIME is not a per-rarity table")
+		elseif not configSrc:find("%[1%] = 60") or not configSrc:find("%[6%] = 300") then
+			table.insert(problems, "EGG_HATCH_TIME must scale Common 60s -> Cosmic 300s")
 		end
 		if not eggSrc:find("spawnEggsForStorm") then
 			table.insert(problems, "eggs never spawn in a storm")
@@ -4870,6 +4871,51 @@ do
 			check("ci", false, "the guardian look rework is incomplete — " .. table.concat(problems, "; ") .. ". Part: GuardianService.luau")
 		else
 			check("ci", true, "the guardian is a hunched rock golem: forward low head + heavy brow, red eyes, Neon magma cracks, boulder shoulders, arms + fists, stomp feet; body ball unchanged, tag + red eyes + red light kept")
+		end
+	end
+end
+
+-- -- (cj) eggs hatch slower the rarer they are (fix round 6, item 6)
+-- Malek: "the egg to hatch has more time? Maybe on its rarity?"
+-- The hatch was a flat 60s. Now the hatch is rolled at place time
+-- and the wait scales with the rarity of what's inside: Common 60s,
+-- Rare 90s, Epic 120s, Legendary 180s, Mythic 240s, Cosmic 300s.
+-- The result stays hidden until the hatch reveal (the banner shows
+-- only the wait). rollHatchDef must be declared BEFORE placeEgg — a
+-- local declared after its caller is invisible to it, the same class
+-- of bug as fix round 3's calmDuration-after-getStatus.
+do
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	local stateSrc = read("src/server/State.luau")
+	if not eggSrc or not configSrc or not stateSrc then
+		check("cj", false, "could not verify the egg hatch scaling — MeteorEggService.luau, Config.luau or State.luau missing")
+	else
+		local problems: { string } = {}
+		if not configSrc:find("EGG_HATCH_TIME = { %[1%] = 60, %[2%] = 90, %[3%] = 120, %[4%] = 180, %[5%] = 240, %[6%] = 300 }") then
+			table.insert(problems, "EGG_HATCH_TIME is not the 60 -> 300s per-rarity ladder")
+		end
+		if not eggSrc:find("hatchTimeForRarity") then
+			table.insert(problems, "no hatchTimeForRarity — the hatch wait cannot scale with rarity")
+		end
+		if not eggSrc:find("egg%.hatchDef = def%.id") or not eggSrc:find("egg%.hatchMutation = mutation") then
+			table.insert(problems, "placeEgg does not store the rolled hatch — the wait cannot scale with what's inside")
+		end
+		if not eggSrc:find("hatches in \" .. tostring%(hatchTime%)") then
+			table.insert(problems, "the incubator banner does not show the actual (rarity-scaled) wait")
+		end
+		local rollPos = eggSrc:find("local function rollHatchDef")
+		local placePos = eggSrc:find("function MeteorEggService%.placeEgg")
+		if not rollPos or not placePos or rollPos > placePos then
+			table.insert(problems, "rollHatchDef is not declared before placeEgg — placeEgg would call a nil global")
+		end
+		if not stateSrc:find("hatchDef: string%?") or not stateSrc:find("hatchMutation: string%?") then
+			table.insert(problems, "the Egg record has no hatchDef/hatchMutation fields — the stored hatch has nowhere to live")
+		end
+		if #problems > 0 then
+			check("cj", false, "the egg hatch scaling is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau, Config.luau, State.luau")
+		else
+			check("cj", true, "eggs hatch slower the rarer they are: hatch rolled at place time and stored on the egg, wait scales Common 60s -> Cosmic 300s, banner shows the actual wait, roll declared before its caller")
 		end
 	end
 end
