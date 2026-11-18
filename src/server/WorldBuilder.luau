@@ -123,17 +123,30 @@ end
 -- Hiding the label also hides the dome itself, so the income
 -- broadcast (which calls this every tick) clears the shield the
 -- moment a lock expires — no separate expiry watcher needed.
-function WorldBuilder.setShieldLabel(baseId: number, seconds: number)
+-- During a storm (stormActive) every base is a safe dome even when
+-- unlocked: the label reads "🛡️ SAFE DOME" in green and the dome
+-- shows, so the storm shot proves bases are safe. A lock still wins
+-- over the storm label while it holds.
+function WorldBuilder.setShieldLabel(baseId: number, seconds: number, stormActive: boolean?)
 	local label = shieldLabels[baseId]
-	if label then
-		if seconds > 0 then
+	local dome = shieldDomes[baseId]
+	if seconds > 0 then
+		if label then
 			label.Text = "🛡️ SAFE (" .. tostring(math.ceil(seconds)) .. "s)"
-		else
+			label.TextColor3 = Color3.fromRGB(140, 220, 255)
+		end
+	elseif stormActive then
+		if label then
+			label.Text = "🛡️ SAFE DOME"
+			label.TextColor3 = Color3.fromRGB(140, 255, 140)
+		end
+		if dome then
+			dome.Transparency = 0.82
+		end
+	else
+		if label then
 			label.Text = ""
 		end
-	end
-	if seconds <= 0 then
-		local dome = shieldDomes[baseId]
 		if dome then
 			dome.Transparency = 1
 		end

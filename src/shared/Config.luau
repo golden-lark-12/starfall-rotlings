@@ -63,6 +63,13 @@ Config.STORM_BASE_SAFE_RADIUS = 17 -- no impact target this close to a base cent
 Config.STORM_HIT_RADIUS = 6 -- a player this close to an impact is knocked back
 Config.STORM_KNOCKBACK = 42 -- studs/sec of knockback velocity on a hit
 Config.STORM_HAZARD_LABEL = "DANGER: CRATER-WIDE METEOR RAIN" -- hazard label on the storm banner
+-- Storm front wall (step 2): a giant glowing meteor front that sweeps
+-- across the whole map during the storm — the threat you can see coming
+-- from far away. It is pure spectacle: the knockback and dropped
+-- Rotlings still come from the falling meteors, never from the wall.
+Config.STORM_FRONT_HEIGHT = 40 -- studs tall: visible over the whole map
+Config.STORM_FRONT_LENGTH = 340 -- studs long: spans the map's width
+Config.STORM_FRONT_RANGE = 170 -- sweeps from x=-170 to x=+170
 -- Storm extras: meteors that land near a player, and rare Rotlings at
 -- impact points. Half the storm's meteors aim near a random player so
 -- 6-10 crash close enough to shake the camera; hero meteors always

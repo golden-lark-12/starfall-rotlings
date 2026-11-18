@@ -2557,6 +2557,60 @@ do
 	end
 end
 
+-- -- (ax) the storm front wall --------------------------------------------------------
+-- Step 2: a giant glowing meteor wall sweeps the whole map during the
+-- storm, with a "STORM FRONT INCOMING: RUN HOME!" banner and a green
+-- "SAFE DOME" label over every base while it passes. The wall is pure
+-- spectacle: knockback and dropped Rotlings still come only from the
+-- falling meteors.
+do
+	local stormSrc = read("src/server/StarfallService.luau")
+	local warnSrc = read("src/client/StormWarningController.client.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not stormSrc or not warnSrc or not worldSrc or not incomeSrc or not configSrc then
+		check("ax", false, "could not verify the storm front — StarfallService.luau, StormWarningController.client.luau, WorldBuilder.luau, IncomeService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if not stormSrc:find("StormFront") then
+			table.insert(problems, "no StormFront wall in StarfallService")
+		end
+		if not stormSrc:find("STORM_FRONT_HEIGHT") then
+			table.insert(problems, "the wall is not sized from Config.STORM_FRONT_HEIGHT")
+		end
+		if not stormSrc:find("STORM_FRONT_LENGTH") then
+			table.insert(problems, "the wall is not sized from Config.STORM_FRONT_LENGTH")
+		end
+		if not stormSrc:find("Enum%.EasingStyle%.Linear") then
+			table.insert(problems, "the wall does not sweep linearly across the map")
+		end
+		if not stormSrc:find("STORM FRONT INCOMING: RUN HOME!") then
+			table.insert(problems, 'no "STORM FRONT INCOMING: RUN HOME!" storm banner')
+		end
+		if not warnSrc:find("STORM FRONT INCOMING") then
+			table.insert(problems, "the storm warning bar does not show the storm front line")
+		end
+		if not worldSrc:find("SAFE DOME") then
+			table.insert(problems, 'no "SAFE DOME" label in WorldBuilder')
+		end
+		if not worldSrc:find("140, 255, 140") then
+			table.insert(problems, "the SAFE DOME label is not green")
+		end
+		if not incomeSrc:find('setShieldLabel%(baseId, BaseService%.lockRemaining%(baseId%), storm%.phase == "storm"%)') then
+			table.insert(problems, "the income feed never tells the shield label the storm is passing")
+		end
+		if configSrc:find("STORM_FRONT_HEIGHT = 40") == nil then
+			table.insert(problems, "Config.STORM_FRONT_HEIGHT is not 40")
+		end
+		if #problems > 0 then
+			check("ax", false, "the storm front is missing — " .. table.concat(problems, "; ") .. ". Parts: StormFront (StarfallService.luau), warning bar (StormWarningController), SAFE DOME (WorldBuilder.luau), feed (IncomeService.luau)")
+		else
+			check("ax", true, "storm front: giant glowing wall sweeps the map, STORM FRONT INCOMING banner, green SAFE DOME label + dome over every base while it passes")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

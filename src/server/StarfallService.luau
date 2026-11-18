@@ -380,6 +380,49 @@ local function spawnMeteor()
 	end)
 end
 
+-- The storm front: a giant glowing meteor wall that sweeps across the
+-- whole map during the storm, so the threat is visible from far away
+-- in a still screenshot. Pure spectacle — it never collides, never
+-- hurts anyone and never drops anything: the knockback and dropped
+-- Rotlings still come only from the falling meteors.
+local function spawnStormFront()
+	local wall = Instance.new("Part")
+	wall.Name = "StormFront"
+	wall.Shape = Enum.PartType.Block
+	wall.Size = Vector3.new(6, Config.STORM_FRONT_HEIGHT, Config.STORM_FRONT_LENGTH)
+	wall.Color = Color3.fromRGB(255, 90, 30)
+	wall.Material = Enum.Material.Neon
+	wall.Transparency = 0.45
+	wall.Anchored = true
+	wall.CanCollide = false
+	wall.CanQuery = false
+	wall.CastShadow = false
+	wall.CFrame = CFrame.new(-Config.STORM_FRONT_RANGE, Config.STORM_FRONT_HEIGHT / 2, 0)
+	wall.Parent = workspace
+
+	local glow = Instance.new("PointLight")
+	glow.Color = Color3.fromRGB(255, 120, 40)
+	glow.Brightness = 4
+	glow.Range = 40
+	glow.Parent = wall
+
+	local sweep = TweenService:Create(wall, TweenInfo.new(Config.STORM_DURATION, Enum.EasingStyle.Linear), {
+		CFrame = CFrame.new(Config.STORM_FRONT_RANGE, Config.STORM_FRONT_HEIGHT / 2, 0),
+	})
+	sweep:Play()
+	sweep.Completed:Connect(function()
+		task.delay(0.5, function()
+			wall:Destroy()
+		end)
+	end)
+	-- Safety: never leave a wall behind if the tween stalls.
+	task.delay(Config.STORM_DURATION + 3, function()
+		if wall.Parent then
+			wall:Destroy()
+		end
+	end)
+end
+
 -- Hero meteors: a few GIANT flaming rocks that arc across the sky at
 -- storm start, so the threat reads in a still screenshot (the small
 -- rain meteors are too fast and too small to see in one frame). Bigger,
@@ -470,6 +513,15 @@ function StarfallService.start()
 				stormActive = true
 				WorldBuilder.setWind(true)
 				startRumble()
+				-- The storm front wall sweeps the map for the whole
+				-- storm (its own thread, so a wall failure can never
+				-- kill the meteor loop).
+				task.spawn(function()
+					local ok, err = pcall(spawnStormFront)
+					if not ok then
+						warn("[Starfall] storm front failed: " .. tostring(err))
+					end
+				end)
 				-- Bounty: earnings during this storm decide the bonus.
 				local IncomeService = require(script.Parent.IncomeService)
 				IncomeService.resetStormEarnings()
@@ -491,7 +543,7 @@ function StarfallService.start()
 						lightningFlash()
 					end
 				end)
-				Remotes.bannerEvent():FireAllClients("METEOR STORM! " .. Config.STORM_HAZARD_LABEL .. " — dodge the red circles!", 8)
+				Remotes.bannerEvent():FireAllClients("🌠 STORM FRONT INCOMING: RUN HOME! 🌠", 8)
 				-- The rain loop spawns the first meteor immediately
 				-- (no wait before the first call), so a meteor is
 				-- falling within a second of the storm starting.

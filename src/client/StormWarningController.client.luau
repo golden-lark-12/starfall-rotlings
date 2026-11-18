@@ -41,7 +41,7 @@ Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 		warnLabel.Text = "⚠ METEOR STORM IN " .. tostring(data.stormSeconds) .. "s — GET HOME! ⚠"
 	elseif data.stormPhase == "storm" then
 		warnBar.Visible = true
-		warnLabel.Text = "🌠 METEOR STORM — STAY OUT OF THE CRATER! 🌠"
+		warnLabel.Text = "🌠 STORM FRONT INCOMING — RUN HOME! 🌠"
 	else
 		warnBar.Visible = false
 	end

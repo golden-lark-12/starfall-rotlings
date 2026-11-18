@@ -756,6 +756,34 @@ do
 	end
 end
 
+-- 22. Storm front wall: giant glowing wall sweeps the map, banner, SAFE DOME.
+do
+	local stormSrc = read("src/server/StarfallService.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not stormSrc or not worldSrc then
+		step("storm-front", false, "StarfallService.luau or WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		if not stormSrc:find("StormFront") then
+			table.insert(problems, "no StormFront wall")
+		end
+		if not stormSrc:find("STORM FRONT INCOMING: RUN HOME!") then
+			table.insert(problems, "no STORM FRONT INCOMING banner")
+		end
+		if not worldSrc:find("SAFE DOME") then
+			table.insert(problems, 'no "SAFE DOME" label')
+		end
+		if not stormSrc:find("onMeteorLanded") then
+			table.insert(problems, "meteor impacts (knockback + drops) are gone — the wall must not replace them")
+		end
+		if #problems > 0 then
+			step("storm-front", false, table.concat(problems, "; "))
+		else
+			step("storm-front", true, "giant glowing wall sweeps the map, STORM FRONT INCOMING banner, green SAFE DOME over bases, meteors still knock back and drop carries")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
