@@ -113,6 +113,9 @@
 --   (bz) HUD text is cut off or signs overlap (a top-right element
 --       still ends 12px from the edge, the Bounty Board / Index Wall
 --       are still close, or a player-visible "Rotling" remains)
+--   (ca) the competition is broken (guardian speed/catch/give-up/rim
+--       spawn/AWAKE warning wrong, raiders never crater-grab, or the
+--       20-index / Cosmic Corn Dog / tier celebrations missing)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -4382,6 +4385,82 @@ do
 			check("bz", false, "the HUD/text fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: HUDController.client.luau, WorldBuilder.luau")
 		else
 			check("bz", true, "HUD fully on screen (24px margins, short storm text), signs ~86 studs apart with 280x140 Bounty Board and 60 view distances; no player-visible 'Rotling' anywhere")
+		end
+	end
+end
+
+-- -- (ca) the competition is intact (fix round 4, item 9 — verify only) --
+-- Playtest 4, item 9 (only after 1-8 work): the Crater Guardian chases
+-- whoever grabs from the crater, faster for rarer ones, drop on catch,
+-- base/dome = gives up, "THE GUARDIAN IS AWAKE! RUN!" + red edge flash;
+-- raider bots grab and run (slap to steal back); goal collect all 20
+-- ("Index 14/20" in the HUD), Cosmic Corn Dog last, celebration per
+-- completed rarity tier. Verified against the code after items 1-8 —
+-- nothing here needed a change, so this check locks the mechanics in:
+-- guardian speed by rarity (7 -> 15.5, slower than the player's walk
+-- 16, so running always escapes), catch radius 5, give-up 25s, rim
+-- spawn (fix 1, so the catch is not instant), safe-base give-up, the
+-- AWAKE banner + edge flash; raiders do crater grabs on half their
+-- raids; 20 defs with exactly one Cosmic (Cosmic Corn Dog, weight 1,
+-- rarest); HUD "📖 X/20"; tier + full-index celebrations.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local guardianSrc = read("src/server/GuardianService.luau")
+	local raiderSrc = read("src/server/RaiderService.luau")
+	local catalogSrc = read("src/shared/RotlingCatalog.luau")
+	local raritySrc = read("src/shared/RarityConfig.luau")
+	local indexSrc = read("src/server/IndexService.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	if not configSrc or not guardianSrc or not raiderSrc or not catalogSrc or not raritySrc or not indexSrc or not hudSrc then
+		check("ca", false, "could not verify the competition — Config.luau, GuardianService.luau, RaiderService.luau, RotlingCatalog.luau, RarityConfig.luau, IndexService.luau or HUDController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not configSrc:find("GUARDIAN_SPEED = { %[1%] = 7, %[2%] = 9, %[3%] = 11, %[4%] = 13, %[5%] = 14%.5, %[6%] = 15%.5 }") then
+			table.insert(problems, "guardian speed is not 7 -> 15.5 by rarity")
+		end
+		if not configSrc:find("GUARDIAN_CATCH_RADIUS = 5") then
+			table.insert(problems, "guardian catch radius is not 5")
+		end
+		if not configSrc:find("GUARDIAN_GIVEUP_TIME = 25") then
+			table.insert(problems, "guardian give-up time is not 25s")
+		end
+		if not guardianSrc:find("guardianSpawnPos") then
+			table.insert(problems, "guardian still spawns on the grabber (instant catch) — fix 1 regressed")
+		end
+		if not guardianSrc:find("THE GUARDIAN IS AWAKE! RUN!") then
+			table.insert(problems, "no 'THE GUARDIAN IS AWAKE! RUN!' warning")
+		end
+		if not guardianSrc:find('despawnGuardian%(guardian, "safe%-base"%)') then
+			table.insert(problems, "no safe-base give-up")
+		end
+		if not guardianSrc:find("dropAllCarried%(player%)") then
+			table.insert(problems, "catch does not drop what the player carries")
+		end
+		if not raiderSrc:find("if math%.random%(%) < 0%.5 then") then
+			table.insert(problems, "raiders do not do crater grabs on half their raids")
+		end
+		if not raiderSrc:find("spawnCraterRaider%(%)") then
+			table.insert(problems, "no crater-raider spawn")
+		end
+		if not catalogSrc:find('name = "Cosmic Corn Dog"') then
+			table.insert(problems, "Cosmic Corn Dog is not in the catalog")
+		end
+		if not raritySrc:find('{ name = "Cosmic".-weight = 1') then
+			table.insert(problems, "Cosmic is not the rarest tier (weight 1)")
+		end
+		if not hudSrc:find("hud%.indexCount.*hud%.indexTotal") then
+			table.insert(problems, "HUD does not show the index X/20")
+		end
+		if not indexSrc:find("SET COMPLETE!") then
+			table.insert(problems, "no tier-completion celebration")
+		end
+		if not indexSrc:find("INDEX COMPLETE! All 20 Brainrots found!") then
+			table.insert(problems, "no all-20 completion celebration")
+		end
+		if #problems > 0 then
+			check("ca", false, "the competition is broken — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, GuardianService.luau, RaiderService.luau, RotlingCatalog.luau, RarityConfig.luau, IndexService.luau, HUDController.client.luau")
+		else
+			check("ca", true, "competition intact: guardian 7->15.5 by rarity (slower than walk 16), catch 5, give-up 25s, rim spawn, AWAKE banner + edge flash, safe-base give-up, drop on catch; raiders crater-grab half their raids; 20 defs, one Cosmic (Corn Dog, weight 1); HUD X/20; tier + all-20 celebrations")
 		end
 	end
 end
