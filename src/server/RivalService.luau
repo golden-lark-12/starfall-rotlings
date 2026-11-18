@@ -489,9 +489,6 @@ local function stepRival(rival: State.Rival, model: Model)
 			-- call the steal clock uses (fix round 7, item 2), so a
 			-- steal started by either path is identical.
 			tryStartSteal(rival, model)
-			else
-				rival.phase = "toCrater"
-			end
 		else
 			rival.phase = "toCrater"
 		end

@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local MutationConfig = require(ReplicatedStorage.Shared.MutationConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.RarityConfig)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local CarryService = require(script.Parent.CarryService)
 local RotlingFactory = require(script.Parent.RotlingFactory)
@@ -207,6 +208,19 @@ local function findSpawnPosition(): Vector3
 	return Vector3.new(x, Config.BELT_TOP_Y - 0.1, z)
 end
 
+-- Announce a mutated spawn server-wide: mutations were invisible
+-- because nothing ever said one had arrived. A mutated Brainrot gets
+-- a banner with its mutation + name ("✨ A GOLD Boba Blob spawned in
+-- the crater!") so everyone — players and bots — can race for it.
+-- Unmutated spawns stay silent: a banner every 4 seconds would be noise.
+local function announceSpawn(def: RotlingCatalog.RotlingDef, mutation: string?)
+	if not mutation then
+		return
+	end
+	Remotes.bannerEvent():FireAllClients("✨ A " .. mutation:upper() .. " " .. def.name .. " spawned in the crater!", 4)
+	print("[Spawn] mutated " .. mutation .. " " .. def.name .. " (" .. def.rarity .. ") spawned")
+end
+
 function SpawnService.spawnOne(): Model?
 	local def = RotlingCatalog.rollDef()
 	local mutation = MutationConfig.rollMutation()
@@ -222,6 +236,7 @@ function SpawnService.spawnOne(): Model?
 	model.Parent = workspace
 	SpawnService.connectPrompt(model)
 	SpawnService.registerFree(model)
+	announceSpawn(def, mutation)
 	return model
 end
 
@@ -260,6 +275,7 @@ function SpawnService.spawnRareAt(position: Vector3): Model?
 	model.Parent = workspace
 	SpawnService.connectPrompt(model)
 	SpawnService.registerFree(model)
+	announceSpawn(def, mutation)
 	-- A storm rare only stays for its lifetime: after 30s it is gone
 	-- if it is still free (nobody grabbed it).
 	task.delay(Config.STORM_RARE_LIFETIME, function()
@@ -286,6 +302,7 @@ local function spawnForced(defId: string, mutation: string?): Model?
 	model.Parent = workspace
 	SpawnService.connectPrompt(model)
 	SpawnService.registerFree(model)
+	announceSpawn(def, mutation)
 	return model
 end
 

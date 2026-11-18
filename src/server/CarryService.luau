@@ -326,6 +326,7 @@ function CarryService.tryGrab(player: Player, model: Model)
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
 	if def then
 		IndexService.markFound(player, def.id)
+		IndexService.markMutationFound(player, model:GetAttribute("Mutation") :: string?)
 		-- Gold burst in the Rotling's rarity colour: the grab reads.
 		FeedbackService.burst(model, RarityConfig.rarityByName(def.rarity).color)
 		if RarityConfig.rarityTier(def.rarity) >= 4 then
@@ -427,6 +428,7 @@ function CarryService.placeOnPad(player: Player, model: Model, baseId: number, p
 	SpawnService.connectPrompt(model)
 	if def then
 		IndexService.markFound(player, def.id)
+		IndexService.markMutationFound(player, model:GetAttribute("Mutation") :: string?)
 	end
 	-- The idle loop bobs around this new rest pose.
 	RotlingFactory.setRestPose(model)

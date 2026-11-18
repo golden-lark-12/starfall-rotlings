@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Formatting = require(ReplicatedStorage.Shared.Formatting)
+local MutationConfig = require(ReplicatedStorage.Shared.MutationConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local DataService = require(script.Parent.DataService)
@@ -61,6 +62,30 @@ function IndexService.markFound(player: Player, defId: string)
 			FeedbackService.playSound(player, 2.0, 1.0)
 		end
 	end
+end
+
+-- Log a mutation as found. The Index shows which of the six
+-- mutations this player has collected; the first find of each pays a
+-- small banner (no coins — the mutation's multiplier IS the reward).
+-- Called on grab and on place, like markFound (a mutated Rotling
+-- placed from a save counts too). The "" attribute on an unmutated
+-- Rotling is not a mutation.
+function IndexService.markMutationFound(player: Player, mutation: string?)
+	if not mutation or mutation == "" then
+		return
+	end
+	local profile = DataService.getProfile(player)
+	if not profile then
+		return
+	end
+	if profile.mutations[mutation] then
+		return
+	end
+	profile.mutations[mutation] = true
+	local mut = MutationConfig.mutationByName(mutation)
+	local mult = if mut then mut.mult else 1
+	Remotes.bannerEvent():FireClient(player, "✦ New mutation found: " .. mutation .. " (x" .. tostring(mult) .. ")!", 4)
+	print("[Index] " .. player.Name .. " found mutation " .. mutation .. " (x" .. tostring(mult) .. ")")
 end
 
 -- How many Rotlings this player has found, of the twenty.

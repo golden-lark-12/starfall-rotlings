@@ -901,6 +901,22 @@ local function addAccessory(model: Model, body: Part, def: RotlingCatalog.Rotlin
 	end
 end
 
+-- The name as the label shows it: a mutated Rotling's name carries
+-- its mutation up front in the mutation's own colour ("GOLD Boba
+-- Blob"), so the mutation reads from the path instead of hiding on
+-- the rarity line. Returns (text, richText).
+local function nameText(def: RotlingCatalog.RotlingDef, mutation: string?): (string, boolean)
+	if not mutation then
+		return def.name, false
+	end
+	local mut = MutationConfig.mutationByName(mutation)
+	if not mut then
+		return def.name, false
+	end
+	local hex = string.format("#%02X%02X%02X", math.floor(mut.color.R * 255), math.floor(mut.color.G * 255), math.floor(mut.color.B * 255))
+	return '<font color="' .. hex .. '">' .. mutation:upper() .. "</font> " .. def.name, true
+end
+
 local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef, mutation: string?)
 	-- Idempotent: exactly ONE label per Rotling. addLabel used to
 	-- create a fresh BillboardGui every time it ran, so a Rotling
@@ -957,7 +973,12 @@ local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef
 	nameLabel.Name = "Name"
 	nameLabel.Size = UDim2.new(1, 0, 0.4, 0)
 	nameLabel.BackgroundTransparency = 1
-	nameLabel.Text = def.name
+	-- The mutation reads in the NAME itself (see nameText): a Gold
+	-- Boba Blob is "GOLD Boba Blob" in gold, not a plain name with a
+	-- small mutation note on the line below.
+	local nameShown, nameRich = nameText(def, mutation)
+	nameLabel.Text = nameShown
+	nameLabel.RichText = nameRich
 	nameLabel.Font = Enum.Font.FredokaOne
 	nameLabel.TextScaled = true
 	nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -996,6 +1017,33 @@ local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef
 	cpsLabel.TextColor3 = Color3.fromRGB(255, 230, 90)
 	cpsLabel.TextStrokeTransparency = 1
 	cpsLabel.Parent = billboard
+end
+
+-- Mutation beam: a tall thin glowing column in the mutation's colour
+-- rising above a mutated Rotling, so a Gold / Rainbow / Diamond catch
+-- reads from across the crater — not just up close on its label. The
+-- beam is welded to the body, so it travels with the Rotling (belt,
+-- carried, pad) and scales with it. One visible layer only (the beam
+-- + the sparkle emitter): the body recolour is the second layer, and
+-- the label name is the third — the mutation reads in icon, world
+-- model and label at once.
+local function addMutationBeam(model: Model, body: Part, mutation: string?)
+	local mut = MutationConfig.mutationByName(mutation)
+	if not mut then
+		return
+	end
+	local height = 14
+	local beam = makePart("MutationBeam", Enum.PartType.Cylinder, Vector3.new(height, 0.7, 0.7), mut.color, Enum.Material.Neon)
+	-- A cylinder's long axis is X: rotate 90 degrees about Z to stand
+	-- it upright (same trick as the crater beacon beam).
+	beam.CFrame = body.CFrame * CFrame.new(0, body.Size.Y / 2 + height / 2, 0) * CFrame.Angles(0, 0, math.rad(90))
+	beam.Transparency = 0.45
+	beam.CastShadow = false
+	beam.Parent = model
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = body
+	weld.Part1 = beam
+	weld.Parent = beam
 end
 
 -- Mutation sparkle: a slow particle emitter in the mutation's colour.
@@ -1133,15 +1181,30 @@ function RotlingFactory.applyMutationVisual(model: Model, mutation: string?)
 		old:Destroy()
 	end
 	addMutationSparkle(model, body, mutation)
+	-- The beam is the mutation's long-range read: repaint it with the
+	-- new mutation (or remove it when the mutation is gone).
+	local oldBeam = model:FindFirstChild("MutationBeam")
+	if oldBeam then
+		oldBeam:Destroy()
+	end
+	addMutationBeam(model, body, mutation)
 	if mut then
 		local light = body:FindFirstChildOfClass("PointLight")
 		if light then
 			light.Color = mut.glow
 		end
 	end
-	-- Refresh the label's rarity line and coins-per-second.
+	-- Refresh the label: the rarity line, the coins-per-second, and
+	-- the NAME (a rerolled mutation renames the Rotling, e.g. plain
+	-- "Boba Blob" becomes "GOLD Boba Blob").
 	local label = body:FindFirstChild("RotlingLabel")
 	if label then
+		local nameLabel = label:FindFirstChild("Name")
+		if nameLabel and nameLabel:IsA("TextLabel") then
+			local shown, rich = nameText(def, mutation)
+			nameLabel.Text = shown
+			nameLabel.RichText = rich
+		end
 		local rarityLabel = label:FindFirstChild("Rarity")
 		if rarityLabel and rarityLabel:IsA("TextLabel") then
 			local text = def.rarity
@@ -1223,6 +1286,7 @@ function RotlingFactory.build(defId: string, mutation: string?, position: Vector
 	addNameProp(model, body, def)
 	addLabel(model, body, def, mutation)
 	addMutationSparkle(model, body, mutation)
+	addMutationBeam(model, body, mutation)
 	addRarityHighlight(model, rarity.color)
 	addRarityAura(model, body, def, rarity.color)
 

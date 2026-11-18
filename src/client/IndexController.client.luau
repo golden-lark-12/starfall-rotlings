@@ -67,6 +67,13 @@ progressFillCorner.Parent = progressFill
 local tierLine = GuiKit.makeLabel(indexPanel, "TierLine", "", UDim2.new(1, -20, 0, 20), UDim2.new(0, 10, 0, 90), 15, Color3.fromRGB(220, 220, 240))
 tierLine.RichText = true
 
+-- Mutations line (simplify pass, section B): which of the six
+-- mutations this player has collected — found ones in their own
+-- colour with their multiplier, unfound ones as grey "???". The
+-- mutation set rides on the HUD feed (data.mutations).
+local mutationLine = GuiKit.makeLabel(indexPanel, "MutationLine", "", UDim2.new(1, -20, 0, 18), UDim2.new(0, 10, 0, 110), 14, Color3.fromRGB(220, 220, 240))
+mutationLine.RichText = true
+
 -- The highest mutation multiplier, for the "✦ up to x5" line on every
 -- card (cheap win 1: the multiplier shows in the index too).
 local maxMult = 1
@@ -77,6 +84,7 @@ end
 local indexCards = {}
 local indexIcons: { [string]: { shape: Frame, belly: Frame?, ears: { Frame } } } = {}
 local foundSet: { [string]: boolean } = {}
+local mutationsSet: { [string]: boolean } = {}
 local buddyName: string? = nil
 local refreshIndex: () -> ()
 
@@ -152,8 +160,8 @@ do
 	-- the close button.
 	local gridFrame = Instance.new("ScrollingFrame")
 	gridFrame.Name = "Grid"
-	gridFrame.Size = UDim2.new(1, -20, 1, -124)
-	gridFrame.Position = UDim2.new(0, 10, 0, 114)
+	gridFrame.Size = UDim2.new(1, -20, 1, -140)
+	gridFrame.Position = UDim2.new(0, 10, 0, 130)
 	gridFrame.BackgroundTransparency = 1
 	gridFrame.BorderSizePixel = 0
 	gridFrame.ScrollBarThickness = 6
@@ -292,6 +300,18 @@ function refreshIndex()
 		table.insert(parts, '<font color="' .. hex .. '">● ' .. tostring(tierFound[rarityName] or 0) .. "/" .. tostring(tierTotal[rarityName] or 0) .. "</font>")
 	end
 	tierLine.Text = table.concat(parts, "  ")
+	-- Mutations line: one chip per mutation — found in its own colour
+	-- with its multiplier, unfound as a grey "???".
+	local mutParts: { string } = {}
+	for _, mutation in ipairs(MutationConfig.MUTATIONS) do
+		if mutationsSet[mutation.name] then
+			local hex = string.format("#%02X%02X%02X", math.floor(mutation.color.R * 255), math.floor(mutation.color.G * 255), math.floor(mutation.color.B * 255))
+			table.insert(mutParts, '<font color="' .. hex .. '">✦ ' .. mutation.name .. " x" .. tostring(mutation.mult) .. "</font>")
+		else
+			table.insert(mutParts, '<font color="#555566">✦ ???</font>')
+		end
+	end
+	mutationLine.Text = "Mutations: " .. table.concat(mutParts, "  ")
 end
 
 local function toggleIndex()
@@ -319,6 +339,7 @@ end)
 
 Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 	foundSet = data.index
+	mutationsSet = data.mutations or {}
 	buddyName = data.buddyName
 	if indexPanel.Visible then
 		refreshIndex()
