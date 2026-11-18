@@ -261,6 +261,15 @@ boostRow.Parent = gui
 -- cash to collect, dimmed when the base is empty.
 local collectButton = GuiKit.makeButton(gui, "CollectButton", "💰 Collect", UDim2.new(0, 200, 0, 48), UDim2.new(0, 12, 1, -160), GuiKit.COLORS.Buy)
 
+-- Drop Egg button (fix round 7, item 8): bottom-left, above Collect.
+-- Hidden unless the player is carrying a meteor egg — then it drops
+-- the egg at the player's feet, anywhere on the map. G does the same.
+local dropEggButton = GuiKit.makeButton(gui, "DropEggButton", "🥚 DROP EGG (G)", UDim2.new(0, 200, 0, 48), UDim2.new(0, 12, 1, -216), GuiKit.COLORS.Buy)
+dropEggButton.Visible = false
+dropEggButton.MouseButton1Click:Connect(function()
+	Remotes.dropEggEvent():FireServer()
+end)
+
 -- -- Rebirth panel ------------------------------------------------------------
 
 local rebirthPanel = GuiKit.makePanel(gui, "RebirthPanel", UDim2.new(0, 420, 0, 260), UDim2.new(0.5, -210, 0.5, -130))
@@ -357,6 +366,10 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		toggleRebirth()
 	elseif input.KeyCode == Enum.KeyCode.L then
 		Remotes.lockEvent():FireServer()
+	elseif input.KeyCode == Enum.KeyCode.G then
+		-- Drop a carried meteor egg (fix round 7, item 8). The
+		-- server only acts if the player is actually carrying one.
+		Remotes.dropEggEvent():FireServer()
 	end
 end)
 
@@ -564,6 +577,11 @@ local function onHudData(data: Remotes.HudData)
 		collectButton.Text = "💰 Collect"
 		collectButton.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
 	end
+
+	-- Drop Egg button (fix round 7, item 8): only while the player
+	-- is carrying a meteor egg — otherwise it would sit on screen
+	-- doing nothing.
+	dropEggButton.Visible = data.eggCarried or false
 
 	if rebirthPanel.Visible then
 		refreshRebirth()

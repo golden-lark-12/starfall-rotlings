@@ -5256,6 +5256,58 @@ do
 	end
 end
 
+-- -- (cq) a carried egg can be dropped anywhere (fix round 7, item 8)
+-- Malek: "if i got an egg on my base and grabbed another - i cant
+-- drop it outside the base?" dropEgg existed but only ran
+-- involuntarily (slapped, hit, died, left) — the player had no way
+-- to put a carried egg down. Now G (or the DROP EGG button, shown
+-- only while carrying an egg) drops it at the player's feet, anywhere
+-- on the map, ground phase, prompt re-enabled, grabbable again. And
+-- the rules are clear: one egg per incubator — placing a second egg
+-- while one hatches is blocked with a banner naming the remaining
+-- time ("drop it outside your base (G) or wait"), and the player
+-- keeps carrying it.
+do
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	local projectSrc = read("default.project.json")
+	if not eggSrc or not hudSrc or not remotesSrc or not projectSrc then
+		check("cq", false, "could not verify the egg drop — MeteorEggService.luau, HUDController.client.luau, Remotes.luau or default.project.json missing")
+	else
+		local problems: { string } = {}
+		if not projectSrc:find('"DropEgg"') then
+			table.insert(problems, "no DropEgg RemoteEvent in default.project.json — the client has nothing to fire")
+		end
+		if not remotesSrc:find("function Remotes%.dropEggEvent") then
+			table.insert(problems, "no Remotes.dropEggEvent accessor")
+		end
+		if not eggSrc:find("dropEggEvent%(%)%.OnServerEvent") then
+			table.insert(problems, "no server handler for the voluntary drop — G/button fires into nothing")
+		end
+		if not eggSrc:find("Dropped your egg — grab it again any time") then
+			table.insert(problems, "the voluntary drop gives no confirmation banner")
+		end
+		if not hudSrc:find("DROP EGG %(G%)") then
+			table.insert(problems, "no DROP EGG button in the HUD")
+		end
+		if not hudSrc:find("dropEggButton%.Visible = data%.eggCarried") then
+			table.insert(problems, "the DROP EGG button is not shown only while carrying an egg")
+		end
+		if not hudSrc:find("Enum%.KeyCode%.G") then
+			table.insert(problems, "no G key for dropping the egg")
+		end
+		if not eggSrc:find("Your incubator already has an egg") then
+			table.insert(problems, "placing a second egg while one hatches is not blocked with a clear rule — two eggs would overlap on one incubator")
+		end
+		if #problems > 0 then
+			check("cq", false, "the egg drop fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau, HUDController.client.luau, Remotes.luau, default.project.json")
+		else
+			check("cq", true, "a carried egg can be dropped anywhere: G or the DROP EGG button (shown only while carrying) drops it at the player's feet, ground phase, re-grabbable; one egg per incubator, second place blocked with the remaining time + the drop rule")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

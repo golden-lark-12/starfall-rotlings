@@ -111,6 +111,10 @@ function Remotes.slapEffectEvent(): RemoteEvent
 	return Remotes.getFolder():WaitForChild("SlapEffect") :: RemoteEvent
 end
 
+function Remotes.dropEggEvent(): RemoteEvent
+	return Remotes.getFolder():WaitForChild("DropEgg") :: RemoteEvent
+end
+
 function Remotes.openShopEvent(): RemoteEvent
 	return Remotes.getFolder():WaitForChild("OpenShop") :: RemoteEvent
 end

@@ -310,6 +310,19 @@ function MeteorEggService.placeEgg(player: Player)
 		Remotes.bannerEvent():FireClient(player, "Stand on the incubator to place the egg.", 2)
 		return
 	end
+	-- One egg per incubator (fix round 7, item 8): if an egg is
+	-- already hatching on this base, the second egg cannot be placed
+	-- — it would land on the same spot and the labels would overlap.
+	-- The player keeps carrying it and is told the rule plainly:
+	-- drop it outside the base (G) or wait for the hatch.
+	for _, other in pairs(State.eggs) do
+		if other.phase == "incubating" and other.baseId == baseId and other.hatchAt then
+			local remaining = math.max(0, math.ceil(other.hatchAt - time()))
+			Remotes.bannerEvent():FireClient(player, "Your incubator already has an egg — it hatches in " .. tostring(remaining) .. "s. Drop this one outside your base (G) or wait.", 4)
+			print("[MeteorEgg] " .. player.Name .. " tried to place a second egg — incubator busy (" .. tostring(remaining) .. "s left)")
+			return
+		end
+	end
 	local egg = State.eggs[model]
 	State.eggCarriedByUser[player.UserId] = nil
 	local shell = model.PrimaryPart
@@ -450,6 +463,18 @@ function MeteorEggService.init()
 			end)
 		end
 	end
+	-- Voluntary egg drop (fix round 7, item 8): dropEgg used to run
+	-- only involuntarily (slapped, hit, died, left) — the player had
+	-- no way to put a carried egg down. Now G (or the DROP EGG
+	-- button) drops it at the player's feet, anywhere on the map,
+	-- ground phase, prompt re-enabled, grabbable again.
+	Remotes.dropEggEvent().OnServerEvent:Connect(function(player: Player)
+		if State.eggCarriedByUser[player.UserId] then
+			MeteorEggService.dropEgg(player)
+			Remotes.bannerEvent():FireClient(player, "🥚 Dropped your egg — grab it again any time.", 3)
+			print("[MeteorEgg] " .. player.Name .. " dropped their egg (voluntary)")
+		end
+	end)
 end
 
 return MeteorEggService

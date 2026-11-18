@@ -148,6 +148,9 @@
     },
     "CollectBank": {
      "$className": "RemoteFunction"
+    },
+    "DropEgg": {
+     "$className": "RemoteEvent"
     }
    }
   },
