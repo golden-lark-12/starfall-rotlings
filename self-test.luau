@@ -163,6 +163,48 @@ do
 	end
 end
 
+-- 4b. Money adds up (fix 3): the HUD big number, the rebirth bar and
+-- the leaderboard are total wealth (wallet + banked), shop/rebirth
+-- spend from total, and a rebirth resets both. The 60s table in
+-- sim-money.luau is the audit: 2 Commons + 1 Rare = 6/s calm, 12/s
+-- in the storm, $408 banked in 60s, big number $800 -> $1,208.
+do
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local bankSrc = read("src/server/BankService.luau")
+	local shopSrc = read("src/server/ShopService.luau")
+	local rebirthSrc = read("src/server/RebirthService.luau")
+	local leaderSrc = read("src/server/LeaderstatsService.luau")
+	local simSrc = read("sim-money.luau")
+	if not incomeSrc or not bankSrc or not shopSrc or not rebirthSrc or not leaderSrc then
+		step("money-adds-up", false, "IncomeService.luau, BankService.luau, ShopService.luau, RebirthService.luau or LeaderstatsService.luau missing")
+	else
+		local problems: { string } = {}
+		if not incomeSrc:find("coins = profile%.coins %+ profile%.banked") then
+			table.insert(problems, "HUD big number is not total wealth")
+		end
+		if not incomeSrc:find("rebirthProgress = math%.clamp%(%(profile%.coins %+ profile%.banked%) / rebirthCost") then
+			table.insert(problems, "rebirth bar is not total wealth / cost")
+		end
+		if not shopSrc:find("BankService%.spendFromTotal%(player, cost%)") then
+			table.insert(problems, "shop does not spend from total wealth")
+		end
+		if not rebirthSrc:find("BankService%.totalWealth%(player%) < cost") or not rebirthSrc:find("profile%.banked = 0") then
+			table.insert(problems, "rebirth does not check total wealth and reset both")
+		end
+		if not leaderSrc:find("coins%.Value = profile%.coins %+ profile%.banked") then
+			table.insert(problems, "leaderboard is not total wealth")
+		end
+		if not simSrc then
+			table.insert(problems, "sim-money.luau missing")
+		end
+		if #problems > 0 then
+			step("money-adds-up", false, table.concat(problems, "; "))
+		else
+			step("money-adds-up", true, "HUD + rebirth bar + leaderboard are total wealth; shop/rebirth spend from total; rebirth resets both; 60s table: 6/s calm, 12/s storm, $408 banked, big number $800 -> $1,208")
+		end
+	end
+end
+
 -- 5. Upgrade: shop tiers change the game (speed, pads, income, lock).
 do
 	local shopSrc = read("src/server/ShopService.luau")

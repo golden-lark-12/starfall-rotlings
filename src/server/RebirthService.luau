@@ -44,10 +44,17 @@ function RebirthService.doRebirth(player: Player): (boolean, string)
 		return false, "Profile not loaded yet."
 	end
 	local cost = RebirthService.rebirthCost(profile.rebirths)
-	if profile.coins < cost then
+	-- Total wealth pays (fix 3): income banks at the base, so the
+	-- wallet alone is not what the player has. And a rebirth resets
+	-- BOTH the wallet and the banked cash — the old code reset the
+	-- wallet to 0 but kept the banked money, so "reset your coins"
+	-- was not true.
+	local BankService = require(script.Parent.BankService)
+	if BankService.totalWealth(player) < cost then
 		return false, "Rebirth costs " .. Formatting.formatMoney(cost) .. ". Keep earning!"
 	end
 	profile.coins = 0
+	profile.banked = 0
 	profile.rebirths += 1
 	local baseId = BaseService.getPlayerBase(player.UserId)
 	if baseId then

@@ -8,7 +8,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 export type HudData = {
-	coins: number, -- wallet: spendable cash
+	coins: number, -- TOTAL wealth: wallet + uncollected base cash (fix 3). The big HUD number. Income banks at the base, so the wallet alone is not what the player has.
 	banked: number, -- cash sitting at the base, waiting to be collected
 	stardust: number,
 	xp: number,

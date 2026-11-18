@@ -3126,6 +3126,75 @@ do
 	end
 end
 
+-- -- (bf) money adds up: total wealth everywhere (fix 3) -------------------
+-- Income banks at the base, but the HUD big number, the rebirth bar,
+-- the shop, the rebirth cost check and the leaderboard all read the
+-- wallet only — so the player watched the wallet, saw nothing move
+-- from income, and could not spend money they had. Now every number
+-- is total wealth (wallet + banked): the big number moves every
+-- second, the rebirth bar fills from income, shop/rebirth collect
+-- the shortfall from the base, a rebirth resets both, and the
+-- leaderboard matches the HUD.
+do
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local bankSrc = read("src/server/BankService.luau")
+	local shopSrc = read("src/server/ShopService.luau")
+	local rebirthSrc = read("src/server/RebirthService.luau")
+	local leaderSrc = read("src/server/LeaderstatsService.luau")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	local simSrc = read("sim-money.luau")
+	if not incomeSrc or not bankSrc or not shopSrc or not rebirthSrc or not leaderSrc or not remotesSrc then
+		check("bf", false, "could not verify money totals — IncomeService.luau, BankService.luau, ShopService.luau, RebirthService.luau, LeaderstatsService.luau or Remotes.luau missing")
+	else
+		local problems: { string } = {}
+		-- HUD big number + rebirth bar are total wealth.
+		if not incomeSrc:find("coins = profile%.coins %+ profile%.banked") then
+			table.insert(problems, "broadcastHud does not send coins = wallet + banked (total wealth)")
+		end
+		if not incomeSrc:find("rebirthProgress = math%.clamp%(%(profile%.coins %+ profile%.banked%) / rebirthCost") then
+			table.insert(problems, "rebirthProgress is not total wealth / cost")
+		end
+		-- BankService has the total-wealth helpers.
+		if not bankSrc:find("function BankService%.totalWealth") then
+			table.insert(problems, "BankService.totalWealth not found")
+		end
+		if not bankSrc:find("function BankService%.spendFromTotal") then
+			table.insert(problems, "BankService.spendFromTotal not found")
+		end
+		-- Shop buys spend from total wealth.
+		if not shopSrc:find("BankService%.spendFromTotal%(player, cost%)") then
+			table.insert(problems, "ShopService.buyItem does not spend from total wealth")
+		end
+		if shopSrc:find("if profile%.coins < cost then") then
+			table.insert(problems, "ShopService.buyItem still checks the wallet only")
+		end
+		-- Rebirth checks total wealth and resets both.
+		if not rebirthSrc:find("BankService%.totalWealth%(player%) < cost") then
+			table.insert(problems, "RebirthService.doRebirth does not check total wealth")
+		end
+		if not rebirthSrc:find("profile%.banked = 0") then
+			table.insert(problems, "RebirthService.doRebirth does not reset the banked cash")
+		end
+		-- Leaderboard matches the HUD.
+		if not leaderSrc:find("coins%.Value = profile%.coins %+ profile%.banked") then
+			table.insert(problems, "LeaderstatsService.refresh does not show total wealth")
+		end
+		-- The HudData type says coins is total wealth.
+		if not remotesSrc:find("TOTAL wealth") then
+			table.insert(problems, "Remotes.HudData does not document coins as total wealth")
+		end
+		-- The 60s simulation exists and its table is the audit.
+		if not simSrc then
+			table.insert(problems, "sim-money.luau (the 60s money table) is missing")
+		end
+		if #problems > 0 then
+			check("bf", false, "the money does not add up — " .. table.concat(problems, "; ") .. ". Parts: broadcastHud (IncomeService.luau), totalWealth/spendFromTotal (BankService.luau), buyItem (ShopService.luau), doRebirth (RebirthService.luau), refresh (LeaderstatsService.luau), HudData (Remotes.luau)")
+		else
+			check("bf", true, "money adds up: HUD big number + rebirth bar + leaderboard are total wealth (wallet + banked); shop/rebirth spend from total (shortfall auto-collected); rebirth resets both; sim-money.luau prints the 60s table")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

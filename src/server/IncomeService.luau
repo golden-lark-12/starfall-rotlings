@@ -210,7 +210,13 @@ function IncomeService.broadcastHud()
 					end
 				end
 				Remotes.hudEvent():FireClient(player, {
-					coins = profile.coins,
+					-- Total wealth (fix 3): wallet + uncollected base
+					-- cash. Income banks at the base, so the wallet
+					-- alone is not what the player has — the old big
+					-- number (wallet only) never moved from income
+					-- and the player thought the money did not add
+					-- up. "At base" still shows the banked part.
+					coins = profile.coins + profile.banked,
 					banked = profile.banked,
 					stardust = profile.stardust,
 					xp = profile.xp,
@@ -224,7 +230,10 @@ function IncomeService.broadcastHud()
 					baseCps = IncomeService.coinsPerSecond(player, false),
 					rebirths = profile.rebirths,
 					rebirthCost = rebirthCost,
-					rebirthProgress = math.clamp(profile.coins / rebirthCost, 0, 1),
+					-- Rebirth progress is total wealth / cost (fix 3):
+					-- income banks at the base, so the wallet-only
+					-- bar never filled from income either.
+					rebirthProgress = math.clamp((profile.coins + profile.banked) / rebirthCost, 0, 1),
 					speedTier = profile.speedTier,
 					carryTier = profile.carryTier,
 					incomeTier = profile.incomeTier,

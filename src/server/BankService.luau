@@ -32,6 +32,41 @@ function BankService.collectBank(player: Player): (boolean, string)
 	return true, "Collected " .. Formatting.formatMoney(amount) .. " from your base!"
 end
 
+-- Total wealth: wallet + uncollected base cash. The HUD big number,
+-- the rebirth bar and the leaderboard all show this (fix 3) — income
+-- banks at the base, so the wallet alone is not what the player has.
+function BankService.totalWealth(player: Player): number
+	local profile = DataService.getProfile(player)
+	if not profile then
+		return 0
+	end
+	return profile.coins + profile.banked
+end
+
+-- Spend from total wealth (fix 3): shop buys and rebirths used to
+-- check the wallet only, so a player with $9,000 in the wallet and
+-- $5,000 at the base could not buy a $10,000 item even though they
+-- had $14,000. Now, if the wallet is short but the total covers the
+-- cost, the shortfall is collected from the base first, then the cost
+-- is deducted from the wallet. Returns true when the purchase went
+-- through.
+function BankService.spendFromTotal(player: Player, cost: number): boolean
+	local profile = DataService.getProfile(player)
+	if not profile then
+		return false
+	end
+	if profile.coins + profile.banked < cost then
+		return false
+	end
+	if profile.coins < cost then
+		local shortfall = cost - profile.coins
+		profile.banked -= shortfall
+		profile.coins += shortfall
+	end
+	profile.coins -= cost
+	return true
+end
+
 -- Wire the CollectBank remote function.
 function BankService.init()
 	Remotes.collectBankFunction().OnServerInvoke = function(player: Player)

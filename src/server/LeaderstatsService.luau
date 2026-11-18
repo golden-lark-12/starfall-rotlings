@@ -37,7 +37,11 @@ function LeaderstatsService.refresh(player: Player)
 	end
 	local coins = folder:FindFirstChild("Coins")
 	if coins and coins:IsA("IntValue") then
-		coins.Value = profile.coins
+		-- Total wealth (fix 3): wallet + banked, matching the HUD
+		-- big number and the top-3 board (which already ranked
+		-- total wealth). The old wallet-only value lagged behind
+		-- what the HUD showed.
+		coins.Value = profile.coins + profile.banked
 	end
 	local rebirths = folder:FindFirstChild("Rebirths")
 	if rebirths and rebirths:IsA("IntValue") then

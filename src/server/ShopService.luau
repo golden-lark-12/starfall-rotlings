@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Formatting = require(ReplicatedStorage.Shared.Formatting)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local BankService = require(script.Parent.BankService)
 local BaseService = require(script.Parent.BaseService)
 local DataService = require(script.Parent.DataService)
 local FeedbackService = require(script.Parent.FeedbackService)
@@ -73,10 +74,13 @@ function ShopService.buyItem(player: Player, itemName: string): (boolean, string
 		return false, item.label .. " is maxed out!"
 	end
 	local cost = item.tiers[tier + 1]
-	if profile.coins < cost then
+	-- Spend from total wealth (fix 3): the wallet alone is not what
+	-- the player has — income banks at the base. spendFromTotal
+	-- collects the shortfall from the base first, then deducts, so
+	-- the big HUD number is spendable.
+	if not BankService.spendFromTotal(player, cost) then
 		return false, "Not enough coins! Need " .. Formatting.formatMoney(cost) .. "."
 	end
-	profile.coins -= cost
 	local writable = profile :: any
 	writable[tierKey] = tier + 1
 	if itemName == "Speed" then

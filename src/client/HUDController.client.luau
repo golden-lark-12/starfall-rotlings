@@ -408,8 +408,10 @@ local function onHudData(data: Remotes.HudData)
 	stardustLabel.Text = "💎 " .. tostring(hud.stardust)
 	-- Income line: income/s, the cash sitting at the base, the
 	-- current rebirth tier and its multiplier, then the Index count.
-	-- "At base" and the wallet are two different numbers on purpose:
-	-- income banks at the base until you Collect it.
+	-- The big number is TOTAL wealth (wallet + At base, fix 3) — the
+	-- income that banks at the base is part of what the player has,
+	-- and it is spendable (shop/rebirth collect the shortfall first).
+	-- "At base" still shows the banked part on its own line.
 	-- Storm income readout: while the player shelters in their own
 	-- Safe Dome during the storm, the boosted rate shows with (x2)
 	-- NEXT TO the normal rate — the threat shot proves the event
