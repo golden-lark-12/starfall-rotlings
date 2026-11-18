@@ -388,6 +388,11 @@ function CarryService.placeOnPad(player: Player, model: Model, baseId: number, p
 	RotlingFactory.setCarriedVisual(model, false)
 	RotlingFactory.setModelScale(model, 1)
 	RotlingFactory.refreshLabelOffset(model)
+	-- Uniform pedestal height (rev 75): every placed Brainrot
+	-- stands at one tidy height, whatever its type. The lift below
+	-- reads the live body size, so it seats the normalized model
+	-- correctly. Restores and egg hatches ride this same path.
+	RotlingFactory.normalizeToHeight(model, Config.PLACED_DISPLAY_HEIGHT)
 	local padCf = WorldBuilder.padCFrame(baseId, padIndex)
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
 	-- Seat the Rotling ON the pad from its own body: the pad top is

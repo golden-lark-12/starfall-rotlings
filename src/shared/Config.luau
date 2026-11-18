@@ -125,6 +125,14 @@ Config.CARRY_Y = 0.0 -- studs below the root centre: chest/arm height
 Config.CARRY_Z = -3.2 -- studs in front of the chest: clear of the torso, visible from behind
 -- Carried size: the real model at a readable scale, never a tiny box.
 Config.CARRY_MAX_HEIGHT = 3.6 -- a carried Rotling is at most 3.6 studs tall
+-- Placed size: every Brainrot on a pedestal is ONE uniform height, so
+-- the base reads as a tidy display case instead of a staircase — the
+-- biggest placed Brainrot was 2.3x the smallest (Count Croissant 5.0
+-- vs Bloop 2.2) and the tall ones towered over the player. The
+-- per-type sizes live on only in the crater (1.5x spawns) and while
+-- carried (CARRY_MAX_HEIGHT). 3.5 studs fits the pedestal and stays
+-- below the player's eye line.
+Config.PLACED_DISPLAY_HEIGHT = 3.5 -- total height (body + hat) of a placed Brainrot
 Config.PLACE_RANGE = 14 -- how close to a free pad the carrier must stand
 
 -- Name tags: only the nearest few, only up close, so they never stack

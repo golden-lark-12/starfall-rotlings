@@ -154,6 +154,28 @@ function RotlingFactory.setModelScale(model: Model, target: number)
 	model:ScaleTo(target / current)
 end
 
+-- Scale a Rotling so its TOTAL height (body + hat/accessories) is
+-- exactly `height` studs, whatever it was built at. The pedestal is
+-- the display case: every placed Brainrot stands at one uniform
+-- height (Config.PLACED_DISPLAY_HEIGHT), so the base reads tidy
+-- instead of a staircase. Measured from the live bounding box, so
+-- hats and accessories count — a tall hat shrinks the whole model
+-- to fit, a flat puddle grows. Uses GetScale so the target is
+-- absolute relative to the build size.
+function RotlingFactory.normalizeToHeight(model: Model, height: number)
+	local current = model:GetScale()
+	if current <= 0 then
+		current = 1
+	end
+	local extents = model:GetExtentsSize()
+	local buildHeight = extents.Y / current
+	if buildHeight <= 0 then
+		return
+	end
+	RotlingFactory.setModelScale(model, height / buildHeight)
+	RotlingFactory.refreshLabelOffset(model)
+end
+
 -- Carried look: the REAL model at a readable size, riding in front of
 -- the chest — no bubble, no shrink-to-a-box. The glow shell is hidden
 -- while carried so the Rotling keeps its real colours and face instead

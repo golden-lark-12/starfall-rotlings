@@ -1486,6 +1486,10 @@ local function buildLogoStage()
 			local model = RotlingFactory.build(defId, nil, pos, 1.5)
 			if model then
 				model.Parent = workspace
+				-- Uniform display height (rev 75): the heroes stand
+				-- at the same tidy height as a placed Brainrot, not
+				-- 1.5x giants blocking the plaza.
+				RotlingFactory.normalizeToHeight(model, Config.PLACED_DISPLAY_HEIGHT)
 				model:SetAttribute("State", "display")
 				model:SetAttribute("BaseId", 0)
 				model:SetAttribute("PadIndex", 0)

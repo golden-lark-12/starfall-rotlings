@@ -5564,6 +5564,45 @@ do
 	end
 end
 
+-- (cu) Uniform placed size (rev 75): every Brainrot on a pedestal
+-- stands at one height (Config.PLACED_DISPLAY_HEIGHT), so the base
+-- reads as a tidy display case. The crater keeps per-type sizes
+-- (1.5x spawns) and carrying keeps CARRY_MAX_HEIGHT.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not configSrc or not factorySrc or not carrySrc or not worldSrc then
+		check("cu", false, "could not verify the uniform placed size — Config.luau, RotlingFactory.luau, CarryService.luau or WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		if not configSrc:find("PLACED_DISPLAY_HEIGHT = 3%.5") then
+			table.insert(problems, "no PLACED_DISPLAY_HEIGHT = 3.5 in Config")
+		end
+		if not factorySrc:find("function RotlingFactory%.normalizeToHeight") then
+			table.insert(problems, "no normalizeToHeight in RotlingFactory")
+		end
+		if not factorySrc:find("GetExtentsSize%(%)") then
+			table.insert(problems, "normalizeToHeight does not measure the live bounding box (hats/accessories would not count)")
+		end
+		if not carrySrc:find("normalizeToHeight%(model, Config%.PLACED_DISPLAY_HEIGHT%)") then
+			table.insert(problems, "placeOnPad does not normalize the placed Brainrot")
+		end
+		if not worldSrc:find("normalizeToHeight%(model, Config%.PLACED_DISPLAY_HEIGHT%)") then
+			table.insert(problems, "the logo-stage heroes are not normalized to the display height")
+		end
+		if carrySrc:find("setModelScale%(model, 1%)\n\tRotlingFactory%.refreshLabelOffset%(model%)\n\tlocal padCf") then
+			table.insert(problems, "placeOnPad still seats the model at scale 1 with no normalization after it")
+		end
+		if #problems > 0 then
+			check("cu", false, "the uniform placed size is incomplete — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, RotlingFactory.luau, CarryService.luau, WorldBuilder.luau")
+		else
+			check("cu", true, "placed Brainrots stand at one uniform height (3.5 studs, body + hat): placeOnPad normalizes every placement (restores + egg hatches ride the same path), the logo-stage heroes match; crater spawns keep per-type 1.5x sizes and carrying keeps CARRY_MAX_HEIGHT")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
