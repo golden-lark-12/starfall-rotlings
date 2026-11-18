@@ -46,7 +46,9 @@ function DataService.defaultProfile(): State.Profile
 		index = {},
 		indexRewards = {},
 		indexFullRewarded = false,
+		mutations = {},
 		placed = {},
+		contracts = {},
 		missionIndex = 1,
 		missionProgress = 0,
 		lastDailyClaim = 0,
@@ -69,8 +71,16 @@ local function reconcile(data: any): State.Profile
 	if typeof(profile.indexRewards) ~= "table" then
 		profile.indexRewards = {}
 	end
+	-- Mutations: old saves never collected any.
+	if typeof(profile.mutations) ~= "table" then
+		profile.mutations = {}
+	end
 	if typeof(profile.placed) ~= "table" then
 		profile.placed = {}
+	end
+	-- Contracts: old saves never had a board.
+	if typeof(profile.contracts) ~= "table" then
+		profile.contracts = {}
 	end
 	if profile.padsTier == nil then
 		profile.padsTier = 0

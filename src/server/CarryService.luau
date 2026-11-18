@@ -316,6 +316,11 @@ function CarryService.tryGrab(player: Player, model: Model)
 	local GuardianService = require(script.Parent.GuardianService)
 	GuardianService.onGrab(player, model)
 	MissionService.addProgress(player, "grab", 1)
+	-- Rare+ grabs count toward the "rare" contracts too.
+	local grabDef = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
+	if grabDef and RarityConfig.rarityTier(grabDef.rarity) >= 2 then
+		MissionService.addProgress(player, "rare", 1)
+	end
 	addXp(player, Config.XP_GRAB)
 	playPickupSound(player)
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)

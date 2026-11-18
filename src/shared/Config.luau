@@ -22,14 +22,26 @@ Config.CRATER_MAX_FREE = 10 -- free Rotlings at once in the crater
 Config.CRATER_MIN_FREE = 6 -- the conveyor never drops below this: top up fast
 Config.CRATER_INITIAL = 8 -- Rotlings waiting when the first player arrives
 
--- Missions: a short rotating list, one at a time. Progress is counted
--- on the server (grabs, places, coins earned); finishing one pays the
--- reward and moves to the next.
-Config.MISSIONS = {
-	{ id = "grab", text = "Grab 3 Brainrots", target = 3, reward = 300 },
-	{ id = "place", text = "Place 3 Brainrots on your base", target = 3, reward = 500 },
-	{ id = "earn", text = "Earn $5,000 coins", target = 5000, reward = 750 },
+-- Contracts: the Contract Board's pool. Three are active at a time,
+-- dealt in pool order; claiming one deals the next pool contract not
+-- already active. Progress is counted on the server (grabs, places,
+-- coins earned, Rare+ grabs); finishing one marks it ready, and the
+-- player CLAIMS the reward at the board — never auto-paid, so the
+-- board is the loop. Kinds must match MissionService.addProgress
+-- call sites: "grab" (CarryService.tryGrab), "place"
+-- (CarryService.placeOnPad), "earn" (IncomeService tick), "rare"
+-- (CarryService.tryGrab, Rare tier or better).
+Config.CONTRACTS = {
+	{ id = "grab3", kind = "grab", text = "Grab 3 Brainrots", target = 3, reward = 300 },
+	{ id = "place3", kind = "place", text = "Place 3 Brainrots on your base", target = 3, reward = 500 },
+	{ id = "earn5k", kind = "earn", text = "Earn $5,000 coins", target = 5000, reward = 750 },
+	{ id = "grab5", kind = "grab", text = "Grab 5 Brainrots", target = 5, reward = 500 },
+	{ id = "place5", kind = "place", text = "Place 5 Brainrots on your base", target = 5, reward = 800 },
+	{ id = "earn15k", kind = "earn", text = "Earn $15,000 coins", target = 15000, reward = 1500 },
+	{ id = "rare1", kind = "rare", text = "Grab a Rare (or better) Brainrot", target = 1, reward = 600 },
+	{ id = "rare3", kind = "rare", text = "Grab 3 Rare (or better) Brainrots", target = 3, reward = 1200 },
 }
+Config.CONTRACTS_AT_ONCE = 3 -- contracts active on the board at a time
 
 -- Daily reward: claimable once per cooldown from the HUD Daily button.
 Config.DAILY_REWARD = 1000

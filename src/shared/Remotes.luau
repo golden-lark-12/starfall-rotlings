@@ -42,6 +42,8 @@ export type HudData = {
 	missionProgress: number,
 	missionTarget: number,
 	missionReward: number,
+	contracts: { { id: string, text: string, target: number, reward: number, progress: number, done: boolean, claimed: boolean } }, -- the Contract Board: three active contracts with their progress
+	mutations: { [string]: boolean }, -- mutations this player has collected (index row)
 	dailyReady: boolean,
 	boosts: { { kind: string, seconds: number } },
 	belt: { { name: string, cps: number } },
@@ -141,6 +143,14 @@ end
 
 function Remotes.collectBankFunction(): RemoteFunction
 	return Remotes.getFolder():WaitForChild("CollectBank") :: RemoteFunction
+end
+
+function Remotes.claimContractFunction(): RemoteFunction
+	return Remotes.getFolder():WaitForChild("ClaimContract") :: RemoteFunction
+end
+
+function Remotes.openContractsEvent(): RemoteEvent
+	return Remotes.getFolder():WaitForChild("OpenContracts") :: RemoteEvent
 end
 
 return Remotes

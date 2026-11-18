@@ -364,7 +364,7 @@ do
 		if #problems > 0 then
 			step("economy", false, table.concat(problems, "; "))
 		else
-			step("economy", true, "wombat " .. tostring((commonCps or 0) * (wombatMult or 0)) .. "/s, sells for " .. tostring((commonCps or 0) * (wombatMult or 0) * (sellMult or 0)) .. ", first rebirth " .. tostring(rebirthBase) .. ", daily " .. tostring(daily) .. ", missions pay " .. tostring(missionRewards) .. " total")
+			step("economy", true, "wombat " .. tostring((commonCps or 0) * (wombatMult or 0)) .. "/s, sells for " .. tostring((commonCps or 0) * (wombatMult or 0) * (sellMult or 0)) .. ", first rebirth " .. tostring(rebirthBase) .. ", daily " .. tostring(daily) .. ", contracts pay " .. tostring(missionRewards) .. " total")
 		end
 	end
 end
@@ -659,7 +659,9 @@ do
 end
 
 -- 15. Rivals: 4 named bots on bases 5-8 that grab, carry, earn and
--- steal; the leaderboard and bounty board show them.
+-- steal; the leaderboard shows them and the storm bounty pays the
+-- top earner (the live bounty board is gone — the Contract Board
+-- took its plaza spot).
 do
 	local rivalSrc = read("src/server/RivalService.luau")
 	local mainSrc = read("src/server/Main.server.luau")
@@ -683,13 +685,13 @@ do
 		if not incomeSrc:find("Rival") then
 			table.insert(problems, "rivals never appear on the leaderboard")
 		end
-		if not incomeSrc:find("setBountyText") then
-			table.insert(problems, "the bounty board is never updated")
+		if not incomeSrc:find("STORM BOUNTY:") then
+			table.insert(problems, "the storm bounty winner is never announced")
 		end
 		if #problems > 0 then
 			step("rivals", false, table.concat(problems, "; "))
 		else
-			step("rivals", true, "4 rivals on bases 5-8 grab, carry, earn, steal and chase; leaderboard + bounty wired")
+			step("rivals", true, "4 rivals on bases 5-8 grab, carry, earn, steal and chase; leaderboard + storm bounty wired")
 		end
 	end
 end

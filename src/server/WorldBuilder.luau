@@ -70,7 +70,6 @@ local incubatorCFrames: { [number]: CFrame } = {}
 local shieldDomes: { [number]: Part } = {}
 local shieldLabels: { [number]: TextLabel } = {}
 local shopCenterCf: CFrame? = nil
-local bountyLabel: TextLabel? = nil
 
 -- Parts that float (floating islands, crater rocks): base pose + seed,
 -- bobbed by one shared loop so nothing needs its own heartbeat.
@@ -102,13 +101,6 @@ function WorldBuilder.shopCenter(): Vector3?
 		return shopCenterCf.Position
 	end
 	return nil
-end
-
--- Bounty board text ("Top earner this storm: ...").
-function WorldBuilder.setBountyText(text: string)
-	if bountyLabel then
-		bountyLabel.Text = text
-	end
 end
 
 -- Wind: the four quadrant drift emitters built by buildWind. Starfall
@@ -1502,51 +1494,64 @@ local function buildLogoStage()
 	meteorLight.Parent = meteor
 end
 
--- Bounty board near spawn (15, 0, 85): "Top earner this storm wins
--- a bonus." The income broadcast updates its text (item 7d).
-local function buildBountyBoard()
-	-- Opposite side of the spawn path from the Index Wall (fix round
-	-- 2, fix 8): the board used to sit at (15, 0, 85), ~14 studs from
-	-- the Index Wall at (28, 0, 80), and their AlwaysOnTop billboards
-	-- overlapped on screen from spawn. Now the board is on the LEFT
-	-- side of the path (-18) and the wall is on the RIGHT (35, 70) —
-	-- ~55 studs apart, never in the same frame.
+-- Contract Board in the plaza (-32, 0, 90): the visible board where
+-- the player picks up contracts and claims rewards. The board itself
+-- is a sign + a prompt — contracts are per-player, so the board's
+-- text is the same for everyone ("3 contracts, claim rewards here")
+-- and pressing E opens the player's own board panel (MissionService
+-- wires the prompt to the OpenContracts remote). It takes the old
+-- Bounty Board's spot, on the LEFT side of the spawn path, ~55 studs
+-- from the Index Wall on the right — never in the same frame.
+local function buildContractBoard()
 	local boardCf = CFrame.lookAt(Vector3.new(-32, 0, 90), Vector3.new(0, 0, 96))
 	for _, x in ipairs({ -4, 4 }) do
-		local post = part("BountyPost", Enum.PartType.Cylinder, Vector3.new(7, 0.8, 0.8), Color3.fromRGB(120, 85, 50), boardCf * CFrame.new(x, 3.5, 0) * CFrame.Angles(0, 0, math.rad(90)))
+		local post = part("ContractPost", Enum.PartType.Cylinder, Vector3.new(7, 0.8, 0.8), Color3.fromRGB(120, 85, 50), boardCf * CFrame.new(x, 3.5, 0) * CFrame.Angles(0, 0, math.rad(90)))
 		post.CanCollide = false
 	end
-	local board = part("BountyBoard", Enum.PartType.Block, Vector3.new(10, 6, 0.6), Color3.fromRGB(60, 45, 90), boardCf * CFrame.new(0, 6, 0))
+	local board = part("ContractBoard", Enum.PartType.Block, Vector3.new(10, 7, 0.6), Color3.fromRGB(60, 45, 90), boardCf * CFrame.new(0, 6, 0))
 	board.CanCollide = false
+	-- Gold trim on top, so the board reads as the reward board from
+	-- the path — the bounty board it replaces was plain dark.
+	local trim = part("ContractBoardTrim", Enum.PartType.Block, Vector3.new(10.4, 0.5, 0.8), Color3.fromRGB(255, 215, 0), boardCf * CFrame.new(0, 9.6, 0), Enum.Material.Neon)
+	trim.CanCollide = false
 	local gui = Instance.new("BillboardGui")
-	gui.Name = "BountyBoardGui"
-	gui.Size = UDim2.fromOffset(280, 140)
+	gui.Name = "ContractBoardGui"
+	gui.Size = UDim2.fromOffset(280, 160)
 	gui.AlwaysOnTop = true
 	gui.LightInfluence = 0
 	gui.MaxDistance = 60
 	gui.Parent = board
 	local title = Instance.new("TextLabel")
-	title.Name = "BountyTitle"
+	title.Name = "ContractTitle"
 	title.Size = UDim2.new(1, 0, 0.3, 0)
 	title.BackgroundTransparency = 1
-	title.Text = "🏆 BOUNTY BOARD"
+	title.Text = "📋 CONTRACT BOARD"
 	title.Font = Enum.Font.FredokaOne
 	title.TextScaled = true
 	title.TextColor3 = Color3.fromRGB(255, 220, 90)
 	title.TextStrokeTransparency = 0.3
 	title.Parent = gui
 	local text = Instance.new("TextLabel")
-	text.Name = "BountyText"
+	text.Name = "ContractText"
 	text.Size = UDim2.new(1, 0, 0.7, 0)
 	text.Position = UDim2.new(0, 0, 0.3, 0)
 	text.BackgroundTransparency = 1
-	text.Text = "Top earner this storm wins a bonus!"
+	text.Text = "3 contracts at a time.\nFinish one, claim the reward!"
 	text.Font = Enum.Font.FredokaOne
 	text.TextScaled = true
 	text.TextColor3 = Color3.fromRGB(255, 255, 255)
 	text.TextStrokeTransparency = 0.3
 	text.Parent = gui
-	bountyLabel = text
+	-- Press E to open your board: the prompt is wired by
+	-- MissionService.init (it fires OpenContracts at that player).
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "ContractBoardPrompt"
+	prompt.ActionText = "Open Contract Board"
+	prompt.ObjectText = "3 contracts • claim rewards"
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = board
 end
 
 function WorldBuilder.build()
@@ -1581,7 +1586,7 @@ function WorldBuilder.build()
 	-- enough — the name lives on the HUD and the title screen, not
 	-- in the sky.
 	buildLogoStage()
-	buildBountyBoard()
+	buildContractBoard()
 	print("[WorldBuilder] world built: " .. tostring(Config.BASE_COUNT) .. " bases, crater, conveyor, sell area, plaza, trees, rocks, hills, ground detail, crystals, islands, sky, wind, star shop, upgrade machines, rebirth altar, index wall, spaceship, background, signposts, fences, paths, critters, title billboard, logo stage, bounty board.")
 end
 

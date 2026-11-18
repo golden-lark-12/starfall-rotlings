@@ -78,44 +78,15 @@ function IncomeService.incomeMult(player: Player, includeStormBoost: boolean?): 
 	return mult
 end
 
--- Live bounty board (fix round 2, fix 5): during the storm, the
--- bounty board shows the LIVE top-earner list — who is earning the
--- most right now, and what the winner takes. Called every tick while
--- the storm runs, so the board moves as players (and rivals, on the
--- belt) compete. The winner is still paid once, at storm end, by
--- awardStormBounty.
-function IncomeService.updateStormBountyBoard()
-	local status = StarfallService.getStatus()
-	if status.phase ~= "storm" then
-		return
-	end
-	local standings: { { name: string, earned: number } } = {}
-	for _, player in ipairs(Players:GetPlayers()) do
-		local earned = State.stormEarnings[player.UserId] or 0
-		if earned > 0 then
-			table.insert(standings, { name = player.DisplayName, earned = earned })
-		end
-	end
-	table.sort(standings, function(a, b)
-		return a.earned > b.earned
-	end)
-	if #standings == 0 then
-		WorldBuilder.setBountyText("🏆 STORM BOUNTY — LIVE\nNo earnings yet this storm!\nTop earner wins " .. Formatting.formatMoney(Config.BOUNTY_BONUS) .. "!")
-		return
-	end
-	local lines: { string } = { "🏆 STORM BOUNTY — LIVE" }
-	for i = 1, math.min(3, #standings) do
-		table.insert(lines, tostring(i) .. ". " .. standings[i].name .. " — " .. Formatting.formatMoney(standings[i].earned))
-	end
-	table.insert(lines, "Top earner wins " .. Formatting.formatMoney(Config.BOUNTY_BONUS) .. "!")
-	WorldBuilder.setBountyText(table.concat(lines, "\n"))
-end
-
 -- Storm bounty: earnings since the current storm started.
 function IncomeService.resetStormEarnings()
 	State.stormEarnings = {}
 end
 
+-- Storm bounty: the top earner this storm wins the bonus, paid to
+-- the wallet with a server-wide banner. (The old live bounty BOARD
+-- was removed in the simplify pass — the payout stays, the board
+-- goes; the Contract Board took its spot in the plaza.)
 function IncomeService.awardStormBounty()
 	local bestPlayer: Player? = nil
 	local bestEarned = 0
@@ -131,12 +102,7 @@ function IncomeService.awardStormBounty()
 		if profile then
 			profile.coins += Config.BOUNTY_BONUS
 			Remotes.bannerEvent():FireAllClients("🏆 STORM BOUNTY: " .. bestPlayer.DisplayName .. " earned the most this storm and wins " .. Formatting.formatMoney(Config.BOUNTY_BONUS) .. "!", 6)
-			State.stormBountyText = bestPlayer.DisplayName .. " won the last storm bounty (" .. Formatting.formatMoney(Config.BOUNTY_BONUS) .. ")!"
-			WorldBuilder.setBountyText(State.stormBountyText)
 		end
-	else
-		State.stormBountyText = "Top earner this storm wins a bonus!"
-		WorldBuilder.setBountyText(State.stormBountyText)
 	end
 	State.stormEarnings = {}
 end
@@ -299,6 +265,8 @@ function IncomeService.broadcastHud()
 					missionProgress = MissionService.progress(player),
 					missionTarget = mission.target,
 					missionReward = mission.reward,
+					contracts = MissionService.activeContracts(player),
+					mutations = profile.mutations or {},
 					dailyReady = DailyService.isReady(player),
 					boosts = boosts,
 					belt = belt,
@@ -454,12 +422,6 @@ function IncomeService.start()
 			local okHud, errHud = pcall(IncomeService.broadcastHud)
 			if not okHud then
 				warn("Starfall broadcastHud failed: " .. tostring(errHud))
-			end
-			-- Live bounty board (fix round 2, fix 5): while the
-			-- storm runs, the board shows the live top earners.
-			local okBounty, errBounty = pcall(IncomeService.updateStormBountyBoard)
-			if not okBounty then
-				warn("Starfall bounty board failed: " .. tostring(errBounty))
 			end
 			-- Diagnostic (every 30s): one line per player with the
 			-- numbers the HUD should be showing, so the Output

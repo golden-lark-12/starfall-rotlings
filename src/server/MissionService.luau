@@ -1,11 +1,17 @@
 --!strict
--- Starfall Rotlings: missions.
--- One active mission at a time from Config.MISSIONS, rotating in order.
--- Progress is counted on the server only (grabs, places, coins earned);
--- finishing one pays the reward, shows a banner, and moves to the next.
--- The HUD feed carries the active mission so the client can draw the
--- mission bar. Nothing here trusts the client: it only ever reports
--- progress the server itself observed.
+-- Starfall Rotlings: contracts (the Contract Board).
+-- Three contracts at a time from Config.CONTRACTS, dealt in pool
+-- order. Progress is counted on the server only (grabs, places,
+-- coins earned, Rare+ grabs); finishing one marks it READY, and the
+-- player CLAIMS the reward at the Contract Board (the world board by
+-- the plaza, or the Contracts button) — the reward is never auto-paid,
+-- so the board is the loop. Claiming deals a fresh contract from the
+-- pool. The HUD feed carries all three contracts for the board panel,
+-- and the first unclaimed one doubles as the quest pill
+-- (currentMission / progress keep the old single-mission shape, so
+-- the HUD never changes shape).
+-- Nothing here trusts the client: it only ever reports progress the
+-- server itself observed, and claiming is validated here.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -28,87 +34,252 @@ export type Mission = {
 	reward: number,
 }
 
--- The active mission for a profile (index wraps around the list).
-function MissionService.currentMission(player: Player): Mission
-	local profile = DataService.getProfile(player)
-	local index = if profile then profile.missionIndex else 1
-	local missions = Config.MISSIONS
-	if index < 1 or index > #missions then
-		index = 1
+export type ContractState = {
+	id: string,
+	progress: number,
+	done: boolean,
+	claimed: boolean,
+}
+
+-- The pool definition for a contract id, or nil.
+local function contractDef(id: string): { id: string, kind: string, text: string, target: number, reward: number }?
+	for _, def in ipairs(Config.CONTRACTS) do
+		if def.id == id then
+			return def
+		end
 	end
-	return missions[index]
+	return nil
+end
+
+-- Deal contracts until the player holds CONTRACTS_AT_ONCE: the next
+-- pool contracts (in pool order) that are not already active. A
+-- claimed slot is replaced by claimContract, never here, so this only
+-- ever fills an empty board (first join, or an old save).
+function MissionService.dealContracts(player: Player)
+	local profile = DataService.getProfile(player)
+	if not profile then
+		return
+	end
+	if typeof(profile.contracts) ~= "table" then
+		profile.contracts = {}
+	end
+	local active: { [string]: boolean } = {}
+	for _, slot in ipairs(profile.contracts) do
+		active[slot.id] = true
+	end
+	for _, def in ipairs(Config.CONTRACTS) do
+		if #profile.contracts >= Config.CONTRACTS_AT_ONCE then
+			break
+		end
+		if not active[def.id] then
+			table.insert(profile.contracts, { id = def.id, progress = 0, done = false, claimed = false })
+			active[def.id] = true
+		end
+	end
+end
+
+-- All active contracts with their pool text and reward, for the HUD
+-- feed (the board panel reads this). Deals first if the board is empty.
+function MissionService.activeContracts(player: Player): { { id: string, text: string, target: number, reward: number, progress: number, done: boolean, claimed: boolean } }
+	MissionService.dealContracts(player)
+	local profile = DataService.getProfile(player)
+	local out: { { id: string, text: string, target: number, reward: number, progress: number, done: boolean, claimed: boolean } } = {}
+	if not profile then
+		return out
+	end
+	for _, slot in ipairs(profile.contracts) do
+		local def = contractDef(slot.id)
+		if def then
+			table.insert(out, {
+				id = slot.id,
+				text = def.text,
+				target = def.target,
+				reward = def.reward,
+				progress = slot.progress,
+				done = slot.done,
+				claimed = slot.claimed,
+			})
+		end
+	end
+	return out
+end
+
+-- The first unclaimed contract, as the quest pill's single mission.
+-- The pill shows one contract at a time ("Grab 3 Brainrots 1/3");
+-- the board shows all three.
+function MissionService.currentMission(player: Player): Mission
+	MissionService.dealContracts(player)
+	local profile = DataService.getProfile(player)
+	if profile then
+		for _, slot in ipairs(profile.contracts) do
+			if not slot.claimed then
+				local def = contractDef(slot.id)
+				if def then
+					return { id = def.id, text = def.text, target = def.target, reward = def.reward }
+				end
+			end
+		end
+	end
+	local first = Config.CONTRACTS[1]
+	return { id = first.id, text = first.text, target = first.target, reward = first.reward }
 end
 
 function MissionService.progress(player: Player): number
+	MissionService.dealContracts(player)
 	local profile = DataService.getProfile(player)
-	return if profile then profile.missionProgress else 0
+	if not profile then
+		return 0
+	end
+	for _, slot in ipairs(profile.contracts) do
+		if not slot.claimed then
+			return slot.progress
+		end
+	end
+	return 0
 end
 
--- Complete the active mission: pay the reward, advance to the next
--- mission, save, celebrate, banner. Shared by addProgress and
+-- Mark one contract ready: banner + sound, but NO payout — the
+-- player claims the reward at the board. Shared by addProgress and
 -- syncPlaceMission so the two paths cannot drift.
-local function completeMission(player: Player, profile, mission: Mission)
-	profile.coins += mission.reward
-	profile.missionIndex = (profile.missionIndex % #Config.MISSIONS) + 1
-	profile.missionProgress = 0
-	DataService.saveProfile(player)
-	FeedbackService.celebrate(player)
-	local nextMission = MissionService.currentMission(player)
-	Remotes.bannerEvent():FireClient(player, "🎯 Mission complete! +" .. Formatting.formatMoney(mission.reward) .. " — next: " .. nextMission.text, 5)
+local function markReady(player: Player, slot: ContractState)
+	local def = contractDef(slot.id)
+	if not def then
+		return
+	end
+	slot.done = true
+	slot.progress = def.target
+	FeedbackService.playSound(player, 1.8, 0.9)
+	Remotes.bannerEvent():FireClient(player, "📋 Contract ready: " .. def.text .. " — claim " .. Formatting.formatMoney(def.reward) .. " at the Contract Board!", 5)
+	print("[Contract] " .. player.Name .. " finished " .. slot.id .. " (" .. def.text .. ") — ready to claim " .. Formatting.formatMoney(def.reward))
 end
 
--- Report server-observed progress toward the active mission. Only the
--- matching kind counts; anything else is ignored. On completion the
--- reward is paid, the banner fires, and the next mission starts fresh.
+-- Report server-observed progress toward every active contract of
+-- the matching kind. Only the matching kind counts; anything else is
+-- ignored. Progress caps at the target; completion marks the contract
+-- ready (claim it at the board).
 function MissionService.addProgress(player: Player, kind: string, amount: number)
 	local profile = DataService.getProfile(player)
 	if not profile then
 		return
 	end
-	local mission = MissionService.currentMission(player)
-	if mission.id ~= kind then
-		return
+	MissionService.dealContracts(player)
+	for _, slot in ipairs(profile.contracts) do
+		if not slot.claimed and not slot.done then
+			local def = contractDef(slot.id)
+			if def and def.kind == kind then
+				slot.progress = math.min(slot.progress + amount, def.target)
+				if slot.progress >= def.target then
+					markReady(player, slot)
+				end
+			end
+		end
 	end
-	profile.missionProgress += amount
-	if profile.missionProgress < mission.target then
-		return
-	end
-	completeMission(player, profile, mission)
-	-- The next mission might be a "place" mission the player already
-	-- satisfies (14 placed, 0/3 shown): sync it now, or it would sit
-	-- at 0 until they place 3 more.
-	MissionService.syncPlaceMission(player)
 end
 
--- Sync the "place" mission to the live placed count (fix round 4,
--- item 3): the quest said "Place 3 Brainrots on your base 0/3" while
--- the player already had 14 placed, because addProgress only counts
--- placements while "place" is the ACTIVE mission — placements made
--- while other missions were active never counted. The live count is
--- the truth: if the player already has enough placed, the mission
--- completes now. Called on join/restore (CarryService.restorePlaced)
--- and after every mission completion (addProgress).
+-- Sync the "place" contracts to the live placed count (fix round 4,
+-- item 3, carried over from the old single mission): a player who
+-- already has enough placed when a "place" contract is dealt
+-- completes it on join instead of staring at 0/3. Called on
+-- join/restore (CarryService.restorePlaced) and after every claim
+-- (claimContract deals a fresh contract that might already be
+-- satisfied).
 function MissionService.syncPlaceMission(player: Player)
 	local profile = DataService.getProfile(player)
 	if not profile then
 		return
 	end
-	local mission = MissionService.currentMission(player)
-	if mission.id ~= "place" then
-		return
-	end
+	MissionService.dealContracts(player)
 	local placed = #BaseService.getPlacedForPlayer(player)
-	if placed <= profile.missionProgress then
-		return -- only move forward; never rewind progress
+	for _, slot in ipairs(profile.contracts) do
+		if not slot.claimed and not slot.done then
+			local def = contractDef(slot.id)
+			if def and def.kind == "place" and placed > slot.progress then
+				slot.progress = placed
+				if placed >= def.target then
+					markReady(player, slot)
+				end
+			end
+		end
 	end
-	profile.missionProgress = placed
-	if placed < mission.target then
-		return
+end
+
+-- Claim a finished contract: pay the reward, mark the slot claimed,
+-- and deal a fresh contract from the pool into its place. Returns
+-- (ok, message) for the ClaimContract remote.
+function MissionService.claimContract(player: Player, contractId: string): (boolean, string)
+	local profile = DataService.getProfile(player)
+	if not profile then
+		return false, "Profile not loaded yet."
 	end
-	completeMission(player, profile, mission)
-	-- The next mission might also be a "place" mission (the list has
-	-- two "place" entries): sync again.
+	MissionService.dealContracts(player)
+	local slotIndex: number? = nil
+	local slot: ContractState? = nil
+	for i, candidate in ipairs(profile.contracts) do
+		if candidate.id == contractId then
+			slotIndex = i
+			slot = candidate
+			break
+		end
+	end
+	if not slot then
+		return false, "That contract is not on your board."
+	end
+	if slot.claimed then
+		return false, "Already claimed."
+	end
+	if not slot.done then
+		local def = contractDef(contractId)
+		local target = if def then def.target else 0
+		return false, "Not finished yet — " .. tostring(slot.progress) .. "/" .. tostring(target) .. "."
+	end
+	local def = contractDef(contractId)
+	if not def then
+		return false, "Unknown contract."
+	end
+	profile.coins += def.reward
+	slot.claimed = true
+	-- Deal the replacement into the same slot: the next pool
+	-- contract (in pool order, wrapping) that is not already active.
+	local active: { [string]: boolean } = {}
+	for _, other in ipairs(profile.contracts) do
+		active[other.id] = true
+	end
+	active[contractId] = nil -- the claimed one leaves the board
+	local startAt = 1
+	for i, poolDef in ipairs(Config.CONTRACTS) do
+		if poolDef.id == contractId then
+			startAt = i + 1
+			break
+		end
+	end
+	for offset = 0, #Config.CONTRACTS - 1 do
+		local candidate = Config.CONTRACTS[((startAt - 1 + offset) % #Config.CONTRACTS) + 1]
+		if not active[candidate.id] then
+			profile.contracts[slotIndex :: number] = { id = candidate.id, progress = 0, done = false, claimed = false }
+			break
+		end
+	end
+	DataService.saveProfile(player)
+	FeedbackService.celebrate(player)
 	MissionService.syncPlaceMission(player)
+	print("[Contract] " .. player.Name .. " claimed " .. contractId .. " (+" .. Formatting.formatMoney(def.reward) .. ")")
+	return true, "Contract complete! +" .. Formatting.formatMoney(def.reward) .. " — a new contract is on the board."
+end
+
+-- Wire the ClaimContract remote and the world board's prompt: pressing
+-- E on the Contract Board opens the board panel for that player.
+function MissionService.init()
+	Remotes.claimContractFunction().OnServerInvoke = function(player: Player, contractId: string)
+		local ok, message = MissionService.claimContract(player, contractId)
+		return ok, message
+	end
+	for _, descendant in ipairs(workspace:GetDescendants()) do
+		if descendant:IsA("ProximityPrompt") and descendant.Name == "ContractBoardPrompt" then
+			descendant.Triggered:Connect(function(player: Player)
+				Remotes.openContractsEvent():FireClient(player)
+			end)
+		end
+	end
 end
 
 return MissionService

@@ -27,9 +27,18 @@ export type Profile = {
 	index: { [string]: boolean },
 	indexRewards: { [string]: boolean },
 	indexFullRewarded: boolean,
+	-- Mutations this player has collected (by name): shown in the
+	-- Index as a "Mutations found" row. Filled by
+	-- IndexService.markMutationFound on grab/place.
+	mutations: { [string]: boolean },
 	placed: { PlacedEntry },
-	missionIndex: number, -- which Config.MISSIONS entry is active (1-based)
-	missionProgress: number, -- progress toward the active mission
+	-- Contracts (the Contract Board): three active at a time, each
+	-- { id, progress, done, claimed }. Replaces the old single
+	-- rotating mission (missionIndex / missionProgress below are
+	-- legacy fields, kept in the save shape but no longer read).
+	contracts: { { id: string, progress: number, done: boolean, claimed: boolean } },
+	missionIndex: number, -- LEGACY: which Config.MISSIONS entry was active (1-based). Contracts replaced the single-mission rotation; nothing reads this now.
+	missionProgress: number, -- LEGACY: progress toward the old active mission. Contracts carry their own progress now.
 	lastDailyClaim: number, -- os.time() of the last daily reward claim (0 = never)
 	lastSeen: number, -- os.time() of the last save (0 = never; drives offline earnings)
 }
@@ -119,7 +128,6 @@ State.globalEvent = { name = "", endsAt = 0 } :: { name: string, endsAt: number 
 
 -- Coins earned per player since the current storm started (bounty).
 State.stormEarnings = {} :: { [number]: number }
-State.stormBountyText = "Top earner this storm wins a bonus!"
 
 -- Buddy models: [userId] = Model following the player.
 State.buddies = {} :: { [number]: Model }

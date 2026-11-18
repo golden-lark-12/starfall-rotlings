@@ -29,7 +29,7 @@
 --   (p) there is no clear SELL area (pad, sign, prompt, price)
 --   (q) the top HUD is incomplete (cash, income, Shop/Upgrade/Daily,
 --       mission bar)
---   (r) missions or the daily reward are not wired
+--   (r) contracts or the daily reward are not wired
 --   (s) the grab -> carry -> place loop is broken
 --   (t) placed Rotlings never earn
 --   (u) buying/upgrading is broken
@@ -1148,7 +1148,7 @@ do
 	end
 end
 
--- -- (r) missions + daily reward actually work ---------------------------------
+-- -- (r) contracts + daily reward actually work ---------------------------------
 do
 	local configSrc = read("src/shared/Config.luau")
 	local missionSrc = read("src/server/MissionService.luau")
@@ -1156,46 +1156,91 @@ do
 	local carrySrc = read("src/server/CarryService.luau")
 	local incomeSrc = read("src/server/IncomeService.luau")
 	local remotesSrc = read("src/shared/Remotes.luau")
-	if not configSrc or not missionSrc or not dailySrc or not carrySrc or not incomeSrc or not remotesSrc then
-		check("r", false, "could not verify missions/daily — Config.luau, MissionService.luau, DailyService.luau, CarryService.luau, IncomeService.luau or Remotes.luau missing")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local contractSrc = read("src/client/ContractController.client.luau")
+	local projectSrc = read("default.project.json")
+	if not configSrc or not missionSrc or not dailySrc or not carrySrc or not incomeSrc or not remotesSrc or not worldSrc or not contractSrc or not projectSrc then
+		check("r", false, "could not verify contracts/daily — Config.luau, MissionService.luau, DailyService.luau, CarryService.luau, IncomeService.luau, Remotes.luau, WorldBuilder.luau, ContractController.client.luau or default.project.json missing")
 	else
 		local problems: { string } = {}
-		-- Three missions defined in Config (one `{ id = "..." }` row
+		-- A real contract pool in Config (one `{ id = "..." }` row
 		-- each — counted over the whole file, since the table spans
-		-- lines and Lua "." never crosses a newline).
-		local missionCount = 0
+		-- lines and Lua "." never crosses a newline). Three at a
+		-- time on the board needs a pool bigger than three.
+		local contractCount = 0
 		for _ in configSrc:gmatch('%{ id = "') do
-			missionCount += 1
+			contractCount += 1
 		end
-		if missionCount < 3 then
-			table.insert(problems, "Config.MISSIONS holds " .. tostring(missionCount) .. " missions (need 3)")
+		if contractCount < 6 then
+			table.insert(problems, "Config.CONTRACTS holds " .. tostring(contractCount) .. " contracts (need 6+)")
 		end
-		-- MissionService counts and pays.
+		if not configSrc:find("CONTRACTS_AT_ONCE") then
+			table.insert(problems, "Config.CONTRACTS_AT_ONCE not found")
+		end
+		-- MissionService counts progress, marks ready, pays on claim.
 		if not missionSrc:find("function MissionService.addProgress") then
 			table.insert(problems, "MissionService.addProgress not found")
 		end
 		if not missionSrc:find("function MissionService.currentMission") then
 			table.insert(problems, "MissionService.currentMission not found")
 		end
-		if not missionSrc:find("profile%.coins %+= mission%.reward") then
-			table.insert(problems, "MissionService never pays the reward")
+		if not missionSrc:find("function MissionService.claimContract") then
+			table.insert(problems, "MissionService.claimContract not found")
 		end
-		-- Hooks: grab, place, earn.
+		if not missionSrc:find("function MissionService.activeContracts") then
+			table.insert(problems, "MissionService.activeContracts not found")
+		end
+		if not missionSrc:find("profile%.coins %+= def%.reward") then
+			table.insert(problems, "MissionService.claimContract never pays the reward")
+		end
+		-- Hooks: grab, place, earn, rare.
 		if not carrySrc:find('MissionService.addProgress%(player, "grab", 1%)') then
-			table.insert(problems, "CarryService.tryGrab never reports mission progress")
+			table.insert(problems, "CarryService.tryGrab never reports grab progress")
 		end
 		if not carrySrc:find('MissionService.addProgress%(player, "place", 1%)') then
-			table.insert(problems, "CarryService.placeOnPad never reports mission progress")
+			table.insert(problems, "CarryService.placeOnPad never reports place progress")
+		end
+		if not carrySrc:find('MissionService.addProgress%(player, "rare", 1%)') then
+			table.insert(problems, "CarryService.tryGrab never reports rare progress")
 		end
 		if not incomeSrc:find('MissionService.addProgress%(player, "earn", gained%)') then
 			table.insert(problems, "IncomeService tick never reports earn progress")
 		end
-		-- The HUD feed carries the mission and the daily state.
+		-- The HUD feed carries the quest pill, the board list and the daily state.
 		if not incomeSrc:find("missionText = mission%.text") then
-			table.insert(problems, "IncomeService.broadcastHud never sends the mission")
+			table.insert(problems, "IncomeService.broadcastHud never sends the quest pill")
+		end
+		if not incomeSrc:find("contracts = MissionService.activeContracts%(player%)") then
+			table.insert(problems, "IncomeService.broadcastHud never sends the contracts")
 		end
 		if not incomeSrc:find("dailyReady = DailyService.isReady%(player%)") then
 			table.insert(problems, "IncomeService.broadcastHud never sends dailyReady")
+		end
+		-- Remotes: claim (function) + open board (event), declared in the project.
+		if not remotesSrc:find("function Remotes.claimContractFunction") then
+			table.insert(problems, "Remotes.claimContractFunction not found")
+		end
+		if not remotesSrc:find("function Remotes.openContractsEvent") then
+			table.insert(problems, "Remotes.openContractsEvent not found")
+		end
+		if not projectSrc:find('"ClaimContract"') then
+			table.insert(problems, "ClaimContract remote not declared in default.project.json")
+		end
+		if not projectSrc:find('"OpenContracts"') then
+			table.insert(problems, "OpenContracts remote not declared in default.project.json")
+		end
+		-- The world board + the panel.
+		if not worldSrc:find("buildContractBoard") then
+			table.insert(problems, "WorldBuilder.buildContractBoard not found")
+		end
+		if not worldSrc:find("ContractBoardPrompt") then
+			table.insert(problems, "WorldBuilder contract board has no prompt")
+		end
+		if not contractSrc:find("Claim") then
+			table.insert(problems, "ContractController has no Claim button")
+		end
+		if not contractSrc:find("claimContractFunction") then
+			table.insert(problems, "ContractController never invokes ClaimContract")
 		end
 		-- Daily: server-owned clock, wired remote.
 		if not dailySrc:find("function DailyService.claimDaily") then
@@ -1208,9 +1253,9 @@ do
 			table.insert(problems, "Remotes.dailyFunction not found")
 		end
 		if #problems > 0 then
-			check("r", false, "missions/daily are not wired — " .. table.concat(problems, "; ") .. ". Parts: MissionService / DailyService, CarryService hooks, IncomeService.broadcastHud")
+			check("r", false, "contracts/daily are not wired — " .. table.concat(problems, "; ") .. ". Parts: MissionService / DailyService, CarryService hooks, IncomeService.broadcastHud, ContractController, WorldBuilder contract board")
 		else
-			check("r", true, "missions + daily work — " .. tostring(missionCount) .. " missions in Config, grab/place/earn hooks report progress, rewards paid server-side, HUD feed carries mission + dailyReady")
+			check("r", true, "contracts + daily work — " .. tostring(contractCount) .. " contracts in the pool, 3 at a time, grab/place/earn/rare hooks report progress, rewards paid on claim server-side, HUD feed carries contracts + dailyReady, world board + panel wired")
 		end
 	end
 end
@@ -2214,8 +2259,8 @@ do
 		if not incomeSrc:find("Rival") then
 			table.insert(problems, "rivals never appear on the leaderboard (IncomeService)")
 		end
-		if not incomeSrc:find("setBountyText") then
-			table.insert(problems, "the bounty board is never updated (IncomeService.setBountyText)")
+		if not incomeSrc:find("STORM BOUNTY") then
+			table.insert(problems, "the storm bounty is never announced (IncomeService.awardStormBounty)")
 		end
 		if not mainSrc:find("RivalService.start") then
 			table.insert(problems, "RivalService.start is never called (Main.server)")
@@ -2223,7 +2268,7 @@ do
 		if #problems > 0 then
 			check("an", false, "rivals do not play — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, names (Config.luau), leaderboard/bounty (IncomeService.luau), wiring (Main.server.luau)")
 		else
-			check("an", true, "4 named rivals on bases 5-8 grab, carry, earn and show on the leaderboard; steal + chase + bounty all wired")
+			check("an", true, "4 named rivals on bases 5-8 grab, carry, earn and show on the leaderboard; steal + chase wired, storm bounty paid + announced at storm end")
 		end
 	end
 end
@@ -3710,45 +3755,37 @@ do
 	end
 end
 
--- -- (bn) bounty board is LIVE during the storm and pays the winner (fix round 2, fix 5) --
--- The playtest showed no competition: the bounty board sat on its
--- static "Top earner this storm wins a bonus!" line all through the
--- storm, so nobody could see who was winning. Now the board updates
--- every tick during the storm with the live top-earner list, and the
--- winner is paid at storm end. Rivals and players both grab from the
--- same belt (fix 4 + fix 7), so the competition is real.
+-- -- (bn) the storm bounty is paid + announced (the live board is gone: the
+-- Contract Board took its plaza spot; the payout stays) --------------------
 do
 	local incomeSrc = read("src/server/IncomeService.luau")
 	local rivalSrc = read("src/server/RivalService.luau")
 	if not incomeSrc or not rivalSrc then
-		check("bn", false, "could not verify the bounty board — IncomeService.luau or RivalService.luau missing")
+		check("bn", false, "could not verify the storm bounty — IncomeService.luau or RivalService.luau missing")
 	else
 		local problems: { string } = {}
-		if not incomeSrc:find("function IncomeService%.updateStormBountyBoard") then
-			table.insert(problems, "IncomeService.updateStormBountyBoard is not defined")
-		end
-		if not incomeSrc:find("IncomeService%.updateStormBountyBoard%(%)") then
-			table.insert(problems, "the live board update is never called from the tick")
-		end
-		if not incomeSrc:find("State%.stormEarnings%[player%.UserId%]") then
-			table.insert(problems, "the live board does not read per-player storm earnings")
-		end
-		if not incomeSrc:find("WorldBuilder%.setBountyText%(table%.concat%(lines") then
-			table.insert(problems, "the live board does not write the standings to the bounty board")
-		end
 		if not incomeSrc:find("function IncomeService%.awardStormBounty") then
 			table.insert(problems, "awardStormBounty is not defined (winner is never paid)")
 		end
 		if not incomeSrc:find("profile%.coins %+= Config%.BOUNTY_BONUS") then
 			table.insert(problems, "the bounty winner is not paid Config.BOUNTY_BONUS")
 		end
+		if not incomeSrc:find("STORM BOUNTY:") then
+			table.insert(problems, "the bounty winner is never announced server-wide")
+		end
+		if not incomeSrc:find("State%.stormEarnings%[player%.UserId%]") then
+			table.insert(problems, "storm earnings are not tracked per player")
+		end
+		if not incomeSrc:find("function IncomeService%.resetStormEarnings") then
+			table.insert(problems, "resetStormEarnings is not defined (earnings never reset between storms)")
+		end
 		if not rivalSrc:find("descendant:GetAttribute%(\"State\"%) == \"free\"") then
 			table.insert(problems, "rivals do not grab free belt Rotlings (no competition on the belt)")
 		end
 		if #problems > 0 then
-			check("bn", false, "the live bounty board is incomplete — " .. table.concat(problems, "; ") .. ". Parts: IncomeService.luau (updateStormBountyBoard, awardStormBounty), RivalService.luau")
+			check("bn", false, "the storm bounty is incomplete — " .. table.concat(problems, "; ") .. ". Parts: IncomeService.luau (awardStormBounty, stormEarnings), RivalService.luau")
 		else
-			check("bn", true, "bounty board is LIVE during the storm: top-earner list updates every tick from storm earnings, winner is paid the bonus at storm end; rivals grab the same belt Rotlings as players")
+			check("bn", true, "storm bounty paid + announced: earnings tracked per player, winner paid the bonus and bannered server-wide at storm end, earnings reset between storms; rivals grab the same belt Rotlings as players")
 		end
 	end
 end
@@ -3780,8 +3817,8 @@ do
 		if not incomeSrc:find("local okFloat, errFloat = pcall%(floatIncomeNumber%)") then
 			table.insert(problems, "floatIncomeNumber does not have its own pcall")
 		end
-		if not incomeSrc:find("local okBounty, errBounty = pcall%(IncomeService%.updateStormBountyBoard%)") then
-			table.insert(problems, "updateStormBountyBoard does not have its own pcall")
+		if not incomeSrc:find("local okBeat, errBeat = pcall%(function%(%)") then
+			table.insert(problems, "the storm heartbeat does not have its own pcall")
 		end
 		if not incomeSrc:find("%[Starfall%] money ") then
 			table.insert(problems, "no diagnostic money line (coins/banked/cps/placed) in the tick")
@@ -3798,7 +3835,7 @@ do
 		if #problems > 0 then
 			check("bo", false, "the money-feed fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: IncomeService.luau (tick), sim-money.luau")
 		else
-			check("bo", true, "money feed is isolated: each player in their own pcall, float/broadcast/bounty each in their own pcall, diagnostic money line every 30s; sim-money prints the action | HUD said | actually added table")
+			check("bo", true, "money feed is isolated: each player in their own pcall, float/broadcast/heartbeat each in their own pcall, diagnostic money line every 30s; sim-money prints the action | HUD said | actually added table")
 		end
 	end
 end
@@ -4368,13 +4405,13 @@ do
 			table.insert(problems, "storm calm text is still the long 'Next storm: 72s'")
 		end
 		if not worldSrc:find("Vector3%.new%(%-32, 0, 90%)") then
-			table.insert(problems, "Bounty Board is not at (-32, 0, 90)")
+			table.insert(problems, "Contract Board is not at (-32, 0, 90)")
 		end
 		if not worldSrc:find("Vector3%.new%(48, 0, 58%)") then
 			table.insert(problems, "Index Wall is not at (48, 0, 58)")
 		end
-		if not worldSrc:find("UDim2%.fromOffset%(280, 140%)") then
-			table.insert(problems, "Bounty Board gui is not shrunk to 280x140")
+		if not worldSrc:find("UDim2%.fromOffset%(280, 160%)") then
+			table.insert(problems, "Contract Board gui is not 280x160")
 		end
 		if not worldSrc:find("spawnSignGui%.MaxDistance = 60") then
 			table.insert(problems, "Spawn sign view distance is not 60")
@@ -4383,7 +4420,7 @@ do
 			table.insert(problems, "Index Wall title view distance is not 60")
 		end
 		if not worldSrc:find("gui%.MaxDistance = 60") then
-			table.insert(problems, "Bounty Board view distance is not 60")
+			table.insert(problems, "Contract Board view distance is not 60")
 		end
 		-- Rename: scan the whole source for a quoted "Rotling" that
 		-- is NOT one of the allowed code identifiers.
@@ -4416,7 +4453,7 @@ do
 		if #problems > 0 then
 			check("bz", false, "the HUD/text fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: HUDController.client.luau, WorldBuilder.luau")
 		else
-			check("bz", true, "HUD fully on screen (24px margins, short storm text), signs ~86 studs apart with 280x140 Bounty Board and 60 view distances; no player-visible 'Rotling' anywhere")
+			check("bz", true, "HUD fully on screen (24px margins, short storm text), signs ~86 studs apart with 280x160 Contract Board and 60 view distances; no player-visible 'Rotling' anywhere")
 		end
 	end
 end

@@ -116,7 +116,7 @@ end
 -- Hide every open panel except the one named, so only one is up at once.
 function GuiKit.closeOtherPanels(gui: ScreenGui, exceptName: string?)
 	for _, child in ipairs(gui:GetChildren()) do
-		if child:IsA("Frame") and child.Name ~= exceptName and (child.Name == "ShopPanel" or child.Name == "IndexPanel" or child.Name == "RebirthPanel") then
+		if child:IsA("Frame") and child.Name ~= exceptName and (child.Name == "ShopPanel" or child.Name == "IndexPanel" or child.Name == "RebirthPanel" or child.Name == "ContractPanel") then
 			child.Visible = false
 		end
 	end

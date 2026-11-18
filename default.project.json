@@ -151,6 +151,12 @@
     },
     "DropEgg": {
      "$className": "RemoteEvent"
+    },
+    "ClaimContract": {
+     "$className": "RemoteFunction"
+    },
+    "OpenContracts": {
+     "$className": "RemoteEvent"
     }
    }
   },
