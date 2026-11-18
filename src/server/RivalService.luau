@@ -400,6 +400,27 @@ function RivalService.notifyEggCarrier(player: Player)
 	end
 end
 
+-- A player grabbed a Brainrot: nearby rivals give chase, same as an
+-- egg carrier (rev 77). Carrying was risk-free before this — rivals
+-- only chased egg carriers, so the core loop (grab, run home, don't
+-- get tagged) had no teeth for Brainrots.
+function RivalService.notifyBrainrotCarrier(player: Player)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return
+	end
+	for _, rival in pairs(State.rivals) do
+		local rivalRoot = rival.model:FindFirstChild("HumanoidRootPart")
+		if rivalRoot and rival.phase ~= "chase" and rival.phase ~= "steal" then
+			if (rivalRoot.Position - root.Position).Magnitude <= Config.RIVAL_CHASE_RADIUS then
+				rival.phase = "chase"
+				rival.targetUserId = player.UserId
+			end
+		end
+	end
+end
+
 -- Pick a victim: a real player with Rotlings on an unlocked base.
 local function pickVictim(): (Player?, number?)
 	local candidates: { Player } = {}
@@ -695,20 +716,30 @@ local function stepRival(rival: State.Rival, model: Model)
 			end
 		end
 	elseif rival.phase == "chase" then
-		-- Chase the egg carrier: "THIEF ON YOUR TAIL!" with a live
-		-- distance readout. A touch makes the carrier drop the egg.
+		-- Chase a carrier: egg or Brainrot. "THIEF ON YOUR TAIL!"
+		-- with a live distance readout. A touch makes the carrier
+		-- drop what they are carrying (egg or Brainrots) and the
+		-- rival flees. (rev 77: rivals only chased egg carriers, so
+		-- carrying a Brainrot was risk-free.)
 		local victim = if rival.targetUserId then Players:GetPlayerByUserId(rival.targetUserId) else nil
 		local character = victim and victim.Character
 		local victimRoot = character and character:FindFirstChild("HumanoidRootPart")
-		local MeteorEggService = require(script.Parent.MeteorEggService)
-		if not victim or not victimRoot or not State.eggCarriedByUser[victim.UserId] then
+		local carryingEgg = victim and State.eggCarriedByUser[victim.UserId] ~= nil
+		local carryingBrainrot = victim and State.brainrotCarriedByUser[victim.UserId] ~= nil
+		if not victim or not victimRoot or (not carryingEgg and not carryingBrainrot) then
 			rival.phase = "idle"
 			rival.targetUserId = nil
 		else
 			local dist = (root.Position - victimRoot.Position).Magnitude
 			if dist <= 4 then
-				MeteorEggService.dropEgg(victim)
-				Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " tagged you — you dropped the meteor egg!", 4)
+				if carryingEgg then
+					local MeteorEggService = require(script.Parent.MeteorEggService)
+					MeteorEggService.dropEgg(victim)
+					Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " tagged you — you dropped the meteor egg!", 4)
+				else
+					CarryService.dropAllCarried(victim)
+					Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " tagged you — you dropped your Brainrots!", 4)
+				end
 				rival.phase = "flee"
 				rival.targetUserId = nil
 			else

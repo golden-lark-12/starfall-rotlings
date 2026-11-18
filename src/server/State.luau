@@ -126,6 +126,10 @@ State.eggs = {} :: { [Model]: Egg }
 -- The egg a player is carrying: [userId] = Model.
 State.eggCarriedByUser = {} :: { [number]: Model }
 
+-- The Brainrot a player is carrying: [userId] = Model. Rivals chase a
+-- Brainrot carrier the same as an egg carrier (rev 77).
+State.brainrotCarriedByUser = {} :: { [number]: Model }
+
 -- Global event state: { name = "cash" | "shower" | "", endsAt = number }.
 State.globalEvent = { name = "", endsAt = 0 } :: { name: string, endsAt: number }
 

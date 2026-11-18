@@ -5647,6 +5647,47 @@ do
 	end
 end
 
+-- (cw) Brainrot-carrier chase (rev 77): carrying a Brainrot is
+-- dangerous — nearby rivals give chase and tag the carrier, who
+-- drops the haul. Before this, rivals only chased egg carriers, so
+-- carrying a Brainrot was risk-free and the core loop had no teeth.
+do
+	local stateSrc = read("src/server/State.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	if not stateSrc or not carrySrc or not rivalSrc then
+		check("cw", false, "could not verify the Brainrot-carrier chase — State.luau, CarryService.luau or RivalService.luau missing")
+	else
+		local problems: { string } = {}
+		if not stateSrc:find("brainrotCarriedByUser") then
+			table.insert(problems, "no brainrotCarriedByUser in State")
+		end
+		if not carrySrc:find("State%.brainrotCarriedByUser%[player%.UserId%] = model") then
+			table.insert(problems, "a grab does not flag the player as a Brainrot carrier")
+		end
+		if not carrySrc:find("notifyBrainrotCarrier%(player%)") then
+			table.insert(problems, "a grab does not notify nearby rivals")
+		end
+		if not carrySrc:find("State%.brainrotCarriedByUser%[player%.UserId%] = nil") then
+			table.insert(problems, "the carrier flag is never cleared when the player stops carrying")
+		end
+		if not rivalSrc:find("function RivalService%.notifyBrainrotCarrier") then
+			table.insert(problems, "no notifyBrainrotCarrier in RivalService")
+		end
+		if not rivalSrc:find("carryingBrainrot") then
+			table.insert(problems, "the chase phase does not accept Brainrot carriers")
+		end
+		if not rivalSrc:find("dropAllCarried%(victim%)") then
+			table.insert(problems, "a tag does not make the carrier drop the Brainrots")
+		end
+		if #problems > 0 then
+			check("cw", false, "the Brainrot-carrier chase is incomplete — " .. table.concat(problems, "; ") .. ". Parts: State.luau, CarryService.luau, RivalService.luau")
+		else
+			check("cw", true, "carrying a Brainrot is dangerous: a grab flags the carrier and notifies nearby rivals (30-stud chase radius), the chase phase follows Brainrot carriers as well as egg carriers, and a tag drops the haul (scatter to the crater) while the rival flees; reaching base clears the flag and ends the chase")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

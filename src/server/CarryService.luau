@@ -140,6 +140,12 @@ function CarryService.carryRotling(player: Player, model: Model)
 	CarryService.setPromptState(model)
 	-- Filling your arms turns every free grab prompt off.
 	CarryService.refreshFreePrompts()
+	-- THE CHASE (rev 77): carrying a Brainrot is dangerous — flag
+	-- the carrier and wake nearby rivals, same as an egg carrier.
+	-- Deferred require: RivalService requires this module.
+	State.brainrotCarriedByUser[player.UserId] = model
+	local RivalService = require(script.Parent.RivalService)
+	RivalService.notifyBrainrotCarrier(player)
 end
 
 function CarryService.removeCarried(player: Player, model: Model)
@@ -156,6 +162,10 @@ function CarryService.removeCarried(player: Player, model: Model)
 	end
 	-- Freeing a slot turns the free grab prompts back on.
 	CarryService.refreshFreePrompts()
+	-- No longer carrying anything: the chase ends (rev 77).
+	if #carried == 0 then
+		State.brainrotCarriedByUser[player.UserId] = nil
+	end
 end
 
 -- -- Prompts ------------------------------------------------------------------
