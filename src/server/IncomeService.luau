@@ -78,6 +78,39 @@ function IncomeService.incomeMult(player: Player, includeStormBoost: boolean?): 
 	return mult
 end
 
+-- Live bounty board (fix round 2, fix 5): during the storm, the
+-- bounty board shows the LIVE top-earner list — who is earning the
+-- most right now, and what the winner takes. Called every tick while
+-- the storm runs, so the board moves as players (and rivals, on the
+-- belt) compete. The winner is still paid once, at storm end, by
+-- awardStormBounty.
+function IncomeService.updateStormBountyBoard()
+	local status = StarfallService.getStatus()
+	if status.phase ~= "storm" then
+		return
+	end
+	local standings: { { name: string, earned: number } } = {}
+	for _, player in ipairs(Players:GetPlayers()) do
+		local earned = State.stormEarnings[player.UserId] or 0
+		if earned > 0 then
+			table.insert(standings, { name = player.DisplayName, earned = earned })
+		end
+	end
+	table.sort(standings, function(a, b)
+		return a.earned > b.earned
+	end)
+	if #standings == 0 then
+		WorldBuilder.setBountyText("🏆 STORM BOUNTY — LIVE\nNo earnings yet this storm!\nTop earner wins " .. Formatting.formatMoney(Config.BOUNTY_BONUS) .. "!")
+		return
+	end
+	local lines: { string } = { "🏆 STORM BOUNTY — LIVE" }
+	for i = 1, math.min(3, #standings) do
+		table.insert(lines, tostring(i) .. ". " .. standings[i].name .. " — " .. Formatting.formatMoney(standings[i].earned))
+	end
+	table.insert(lines, "Top earner wins " .. Formatting.formatMoney(Config.BOUNTY_BONUS) .. "!")
+	WorldBuilder.setBountyText(table.concat(lines, "\n"))
+end
+
 -- Storm bounty: earnings since the current storm started.
 function IncomeService.resetStormEarnings()
 	State.stormEarnings = {}
@@ -359,6 +392,9 @@ function IncomeService.start()
 				end
 				floatIncomeNumber()
 				IncomeService.broadcastHud()
+				-- Live bounty board (fix round 2, fix 5): while the
+				-- storm runs, the board shows the live top earners.
+				IncomeService.updateStormBountyBoard()
 			end)
 			if not ok then
 				warn("Starfall income tick failed: " .. tostring(err))

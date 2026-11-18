@@ -3630,6 +3630,49 @@ do
 	end
 end
 
+-- -- (bn) bounty board is LIVE during the storm and pays the winner (fix round 2, fix 5) --
+-- The playtest showed no competition: the bounty board sat on its
+-- static "Top earner this storm wins a bonus!" line all through the
+-- storm, so nobody could see who was winning. Now the board updates
+-- every tick during the storm with the live top-earner list, and the
+-- winner is paid at storm end. Rivals and players both grab from the
+-- same belt (fix 4 + fix 7), so the competition is real.
+do
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	if not incomeSrc or not rivalSrc then
+		check("bn", false, "could not verify the bounty board — IncomeService.luau or RivalService.luau missing")
+	else
+		local problems: { string } = {}
+		if not incomeSrc:find("function IncomeService%.updateStormBountyBoard") then
+			table.insert(problems, "IncomeService.updateStormBountyBoard is not defined")
+		end
+		if not incomeSrc:find("IncomeService%.updateStormBountyBoard%(%)") then
+			table.insert(problems, "the live board update is never called from the tick")
+		end
+		if not incomeSrc:find("State%.stormEarnings%[player%.UserId%]") then
+			table.insert(problems, "the live board does not read per-player storm earnings")
+		end
+		if not incomeSrc:find("WorldBuilder%.setBountyText%(table%.concat%(lines") then
+			table.insert(problems, "the live board does not write the standings to the bounty board")
+		end
+		if not incomeSrc:find("function IncomeService%.awardStormBounty") then
+			table.insert(problems, "awardStormBounty is not defined (winner is never paid)")
+		end
+		if not incomeSrc:find("profile%.coins %+= Config%.BOUNTY_BONUS") then
+			table.insert(problems, "the bounty winner is not paid Config.BOUNTY_BONUS")
+		end
+		if not rivalSrc:find("descendant:GetAttribute%(\"State\"%) == \"free\"") then
+			table.insert(problems, "rivals do not grab free belt Rotlings (no competition on the belt)")
+		end
+		if #problems > 0 then
+			check("bn", false, "the live bounty board is incomplete — " .. table.concat(problems, "; ") .. ". Parts: IncomeService.luau (updateStormBountyBoard, awardStormBounty), RivalService.luau")
+		else
+			check("bn", true, "bounty board is LIVE during the storm: top-earner list updates every tick from storm earnings, winner is paid the bonus at storm end; rivals grab the same belt Rotlings as players")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
