@@ -137,7 +137,10 @@ end
 function WorldBuilder.setShieldVisible(baseId: number, visible: boolean)
 	local dome = shieldDomes[baseId]
 	if dome then
-		dome.Transparency = if visible then 0.82 else 1
+		-- 0.9, not 0.82 (fix round 4, item 6): at 0.82 the dome was a
+		-- big see-through white shape the camera clipped into; at 0.9
+		-- it is a faint shimmer that still reads as a shield.
+		dome.Transparency = if visible then 0.9 else 1
 	end
 end
 
@@ -163,7 +166,7 @@ function WorldBuilder.setShieldLabel(baseId: number, seconds: number, stormActiv
 			label.TextColor3 = Color3.fromRGB(140, 255, 140)
 		end
 		if dome then
-			dome.Transparency = 0.82
+			dome.Transparency = 0.9
 		end
 	else
 		if label then
@@ -583,18 +586,20 @@ local function buildCrater()
 	-- centre, so the crater reads as a landmark from every base and from
 	-- spawn — without blocking the camera. The old beam was a giant
 	-- solid 4-stud pillar filling the middle of the screen (Malek's
-	-- item 2). Now 1.5 studs, Transparency 0.6, soft glow.
-	local beam = part("CraterBeam", Enum.PartType.Cylinder, Vector3.new(180, 1.5, 1.5), Color3.fromRGB(255, 110, 70), CFrame.new(0, 90, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Neon)
+	-- item 2). Now 1.0 studs, Transparency 0.8, soft glow (fix round 4,
+	-- item 6: at 1.5 studs / 0.6 it was still the see-through white
+	-- blocky shape the camera clipped into).
+	local beam = part("CraterBeam", Enum.PartType.Cylinder, Vector3.new(180, 1.0, 1.0), Color3.fromRGB(255, 110, 70), CFrame.new(0, 90, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Neon)
 	beam.CanCollide = false
 	beam.CastShadow = false
-	beam.Transparency = 0.6
+	beam.Transparency = 0.8
 	beam.Name = "CraterBeam"
-	-- The beam's own light: dim (Brightness 0.5), not a second sun — the
+	-- The beam's own light: dim (Brightness 0.3), not a second sun — the
 	-- bloom cut in Phase 1 keeps the crater readable, and a bright beam
 	-- light would wash it white again.
 	local beamLight = Instance.new("PointLight")
 	beamLight.Color = Color3.fromRGB(255, 110, 70)
-	beamLight.Brightness = 0.5
+	beamLight.Brightness = 0.3
 	beamLight.Range = 30
 	beamLight.Parent = beam
 	-- Rim: three concentric RINGS of stacked steps, wide and open, so

@@ -106,7 +106,7 @@ function BuddyService.attachBuddy(player: Player)
 		local billboard = Instance.new("BillboardGui")
 		billboard.Name = "BuddyTag"
 		billboard.Size = UDim2.fromOffset(180, 36)
-		billboard.StudsOffsetWorldSpace = Vector3.new(0, 2.2, 0)
+		billboard.StudsOffsetWorldSpace = Vector3.new(0, 1.2, 0)
 		billboard.AlwaysOnTop = true
 		billboard.LightInfluence = 0
 		billboard.MaxDistance = 30
@@ -141,7 +141,7 @@ function BuddyService.attachBuddy(player: Player)
 	task.spawn(function()
 		local seed = math.random() * 10
 		while model.Parent and State.buddies[player.UserId] == model do
-			local bob = math.sin(time() * 1.8 + seed) * 0.35
+			local bob = math.sin(time() * 1.8 + seed) * 0.15
 			if weld.Parent then
 				weld.C0 = CFrame.new(Config.BUDDY_OFFSET + Vector3.new(0, bob, 0))
 			end

@@ -104,6 +104,9 @@
 --   (bw) the thief alerts but never steals (runRival's loop body is
 --       not pcall-guarded, the steal is not logged, or the steal walk
 --       timeout is still 40s)
+--   (bx) the buddy blocks the view or the camera clips white shapes
+--       (BUDDY_SCALE not 0.28, domes still at 0.82, or the CraterBeam
+--       still 1.5 studs / 0.6 transparent)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -2402,11 +2405,11 @@ do
 		elseif carryZ > -3 then
 			table.insert(problems, "CARRY_Z is " .. tostring(carryZ) .. " (above -3 — the player's torso hides the carried Rotling)")
 		end
-		if not worldSrc:find('Vector3.new%(180, 1.5, 1.5%)') then
-			table.insert(problems, "the crater beam is not 1.5 studs thin")
+		if not worldSrc:find('Vector3.new%(180, 1.0, 1.0%)') then
+			table.insert(problems, "the crater beam is not 1.0 studs thin (fix round 4, item 6: 1.5 -> 1.0)")
 		end
-		if not worldSrc:find("beam.Transparency = 0.6") then
-			table.insert(problems, "the crater beam is not semi-transparent (0.6)")
+		if not worldSrc:find("beam.Transparency = 0.8") then
+			table.insert(problems, "the crater beam is not semi-transparent (0.8; fix round 4, item 6: 0.6 -> 0.8)")
 		end
 		if worldSrc:find("165, 148, 190") then
 			table.insert(problems, "the loud muted-purple tile colour (165, 148, 190) is still in the ground")
@@ -4171,6 +4174,58 @@ do
 			check("bw", false, "the thief fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau")
 		else
 			check("bw", true, "thief works: stepRival pcall-guarded per tick (warn + continue), steal logs start/walk-fail/success, steal walk 60s, Lock still blocks it")
+		end
+	end
+end
+
+-- -- (bx) buddy is knee height and the white shapes are gone (fix round 4, item 6) --
+-- Playtest 4: the buddy pet was huge and blocked the whole view, and
+-- the camera clipped into big see-through white shapes in the crater.
+-- The buddy was BUDDY_SCALE 0.5 (half-size on a 1.5x crater model is
+-- still huge) at offset (2.6, 0.6, 0.4) with a 2.2 tag offset and a
+-- 0.35 bob. The white shapes were the 8 base shield domes (ForceField,
+-- shown at Transparency 0.82 on lock or any storm) and the crater-centre
+-- CraterBeam (180-stud Neon column, 1.5 diameter, Transparency 0.6).
+-- The fix: buddy 0.28 at (2.2, -0.8, 1.4) — knee height, beside and
+-- behind — tag 1.2, bob 0.15; domes fainter at 0.9; beam thinner (1.0)
+-- and more transparent (0.8), light 0.3. The spaceship is at
+-- (170, 0, -120), not the crater middle, so it was never the shape.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local buddySrc = read("src/server/BuddyService.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not configSrc or not buddySrc or not worldSrc then
+		check("bx", false, "could not verify the buddy/camera fix — Config.luau, BuddyService.luau or WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		if not configSrc:find("BUDDY_SCALE = 0%.28") then
+			table.insert(problems, "BUDDY_SCALE is not 0.28 (knee height)")
+		end
+		if not configSrc:find("BUDDY_OFFSET = Vector3%.new%(2%.2, %-0%.8, 1%.4%)") then
+			table.insert(problems, "BUDDY_OFFSET is not (2.2, -0.8, 1.4) — low, beside, behind")
+		end
+		if not buddySrc:find("StudsOffsetWorldSpace = Vector3%.new%(0, 1%.2, 0%)") then
+			table.insert(problems, "buddy tag offset is not 1.2")
+		end
+		if not buddySrc:find("%* 0%.15") then
+			table.insert(problems, "buddy bob is not 0.15")
+		end
+		if worldSrc:find("Transparency = if visible then 0%.82") or worldSrc:find("dome%.Transparency = 0%.82") then
+			table.insert(problems, "a shield dome still shows at Transparency 0.82")
+		end
+		if not worldSrc:find("Vector3%.new%(180, 1%.0, 1%.0%)") then
+			table.insert(problems, "CraterBeam is not thinned to 1.0 diameter")
+		end
+		if not worldSrc:find("beam%.Transparency = 0%.8") then
+			table.insert(problems, "CraterBeam transparency is not 0.8")
+		end
+		if not worldSrc:find("beamLight%.Brightness = 0%.3") then
+			table.insert(problems, "beam light brightness is not 0.3")
+		end
+		if #problems > 0 then
+			check("bx", false, "the buddy/camera fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, BuddyService.luau, WorldBuilder.luau")
+		else
+			check("bx", true, "buddy is knee height (0.28, low/beside/behind, tag 1.2, bob 0.15); domes fainter (0.9), beam thinner (1.0) and more transparent (0.8), light 0.3")
 		end
 	end
 end

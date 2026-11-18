@@ -219,11 +219,14 @@ Config.XP_PLACE = 15
 Config.XP_PER_LEVEL = 100
 
 -- Buddy Rotling: your highest-income placed Rotling (or the one you
--- pick in the Index), shrunk to half size, floating beside you with a
--- small tag. +5% cash while it follows you.
-Config.BUDDY_SCALE = 0.5
+-- pick in the Index), shrunk to about a quarter size at knee height,
+-- floating beside and slightly behind you with a small tag. +5% cash
+-- while it follows you. (Fix round 4, item 6: at half size the buddy
+-- blocked the whole view — 0.5 on a 1.5x crater model is still huge.
+-- 0.28 is knee height; the offset sits it low, beside, and behind.)
+Config.BUDDY_SCALE = 0.28
 Config.BUDDY_CASH_BONUS = 0.05
-Config.BUDDY_OFFSET = Vector3.new(2.6, 0.6, 0.4) -- beside you, never in front of the camera
+Config.BUDDY_OFFSET = Vector3.new(2.2, -0.8, 1.4) -- low, beside you, behind you — never in front of the camera
 
 -- Storm bounty (item 7d): top earner during a storm wins a bonus.
 Config.BOUNTY_BONUS = 500 -- coins to the storm's top earner
