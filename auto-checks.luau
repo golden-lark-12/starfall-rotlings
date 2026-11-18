@@ -2439,7 +2439,7 @@ end
 -- Cheap wins 1-9: multiplier in every tag and the index, NEXT REBIRTH
 -- bar, upgrade levels with effects, title billboard, shield dome +
 -- SAFE label, pursuit banner, global events, danger meter + belt list,
--- and Boogie Brine (not Disco Pickle).
+-- and Disco Donut (not Disco Pickle).
 do
 	local factorySrc = read("src/server/RotlingFactory.luau")
 	local hudSrc = read("src/client/HUDController.client.luau")
@@ -2484,13 +2484,13 @@ do
 		if catalogSrc:find('name = "Disco Pickle"') then
 			table.insert(problems, '"Disco Pickle" is still a Rotling name in the catalog (must be renamed)')
 		end
-		if not catalogSrc:find("Boogie Brine") then
-			table.insert(problems, '"Boogie Brine" is not in the catalog')
+		if not catalogSrc:find("Disco Donut") then
+			table.insert(problems, '"Disco Donut" is not in the catalog')
 		end
 		if #problems > 0 then
 			check("au", false, "cheap wins are missing — " .. table.concat(problems, "; ") .. ". Parts: tags (RotlingFactory.luau), HUD bars (HUDController), shop rows (ShopController), billboard/dome (WorldBuilder), events (GlobalEventService.luau)")
 		else
-			check("au", true, "cheap wins: multiplier in tags + index, NEXT REBIRTH bar, upgrade levels, title billboard, shield dome + SAFE label, pursuit banner, 2 global events, danger meter + belt list, Boogie Brine")
+			check("au", true, "cheap wins: multiplier in tags + index, NEXT REBIRTH bar, upgrade levels, title billboard, shield dome + SAFE label, pursuit banner, 2 global events, danger meter + belt list, Disco Donut")
 		end
 	end
 end
@@ -3280,6 +3280,79 @@ do
 			check("bh", false, "the spawn path goes to nothing — " .. table.concat(problems, "; ") .. ". Parts: SpawnPath + fences (WorldBuilder.luau)")
 		else
 			check("bh", true, "spawn path runs z=78 to z=39 (the crater rim), fences flank it to z=40, StonePath to the shop starts at the rim — spawn -> crater -> shop is one continuous walkway")
+		end
+	end
+end
+
+-- -- (bi) branding: game name + 20 approved Rotling names (branding pass) -----
+-- Malek approved the name "Space Rock Brainrots!" (Nov 18 16:10) and the
+-- 20-name roster (5 Common, 4 Rare, 4 Epic, 4 Legendary, 2 Mythic,
+-- 1 Cosmic). Every approved name must be in the catalog under its
+-- approved rarity, no old name may remain, and the game title must read
+-- SPACE ROCK BRAINROTS in the HUD, the title screen and the world
+-- billboard. Two entries changed tier to match the approved roster
+-- (penguin Rare -> Legendary, cat Cosmic -> Legendary).
+do
+	local catalogSrc = read("src/shared/RotlingCatalog.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local titleSrc = read("src/client/TitleScreenController.client.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not catalogSrc or not hudSrc or not titleSrc or not worldSrc then
+		check("bi", false, "could not verify the branding — RotlingCatalog.luau, HUDController.client.luau, TitleScreenController.client.luau or WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		local approved: { { string } } = {
+			{ "Bloop the Blob", "Common" },
+			{ "Pip the Potato", "Common" },
+			{ "Wobble Wombat", "Common" },
+			{ "Tiny Toaster Tim", "Common" },
+			{ "Gloopy Goose", "Common" },
+			{ "Sir Soggy Sock", "Rare" },
+			{ "Bongo the Banana", "Rare" },
+			{ "Captain Crumb", "Rare" },
+			{ "Mister Muffin Feet", "Rare" },
+			{ "Professor Pickle", "Epic" },
+			{ "Turbo Toast", "Epic" },
+			{ "Lord Lasagna Legs", "Epic" },
+			{ "Disco Donut", "Epic" },
+			{ "Baron von Burrito", "Legendary" },
+			{ "Count Croissant", "Legendary" },
+			{ "Sir Reginald Ramen", "Legendary" },
+			{ "Grandpa Gumball", "Legendary" },
+			{ "Supreme Spaghetti", "Mythic" },
+			{ "The Great Giggling Gherkin", "Mythic" },
+			{ "Cosmic Corn Dog", "Cosmic" },
+		}
+		for _, pair in ipairs(approved) do
+			local name, rarity = pair[1], pair[2]
+			local found = false
+			for id, n, r in catalogSrc:gmatch('id = "([%w]+)",%s+name = "([^"]+)",%s+rarity = "([%w]+)"') do
+				if n == name and r == rarity then
+					found = true
+				end
+			end
+			if not found then
+				table.insert(problems, '"' .. name .. '" is not in the catalog as ' .. rarity)
+			end
+		end
+		for _, old in ipairs({ "Sir Puddles", "Noodle Ned", "Boogie Brine", "Toaster Ghost", "Boba Blob", "Pixel Penguin", "Sir Reginald Socks", "Quantum Quokka", "DJ Turnip", "Astro Avocado", "Baron von Bloop", "Lunar Llama", "Emperor Couch Potato", "Nova Narwhal", "Galactic Gummy Bear", "Comet Cat" }) do
+			if catalogSrc:find('name = "' .. old .. '"', 1, true) then
+				table.insert(problems, 'old name "' .. old .. '" is still in the catalog')
+			end
+		end
+		if not hudSrc:find("SPACE ROCK BRAINROTS") then
+			table.insert(problems, "HUD title is not SPACE ROCK BRAINROTS")
+		end
+		if not titleSrc:find("SPACE ROCK BRAINROTS") then
+			table.insert(problems, "title screen is not SPACE ROCK BRAINROTS")
+		end
+		if not worldSrc:find("SPACE ROCK BRAINROTS") then
+			table.insert(problems, "world billboard is not SPACE ROCK BRAINROTS")
+		end
+		if #problems > 0 then
+			check("bi", false, "the branding is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RotlingCatalog.luau, HUDController.client.luau, TitleScreenController.client.luau, WorldBuilder.luau")
+		else
+			check("bi", true, "branding: SPACE ROCK BRAINROTS! everywhere (HUD, title screen, world billboard); all 20 approved Rotling names in the catalog under their approved rarities (5C/4R/4E/4L/2M/1Co), no old name remains")
 		end
 	end
 end

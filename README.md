@@ -11,10 +11,12 @@ every second. A meteor storm sweeps the crater every 90 seconds, so
 get home before it hits or drop your catch. Other players can sneak
 into your base and steal your Rotlings — unless you lock the base.
 
-- **12 original Rotlings** — Wobble Wombat, Sir Puddles, Noodle Ned,
-  Captain Crumb, Disco Pickle, Toaster Ghost, Sir Reginald Socks,
-  Quantum Quokka, DJ Turnip, Baron von Bloop, Emperor Couch Potato and
-  Galactic Gummy Bear — each built from Parts with its own silhouette,
+- **20 original Rotlings** — Bloop the Blob, Pip the Potato, Wobble Wombat,
+  Tiny Toaster Tim, Gloopy Goose, Sir Soggy Sock, Bongo the Banana,
+  Captain Crumb, Mister Muffin Feet, Professor Pickle, Turbo Toast,
+  Lord Lasagna Legs, Disco Donut, Baron von Burrito, Count Croissant,
+  Sir Reginald Ramen, Grandpa Gumball, Supreme Spaghetti,
+  The Great Giggling Gherkin and Cosmic Corn Dog — each built from Parts with its own silhouette,
   big eyes and a name/rarity/coins-per-second label. Every name was
   checked against the Italian brainrot roster and appears on none of it.
 - **Rarities** Common, Rare, Epic, Legendary, Mythic, Cosmic, each with

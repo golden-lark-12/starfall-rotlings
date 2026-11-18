@@ -6,7 +6,12 @@
 -- was checked against the Italian brainrot roster (Tralalero, Tung Tung
 -- Sahur, Cappuccino Assassino and the rest) and appears on none of it —
 -- and against the other entries in this bounty (no "Disco Pickle": ours
--- is Boogie Brine).
+-- is Disco Donut, Malek-approved Nov 18). The 20 names are Malek's
+-- approved roster (Nov 18 16:10): 5 Common, 4 Rare, 4 Epic, 4 Legendary,
+-- 2 Mythic, 1 Cosmic. Two entries changed tier to match that roster —
+-- penguin (Rare -> Legendary) and cat (Cosmic -> Legendary) — so their
+-- body/belly colours are the Legendary gold; silhouettes and cpsMult
+-- are untouched.
 --
 -- Item 1 (models): every Rotling has a UNIQUE silhouette key (no two
 -- share one), 2-3 signature features built from Parts, and a primary
@@ -54,7 +59,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "puddles",
-		name = "Sir Puddles",
+		name = "Bloop the Blob",
 		rarity = "Common",
 		flavor = "A puddle that achieved knighthood. Very damp, very polite.",
 		body = "wide",
@@ -68,7 +73,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "noodle",
-		name = "Noodle Ned",
+		name = "Pip the Potato",
 		rarity = "Common",
 		flavor = "One long noodle. Stands up. Nobody knows how.",
 		body = "tall",
@@ -96,7 +101,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "pickle",
-		name = "Boogie Brine",
+		name = "Sir Soggy Sock",
 		rarity = "Rare",
 		flavor = "Brings the party. The party is just him, dancing.",
 		body = "tall",
@@ -110,7 +115,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "toaster",
-		name = "Toaster Ghost",
+		name = "Bongo the Banana",
 		rarity = "Rare",
 		flavor = "Haunts breakfast. Pops up when you least expect it.",
 		body = "ball",
@@ -124,7 +129,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "socks",
-		name = "Sir Reginald Socks",
+		name = "Professor Pickle",
 		rarity = "Epic",
 		flavor = "A sock of noble birth. Smells of lavender and old money.",
 		body = "tall",
@@ -138,7 +143,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "quokka",
-		name = "Quantum Quokka",
+		name = "Turbo Toast",
 		rarity = "Epic",
 		flavor = "Smiles in two places at once. Physics gave up.",
 		body = "ball",
@@ -152,7 +157,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "turnip",
-		name = "DJ Turnip",
+		name = "Lord Lasagna Legs",
 		rarity = "Epic",
 		flavor = "Drops beats, grows roots. The turnip table never stops.",
 		body = "wide",
@@ -166,7 +171,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "bloop",
-		name = "Baron von Bloop",
+		name = "Baron von Burrito",
 		rarity = "Legendary",
 		flavor = "A bloop of ancient lineage. Blooped at kings. Kings blooped back.",
 		body = "ball",
@@ -180,7 +185,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "couch",
-		name = "Emperor Couch Potato",
+		name = "Supreme Spaghetti",
 		rarity = "Mythic",
 		flavor = "Has not moved since 2019. Rules an empire of cushions.",
 		body = "wide",
@@ -194,7 +199,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "gummy",
-		name = "Galactic Gummy Bear",
+		name = "Cosmic Corn Dog",
 		rarity = "Cosmic",
 		flavor = "Fell from orbit, tastes of stardust and sugar.",
 		body = "ball",
@@ -208,7 +213,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "smore",
-		name = "S'more Mole",
+		name = "Tiny Toaster Tim",
 		rarity = "Common",
 		flavor = "Digs for chocolate. Finds it. Eats it. Digs again.",
 		body = "wide",
@@ -222,7 +227,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "tortoise",
-		name = "Turbo Tortoise",
+		name = "Gloopy Goose",
 		rarity = "Common",
 		flavor = "Slowest animal alive. Wears rocket fins anyway.",
 		body = "wide",
@@ -236,7 +241,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "boba",
-		name = "Boba Blob",
+		name = "Mister Muffin Feet",
 		rarity = "Rare",
 		flavor = "Ninety percent tea, ten percent pearls, all bounce.",
 		body = "ball",
@@ -250,13 +255,13 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "penguin",
-		name = "Pixel Penguin",
-		rarity = "Rare",
+		name = "Sir Reginald Ramen",
+		rarity = "Legendary",
 		flavor = "Rendered at 8 bits. Waddles at 60 frames a second.",
 		body = "tall",
 		silhouette = "penguin-waddle",
-		bodyColor = Color3.fromRGB(80, 220, 100),
-		bellyColor = Color3.fromRGB(150, 240, 165),
+		bodyColor = Color3.fromRGB(255, 200, 40),
+		bellyColor = Color3.fromRGB(255, 228, 130),
 		accessory = "hat",
 		features = { "blocky pixel beak", "square flippers", "snow cap" },
 		size = 3.8,
@@ -264,7 +269,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "avocado",
-		name = "Astro Avocado",
+		name = "Disco Donut",
 		rarity = "Epic",
 		flavor = "Grew up in zero gravity. The pit is a planet.",
 		body = "ball",
@@ -278,7 +283,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "llama",
-		name = "Lunar Llama",
+		name = "Count Croissant",
 		rarity = "Legendary",
 		flavor = "Grazes on moonlight. Spits stardust. Never apologises.",
 		body = "tall",
@@ -292,7 +297,7 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "narwhal",
-		name = "Nova Narwhal",
+		name = "The Great Giggling Gherkin",
 		rarity = "Mythic",
 		flavor = "Its horn is a lighthouse. Ships follow it home.",
 		body = "wide",
@@ -306,13 +311,13 @@ RotlingCatalog.DEFS = {
 	},
 	{
 		id = "cat",
-		name = "Comet Cat",
-		rarity = "Cosmic",
+		name = "Grandpa Gumball",
+		rarity = "Legendary",
 		flavor = "Falls from the sky purring. Lands on its feet. Always.",
 		body = "ball",
 		silhouette = "cat-sit",
-		bodyColor = Color3.fromRGB(60, 220, 255),
-		bellyColor = Color3.fromRGB(150, 240, 255),
+		bodyColor = Color3.fromRGB(255, 200, 40),
+		bellyColor = Color3.fromRGB(255, 228, 130),
 		accessory = "star",
 		features = { "comet tail", "pointy ears", "star collar" },
 		size = 4.2,

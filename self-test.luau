@@ -487,6 +487,35 @@ do
 	end
 end
 
+-- 11c. Branding (Malek-approved Nov 18 16:10): the game is Space Rock
+-- Brainrots! and the catalog carries the 20 approved Rotling names.
+do
+	local catalogSrc = read("src/shared/RotlingCatalog.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local titleSrc = read("src/client/TitleScreenController.client.luau")
+	if not catalogSrc or not hudSrc or not titleSrc then
+		step("branding", false, "RotlingCatalog.luau, HUDController.client.luau or TitleScreenController.client.luau missing")
+	else
+		local problems: { string } = {}
+		for _, name in ipairs({ "Bloop the Blob", "Pip the Potato", "Wobble Wombat", "Tiny Toaster Tim", "Gloopy Goose", "Sir Soggy Sock", "Bongo the Banana", "Captain Crumb", "Mister Muffin Feet", "Professor Pickle", "Turbo Toast", "Lord Lasagna Legs", "Disco Donut", "Baron von Burrito", "Count Croissant", "Sir Reginald Ramen", "Grandpa Gumball", "Supreme Spaghetti", "The Great Giggling Gherkin", "Cosmic Corn Dog" }) do
+			if not catalogSrc:find('name = "' .. name .. '"', 1, true) then
+				table.insert(problems, '"' .. name .. '" not in the catalog')
+			end
+		end
+		if not hudSrc:find("SPACE ROCK BRAINROTS") then
+			table.insert(problems, "HUD title is not SPACE ROCK BRAINROTS")
+		end
+		if not titleSrc:find("SPACE ROCK BRAINROTS") then
+			table.insert(problems, "title screen is not SPACE ROCK BRAINROTS")
+		end
+		if #problems > 0 then
+			step("branding", false, table.concat(problems, "; "))
+		else
+			step("branding", true, "SPACE ROCK BRAINROTS! title + all 20 approved Rotling names in the catalog (5C/4R/4E/4L/2M/1Co)")
+		end
+	end
+end
+
 -- 12. Storm lands: a meteor actually falls within 10s of the storm
 -- starting, and it leaves a rare Rotling at the impact point. The old
 -- storm failed silently (countdown hit zero, nothing happened), so

@@ -89,8 +89,8 @@ local function coinsPerSecond(placed: { string }, rebirths: number, incomeTier: 
 end
 
 -- --- Scenario: a fresh player, first 60s after placing 3 Rotlings -------
--- Placed: Wobble Wombat (Common 1/s) + Sir Puddles (Common 1/s) +
--- Boba Blob (Rare 4.4/s). No mutations, no rebirth, no income tier,
+-- Placed: Wobble Wombat (Common 1/s) + Bloop the Blob (Common 1/s) +
+-- Mister Muffin Feet (Rare 4.4/s). No mutations, no rebirth, no income tier,
 -- no cash boost, no buddy. Missions 1+2 already paid (grab 3 -> $300,
 -- place 3 -> $500), so the wallet starts at $800. Rebirth 1 costs
 -- $10,000. One 8s storm falls inside the 60s window (player on base,
@@ -102,7 +102,7 @@ local cpsCalm = coinsPerSecond(placed, 0, 0, false)
 local cpsStorm = coinsPerSecond(placed, 0, 0, true)
 
 print("== Starfall Rotlings: 60-second money table (fix 3) ==")
-print("Loadout: Wobble Wombat (Common) + Sir Puddles (Common) + Boba Blob (Rare), no mutation")
+print("Loadout: Wobble Wombat (Common) + Bloop the Blob (Common) + Mister Muffin Feet (Rare), no mutation")
 print("Base cps: " .. tostring(baseCps("wombat")) .. " + " .. tostring(baseCps("puddles")) .. " + " .. tostring(baseCps("boba")) .. " = " .. tostring(baseCps("wombat") + baseCps("puddles") + baseCps("boba")) .. "/s")
 print("coinsPerSecond calm: " .. tostring(cpsCalm) .. "/s (floor 6.4 x 1.00)")
 print("coinsPerSecond storm (on base, x2): " .. tostring(cpsStorm) .. "/s (floor 6.4 x 2.00)")
@@ -150,7 +150,7 @@ print("  Rebirth ($10,000) — NEW: still needs $10,000 total, but the bar now f
 print("")
 print("Also verified from the traced code paths:")
 print("  grab pays $0 (XP +10 only); place pays $0 (XP +15 only)")
-print("  sell pays baseCps x " .. tostring(SELL_MULT) .. " to the WALLET (Boba Blob: $" .. tostring(math.floor(baseCps("boba") * SELL_MULT)) .. ")")
+print("  sell pays baseCps x " .. tostring(SELL_MULT) .. " to the WALLET (Mister Muffin Feet: $" .. tostring(math.floor(baseCps("boba") * SELL_MULT)) .. ")")
 print("  mission 3 (Earn $5,000) counts the income tick (gained) — progress $" .. tostring(banked) .. " / $5,000 after 60s")
 print("  daily $1,000, storm bounty $500, index $500/$5,000, offline earnings: all pay the WALLET")
 print("  storm boost IS paid (into banked, at the x2 rate) — it was invisible, not missing")

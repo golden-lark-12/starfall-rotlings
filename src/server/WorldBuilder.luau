@@ -1440,8 +1440,8 @@ local function buildTitleBillboard()
 	pitch.Parent = gui
 end
 
--- Logo stage near spawn: three hero Rotlings (Galactic Gummy Bear,
--- Emperor Couch Potato, Baron von Bloop) on a small stage with a
+-- Logo stage near spawn: three hero Rotlings (Cosmic Corn Dog,
+-- Supreme Spaghetti, Baron von Burrito) on a small stage with a
 -- meteor prop — the in-game render of the logo, bright and readable
 -- at 150px for the Roblox icon (item 13). Display models only: their
 -- State is "display", so rivals, the belt list and grabs ignore them.
