@@ -30,6 +30,7 @@ export type Profile = {
 	missionIndex: number, -- which Config.MISSIONS entry is active (1-based)
 	missionProgress: number, -- progress toward the active mission
 	lastDailyClaim: number, -- os.time() of the last daily reward claim (0 = never)
+	lastSeen: number, -- os.time() of the last save (0 = never; drives offline earnings)
 }
 
 export type Raider = {

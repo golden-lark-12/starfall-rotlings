@@ -127,4 +127,8 @@ function Remotes.rerollFunction(): RemoteFunction
 	return Remotes.getFolder():WaitForChild("RerollMutation") :: RemoteFunction
 end
 
+function Remotes.offlineEvent(): RemoteEvent
+	return Remotes.getFolder():WaitForChild("OfflineEarnings") :: RemoteEvent
+end
+
 return Remotes

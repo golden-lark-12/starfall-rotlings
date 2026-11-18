@@ -812,6 +812,35 @@ do
 	end
 end
 
+-- 24. Offline earnings: lastSeen on save, capped payout, popup on join.
+do
+	local offlineSrc = read("src/server/OfflineService.luau")
+	local clientSrc = read("src/client/OfflineController.client.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	if not offlineSrc or not clientSrc or not mainSrc then
+		step("offline", false, "OfflineService.luau, OfflineController.client.luau or Main.server.luau missing")
+	else
+		local problems: { string } = {}
+		if not offlineSrc:find("OFFLINE_CAP_SECONDS") then
+			table.insert(problems, "no 8h cap on the payout")
+		end
+		if not offlineSrc:find("coinsPerSecond%(player%)") then
+			table.insert(problems, "payout not computed from real cps")
+		end
+		if not clientSrc:find("WHILE YOU WERE AWAY") then
+			table.insert(problems, "no WHILE YOU WERE AWAY popup")
+		end
+		if not mainSrc:find("OfflineService%.awardOffline%(player%)") then
+			table.insert(problems, "Main never awards offline earnings on join")
+		end
+		if #problems > 0 then
+			step("offline", false, table.concat(problems, "; "))
+		else
+			step("offline", true, "lastSeen stamped on every save, cps x away time capped at 8h, WHILE YOU WERE AWAY popup on join")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

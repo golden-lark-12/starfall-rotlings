@@ -142,6 +142,9 @@
     },
     "RerollMutation": {
      "$className": "RemoteFunction"
+    },
+    "OfflineEarnings": {
+     "$className": "RemoteEvent"
     }
    }
   },

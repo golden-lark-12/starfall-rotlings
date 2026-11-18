@@ -49,6 +49,7 @@ function DataService.defaultProfile(): State.Profile
 		missionIndex = 1,
 		missionProgress = 0,
 		lastDailyClaim = 0,
+		lastSeen = 0,
 	}
 end
 
@@ -86,6 +87,10 @@ local function reconcile(data: any): State.Profile
 	if profile.level == nil then
 		profile.level = 1
 	end
+	-- Offline earnings: old saves never recorded a last-seen time.
+	if profile.lastSeen == nil then
+		profile.lastSeen = 0
+	end
 	return profile
 end
 
@@ -113,6 +118,10 @@ function DataService.loadProfile(player: Player): State.Profile
 end
 
 -- Save a player's record now. Returns false when there is no store.
+-- Every save stamps lastSeen: the offline-earnings clock is the time
+-- since the last save, so autosave, leave and shutdown saves all
+-- refresh it while the player is online, and only real away time
+-- accrues once they are gone.
 function DataService.saveProfile(player: Player): boolean
 	local profile = State.profiles[player.UserId]
 	if not profile then
@@ -120,6 +129,7 @@ function DataService.saveProfile(player: Player): boolean
 	end
 	local BaseService = require(script.Parent.BaseService)
 	profile.placed = BaseService.snapshotPlaced(player)
+	profile.lastSeen = os.time()
 	local ds = getStore()
 	if not ds then
 		return false

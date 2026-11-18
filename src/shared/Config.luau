@@ -210,6 +210,10 @@ Config.BOUNTY_BONUS = 500 -- coins to the storm's top earner
 Config.SAVE_INTERVAL = 60 -- seconds between autosaves
 Config.DATASTORE_NAME = "StarfallRotlings_PlayerData"
 Config.SAVE_VERSION = 4 -- v4 adds stardust / xp / level / buddyDefId
+-- Offline earnings (step 4): Rotlings keep earning while the player is
+-- away, capped at this many hours so a long absence never pays a
+-- fortune. The popup shows the amount on join.
+Config.OFFLINE_CAP_SECONDS = 8 * 3600 -- 8 hours of away time, max
 
 -- Index completion rewards.
 Config.INDEX_RARITY_REWARD = 500 -- coins for completing one rarity's set

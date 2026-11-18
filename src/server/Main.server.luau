@@ -35,6 +35,7 @@ local GlobalEventService = require(script.Parent.GlobalEventService)
 local IncomeService = require(script.Parent.IncomeService)
 local LeaderstatsService = require(script.Parent.LeaderstatsService)
 local MeteorEggService = require(script.Parent.MeteorEggService)
+local OfflineService = require(script.Parent.OfflineService)
 local RaiderService = require(script.Parent.RaiderService)
 local RebirthService = require(script.Parent.RebirthService)
 local RivalService = require(script.Parent.RivalService)
@@ -125,6 +126,9 @@ local function onPlayerAdded(player: Player)
 	local profile = DataService.getProfile(player)
 	if profile then
 		CarryService.restorePlaced(player, profile.placed)
+		-- Offline earnings: paid from the restored pads, so the
+		-- away-time coins match what the base actually earns.
+		OfflineService.awardOffline(player)
 	end
 	player.CharacterAdded:Connect(function(character)
 		onCharacterAdded(player, character)

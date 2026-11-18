@@ -2670,6 +2670,67 @@ do
 	end
 end
 
+-- -- (az) offline earnings ---------------------------------------------------------
+-- Step 4: Rotlings keep earning while the player is away. The profile
+-- stamps lastSeen on every save; on join the server pays cps x away
+-- time, capped at 8 hours, and pops a "While you were away..." panel.
+-- First joiners and players with nothing placed earn nothing.
+do
+	local offlineSrc = read("src/server/OfflineService.luau")
+	local dataSrc = read("src/server/DataService.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	local clientSrc = read("src/client/OfflineController.client.luau")
+	local configSrc = read("src/shared/Config.luau")
+	local projectSrc = read("default.project.json")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	if not offlineSrc or not dataSrc or not mainSrc or not clientSrc or not configSrc or not projectSrc or not remotesSrc then
+		check("az", false, "could not verify offline earnings — OfflineService.luau, DataService.luau, Main.server.luau, OfflineController.client.luau, Config.luau, default.project.json or Remotes.luau missing")
+	else
+		local problems: { string } = {}
+		if not dataSrc:find("lastSeen = 0") then
+			table.insert(problems, "no lastSeen field in the default profile")
+		end
+		if not dataSrc:find("profile%.lastSeen = os%.time%(%)") then
+			table.insert(problems, "saves never stamp lastSeen")
+		end
+		if not offlineSrc:find("OFFLINE_CAP_SECONDS") then
+			table.insert(problems, "the away-time payout is not capped at OFFLINE_CAP_SECONDS")
+		end
+		if not offlineSrc:find("coinsPerSecond%(player%)") then
+			table.insert(problems, "the payout is not computed from the player's real coins-per-second")
+		end
+		if not offlineSrc:find("lastSeen == 0") then
+			table.insert(problems, "first joiners are not excluded from the payout")
+		end
+		if not mainSrc:find("OfflineService%.awardOffline%(player%)") then
+			table.insert(problems, "Main never awards offline earnings on join")
+		end
+		if not mainSrc:find("restorePlaced%(player, profile%.placed%)") then
+			table.insert(problems, "the payout is not computed after the pads are restored")
+		end
+		if not clientSrc:find("WHILE YOU WERE AWAY") then
+			table.insert(problems, 'no "WHILE YOU WERE AWAY" popup')
+		end
+		if not clientSrc:find("Your Rotlings earned ") then
+			table.insert(problems, 'no "Your Rotlings earned $X" popup line')
+		end
+		if not projectSrc:find('"OfflineEarnings"') then
+			table.insert(problems, "no OfflineEarnings remote in default.project.json")
+		end
+		if not remotesSrc:find("offlineEvent") then
+			table.insert(problems, "no offlineEvent accessor in Remotes")
+		end
+		if configSrc:find("OFFLINE_CAP_SECONDS = 8 %* 3600") == nil then
+			table.insert(problems, "Config.OFFLINE_CAP_SECONDS is not 8 hours")
+		end
+		if #problems > 0 then
+			check("az", false, "offline earnings are missing — " .. table.concat(problems, "; ") .. ". Parts: lastSeen (DataService), payout (OfflineService.luau), popup (OfflineController), wiring (Main.server.luau)")
+		else
+			check("az", true, "offline earnings: lastSeen stamped on every save, cps x away time capped at 8h, WHILE YOU WERE AWAY popup on join")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
