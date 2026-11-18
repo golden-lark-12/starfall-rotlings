@@ -56,6 +56,32 @@ function CarryService.getCarrySlots(player: Player): number
 	return 1 + tier
 end
 
+-- Is there a free carry slot anywhere in the server? A free Rotling's
+-- grab prompt is only enabled while SOME player has a free slot. In
+-- solo play that means: while you are carrying (at capacity), every
+-- grab prompt is off, so pressing E again does nothing. With Extra
+-- Arms (more slots) the prompts stay on until you are full.
+function CarryService.anyCarrySlotFree(): boolean
+	for _, player in ipairs(Players:GetPlayers()) do
+		if #CarryService.getCarried(player) < CarryService.getCarrySlots(player) then
+			return true
+		end
+	end
+	return false
+end
+
+-- Re-seat every free Rotling's grab prompt after a carry-count change
+-- (grab, place, sell, drop): a prompt that was on while empty-handed
+-- goes off the moment you fill your arms, and comes back the moment
+-- you free a slot.
+function CarryService.refreshFreePrompts()
+	for _, descendant in ipairs(workspace:GetDescendants()) do
+		if descendant:IsA("Model") and descendant:GetAttribute("State") == "free" then
+			CarryService.setPromptState(descendant)
+		end
+	end
+end
+
 local function weldToPlayer(model: Model, player: Player): boolean
 	local character = player.Character
 	if not character then
@@ -110,6 +136,8 @@ function CarryService.carryRotling(player: Player, model: Model)
 	table.insert(carried, model)
 	model:SetAttribute("OwnerUserId", player.UserId)
 	CarryService.setPromptState(model)
+	-- Filling your arms turns every free grab prompt off.
+	CarryService.refreshFreePrompts()
 end
 
 function CarryService.removeCarried(player: Player, model: Model)
@@ -124,6 +152,8 @@ function CarryService.removeCarried(player: Player, model: Model)
 		table.remove(carried, index)
 		index = table.find(carried, model)
 	end
+	-- Freeing a slot turns the free grab prompts back on.
+	CarryService.refreshFreePrompts()
 end
 
 -- -- Prompts ------------------------------------------------------------------
@@ -153,8 +183,12 @@ function CarryService.setPromptState(model: Model)
 		local placedBaseId = model:GetAttribute("BaseId") :: number?
 		prompt.Enabled = if placedBaseId then not BaseService.isLocked(placedBaseId) else true
 	else
+		-- Free: the grab prompt is only on while SOME player has a
+		-- free carry slot. In solo play, carrying (at capacity) turns
+		-- every grab prompt off, so pressing E again does nothing;
+		-- freeing a slot turns them back on.
 		prompt.ActionText = "Grab " .. name
-		prompt.Enabled = true
+		prompt.Enabled = CarryService.anyCarrySlotFree()
 	end
 end
 
@@ -212,10 +246,17 @@ end
 -- The one entry point for every grab prompt trigger.
 function CarryService.tryGrab(player: Player, model: Model)
 	if not model or not model.Parent then
+		print("[Grab] " .. player.Name .. " grab refused — model is gone")
 		return
 	end
 	local state = model:GetAttribute("State")
 	if state == "carried" then
+		-- A carried Rotling must never show a Grab prompt (bot carry
+		-- paths call setPromptState to disable it), but if one ever
+		-- fires, say so out loud instead of failing silently — the
+		-- prompt showing but E doing nothing was Playtest 5's grab.
+		print("[Grab] " .. player.Name .. " tried to grab " .. model.Name .. " — already carried, prompt should have been off")
+		Remotes.bannerEvent():FireClient(player, "That Brainrot is already being carried!", 2)
 		return
 	end
 	if state == "placed" then

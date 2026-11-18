@@ -71,6 +71,10 @@ function SpawnService.connectPrompt(model: Model)
 		print("[Grab] prompt triggered by " .. player.Name .. " on " .. model.Name)
 		CarryService.tryGrab(player, model)
 	end)
+	-- Seat the prompt to the current carry state: a Rotling spawned
+	-- while a player is carrying (at capacity) must not show a live
+	-- Grab prompt, and a placed Rotling gets its Take prompt here.
+	CarryService.setPromptState(model)
 end
 
 -- Register a free Rotling for the idle bob and spin. Records the

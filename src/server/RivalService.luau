@@ -212,6 +212,13 @@ local function carryModel(rival: State.Rival, model: Model)
 	weld.C0 = CFrame.new(0, Config.CARRY_Y, Config.CARRY_Z)
 	weld.Parent = modelBody
 	model:SetAttribute("State", "carried")
+	-- A rival-carried Rotling must not show a Grab prompt: the prompt
+	-- is how a player finds a catch, and a live prompt on a carried
+	-- Rotling reads as "E does nothing" (Playtest 5's grab — the
+	-- prompt showed, tryGrab hit state == "carried" and returned
+	-- silently). The prompt comes back when the loot is dropped
+	-- (scatterToCrater) or placed (setPromptState there).
+	CarryService2.setPromptState(model)
 	model:SetAttribute("BaseId", 0)
 	model:SetAttribute("PadIndex", 0)
 	rival.carried = model

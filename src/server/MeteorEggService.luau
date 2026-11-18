@@ -142,21 +142,35 @@ end
 function MeteorEggService.grabEgg(player: Player, model: Model)
 	local egg = State.eggs[model]
 	if not egg or (egg.phase ~= "ground" and egg.phase ~= "falling") then
+		-- A press on an egg that is already carried (or incubating)
+		-- used to fail silently — the prompt showed, E did nothing.
+		-- Say so, so the next playtest can tell a carried egg from a
+		-- dead prompt.
+		print("[MeteorEgg] " .. player.Name .. " tried to grab an egg in phase " .. tostring(if egg then egg.phase else "none") .. " — ignored")
+		if egg and egg.phase == "carried" then
+			Remotes.bannerEvent():FireClient(player, "That meteor egg is already being carried!", 2)
+		end
 		return
 	end
 	if State.eggCarriedByUser[player.UserId] then
 		Remotes.bannerEvent():FireClient(player, "You can only carry one meteor egg!", 3)
 		return
 	end
-	egg.phase = "carried"
-	egg.carrier = player.UserId
-	State.eggCarriedByUser[player.UserId] = model
+	-- Validate the weld BEFORE mutating state: the old order set
+	-- phase="carried" and eggCarriedByUser first, then returned
+	-- silently when the character or shell was missing — leaving the
+	-- egg stuck in "carried" (never re-grabbable) while the player
+	-- carried nothing, and blocking every later egg grab.
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	local shell = model.PrimaryPart
 	if not root or not shell then
+		print("[MeteorEgg] " .. player.Name .. " egg grab failed — no character root or shell")
 		return
 	end
+	egg.phase = "carried"
+	egg.carrier = player.UserId
+	State.eggCarriedByUser[player.UserId] = model
 	shell.Anchored = false
 	local weld = Instance.new("Weld")
 	weld.Name = "EggWeld"
@@ -164,10 +178,17 @@ function MeteorEggService.grabEgg(player: Player, model: Model)
 	weld.Part1 = shell
 	weld.C0 = CFrame.new(0, Config.CARRY_Y, Config.CARRY_Z)
 	weld.Parent = shell
+	-- The prompt goes off once the egg is carried: a live "Grab
+	-- Meteor Egg" prompt on a carried egg reads as "E does nothing".
+	local prompt = shell:FindFirstChildOfClass("ProximityPrompt")
+	if prompt then
+		prompt.Enabled = false
+	end
 	BoostService.applyWalkSpeed(player)
 	Remotes.bannerEvent():FireClient(player, "🥚 Heavy! Carry it to the incubator on your base — rivals will chase you!", 4)
 	local RivalService = require(script.Parent.RivalService)
 	RivalService.notifyEggCarrier(player)
+	print("[MeteorEgg] " .. player.Name .. " grabbed an egg")
 end
 
 -- Drop the egg the player carries (hit, slapped, died, left).
@@ -189,6 +210,11 @@ function MeteorEggService.dropEgg(player: Player)
 			weld:Destroy()
 		end
 		shell.Anchored = true
+		-- The prompt comes back: the dropped egg is grabbable again.
+		local prompt = shell:FindFirstChildOfClass("ProximityPrompt")
+		if prompt then
+			prompt.Enabled = true
+		end
 		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 		local pos = if root then root.Position + Vector3.new(0, 0, 3) else Vector3.new(0, 0, 0)
 		model:PivotTo(CFrame.new(pos + Vector3.new(0, 2.2, 0)))

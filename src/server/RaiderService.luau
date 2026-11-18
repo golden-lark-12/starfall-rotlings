@@ -341,6 +341,11 @@ local function runRaid(model: Model)
 		weld.C0 = CFrame.new(0, 3.2, -1.5)
 		weld.Parent = stolenBody
 		stolen:SetAttribute("State", "carried")
+		-- A raider-carried Rotling must not show a Grab prompt: a
+		-- live prompt on a carried Rotling reads as "E does
+		-- nothing" (Playtest 5's grab). The prompt comes back when
+		-- the loot is bonked loose (scatterToCrater).
+		CarryService.setPromptState(stolen)
 	end
 	local ownerId = BaseService.getBaseOwner(raider.targetBase)
 	if ownerId then
@@ -452,6 +457,11 @@ local function runCraterRaid(model: Model)
 		weld.C0 = CFrame.new(0, 3.2, -1.5)
 		weld.Parent = stolenBody
 		stolen:SetAttribute("State", "carried")
+		-- A raider-carried Rotling must not show a Grab prompt: a
+		-- live prompt on a carried Rotling reads as "E does
+		-- nothing" (Playtest 5's grab). The prompt comes back when
+		-- the loot is bonked loose (scatterToCrater).
+		CarryService.setPromptState(stolen)
 	end
 	-- The guardian wakes: it chases whoever grabs from the crater,
 	-- raider included. Everyone sees the chase start.

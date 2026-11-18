@@ -4476,6 +4476,66 @@ do
 	end
 end
 
+-- -- (cb) the grab prompt never lies (fix round 5, item 2) --
+-- Playtest 5 + Malek's clarification: the grab prompt ("E Grab X")
+-- SHOWS but pressing E does nothing. Root cause: a Brainrot carried
+-- by a bot (rival or raider) kept its free prompt — the bot carry
+-- paths set state "carried" but never called setPromptState, so the
+-- prompt stayed enabled with "Grab <name>", and tryGrab hit state ==
+-- "carried" and returned SILENTLY (no log, no banner). The player
+-- grabbed one genuinely-free Rotling (Gloopy Goose), then every
+-- bot-carried one after it read as dead. The fix: every bot carry
+-- path disables the prompt via setPromptState; tryGrab's carried
+-- return logs + banners; and free prompts are only on while some
+-- player has a free carry slot (prompts off while carrying, base
+-- capacity 1). The egg had the same family of bug: grabEgg set
+-- phase="carried" before validating the weld, stranding the egg, and
+-- its prompt stayed live after a grab.
+do
+	local carrySrc = read("src/server/CarryService.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	local raiderSrc = read("src/server/RaiderService.luau")
+	local spawnSrc = read("src/server/SpawnService.luau")
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	if not carrySrc or not rivalSrc or not raiderSrc or not spawnSrc or not eggSrc then
+		check("cb", false, "could not verify the grab-prompt fix — CarryService.luau, RivalService.luau, RaiderService.luau, SpawnService.luau or MeteorEggService.luau missing")
+	else
+		local problems: { string } = {}
+		if not rivalSrc:find("CarryService2%.setPromptState%(model%)") then
+			table.insert(problems, "rival carryModel does not call setPromptState — a rival-carried Rotling keeps a live Grab prompt")
+		end
+		if not raiderSrc:find("CarryService%.setPromptState%(stolen%)") then
+			table.insert(problems, "raider carry does not call setPromptState — a raider-carried Rotling keeps a live Grab prompt")
+		end
+		if not carrySrc:find("already being carried") then
+			table.insert(problems, "tryGrab's carried return is still silent (no log + banner)")
+		end
+		if not carrySrc:find("anyCarrySlotFree") then
+			table.insert(problems, "no anyCarrySlotFree — free grab prompts cannot turn off while carrying")
+		end
+		if not carrySrc:find("prompt%.Enabled = CarryService%.anyCarrySlotFree%(%)") then
+			table.insert(problems, "setPromptState still enables every free grab prompt unconditionally")
+		end
+		if not carrySrc:find("return 1 %+ tier") then
+			table.insert(problems, "base carry capacity is not 1 (getCarrySlots must be 1 + tier)")
+		end
+		if not spawnSrc:find("CarryService%.setPromptState%(model%)") then
+			table.insert(problems, "connectPrompt does not seat the prompt to the carry state")
+		end
+		if not eggSrc:find("egg grab failed") then
+			table.insert(problems, "grabEgg does not log a failed weld before mutating state")
+		end
+		if not eggSrc:find("prompt%.Enabled = false") then
+			table.insert(problems, "grabEgg does not disable the egg prompt once carried")
+		end
+		if #problems > 0 then
+			check("cb", false, "the grab-prompt fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: CarryService.luau, RivalService.luau, RaiderService.luau, SpawnService.luau, MeteorEggService.luau")
+		else
+			check("cb", true, "grab prompt never lies: bot carry paths disable the prompt, tryGrab's carried return logs + banners, free prompts only on while a carry slot is free (base capacity 1), spawns seat the prompt, egg validates before mutating and its prompt goes off once carried")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
