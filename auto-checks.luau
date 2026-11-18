@@ -1427,8 +1427,8 @@ do
 		check("z", false, "could not verify the HUD identity — HUDController.client.luau, Remotes.luau or IncomeService.luau missing")
 	else
 		local problems: { string } = {}
-		if not hudSrc:find('"GameTitle"') or not hudSrc:find("STARFALL ROTLINGS") then
-			table.insert(problems, "no STARFALL ROTLINGS title label in the top HUD")
+		if not hudSrc:find('"GameTitle"') or not hudSrc:find("SPACE ROCK BRAINROTS") then
+			table.insert(problems, "no SPACE ROCK BRAINROTS title label in the top HUD")
 		end
 		if not hudSrc:find("indexCount") or not hudSrc:find("indexTotal") then
 			table.insert(problems, "no Index count (x/20) in the HUD")
@@ -1445,7 +1445,7 @@ do
 		if #problems > 0 then
 			check("z", false, "the HUD has no identity or density — " .. table.concat(problems, "; ") .. ". Parts: GameTitle / LeaderboardPanel (HUDController.client.luau), HudData (Remotes.luau), broadcastHud (IncomeService.luau)")
 		else
-			check("z", true, "HUD identity + density — STARFALL ROTLINGS title, Index count x/20, top-3 leaderboard panel")
+			check("z", true, "HUD identity + density — SPACE ROCK BRAINROTS title, Index count x/20, top-3 leaderboard panel")
 		end
 	end
 end
@@ -2424,8 +2424,8 @@ do
 		if not worldSrc:find("LogoStage") then
 			table.insert(problems, "no logo stage in the world (WorldBuilder.buildLogoStage)")
 		end
-		if not worldSrc:find("STARFALL ROTLINGS") then
-			table.insert(problems, "no STARFALL ROTLINGS title in the world")
+		if not worldSrc:find("SPACE ROCK BRAINROTS") then
+			table.insert(problems, "no SPACE ROCK BRAINROTS title in the world")
 		end
 		if #problems > 0 then
 			check("at", false, "the last adds are missing — " .. table.concat(problems, "; ") .. ". Parts: catalog/mutations (Shared), Stardust + XP (HUDController), logo stage (WorldBuilder.luau)")
@@ -2540,8 +2540,8 @@ do
 		check("aw", false, "could not verify the title screen — TitleScreenController.client.luau missing")
 	else
 		local problems: { string } = {}
-		if not titleSrc:find("STARFALL ROTLINGS") then
-			table.insert(problems, "no big STARFALL ROTLINGS title")
+		if not titleSrc:find("SPACE ROCK BRAINROTS") then
+			table.insert(problems, "no big SPACE ROCK BRAINROTS title")
 		end
 		if not titleSrc:find("Grab them%. Grow them%. Guard your base%.") then
 			table.insert(problems, "no tagline on the title screen")

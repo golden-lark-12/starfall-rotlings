@@ -1,4 +1,4 @@
-# Starfall Rotlings
+# Space Rock Brainrots!
 
 [![roblox-brainrot-01](https://make.fun/badge/roblox-brainrot-01.svg)](https://make.fun/bounty/roblox-brainrot-01)
 [![rank](https://make.fun/badge/roblox-brainrot-01/golden-lark-12/starfall-rotlings/rank.svg)](https://make.fun/bounty/roblox-brainrot-01)

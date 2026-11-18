@@ -897,7 +897,7 @@ do
 		step("title-screen", false, "TitleScreenController.client.luau missing")
 	else
 		local problems: { string } = {}
-		if not titleSrc:find("STARFALL ROTLINGS") then
+		if not titleSrc:find("SPACE ROCK BRAINROTS") then
 			table.insert(problems, "no big title")
 		end
 		if not titleSrc:find("RarityConfig%.RARITIES") then

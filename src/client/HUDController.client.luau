@@ -70,7 +70,7 @@ topBar.Parent = gui
 -- Game title, top-centre, in every shot: the judge sees only the
 -- screenshots, so the game needs an identity that reads at thumbnail
 -- size. Gold, with a dark stroke, above the coins.
-local titleLabel = GuiKit.makeLabel(gui, "GameTitle", "⭐ STARFALL ROTLINGS ⭐", UDim2.new(0, 440, 0, 32), UDim2.new(0.5, 0, 0, 4), 26, GuiKit.COLORS.Gold)
+local titleLabel = GuiKit.makeLabel(gui, "GameTitle", "⭐ SPACE ROCK BRAINROTS! ⭐", UDim2.new(0, 440, 0, 32), UDim2.new(0.5, 0, 0, 4), 26, GuiKit.COLORS.Gold)
 titleLabel.AnchorPoint = Vector2.new(0.5, 0)
 
 -- Coins, big and top-centre (clear of Roblox's own top-left buttons).

@@ -41,7 +41,7 @@ local function titleLabel(parent: Instance, name: string, text: string, size: UD
 end
 
 -- Big title, top-centre.
-local title = titleLabel(titleFrame, "TitleText", "⭐ STARFALL ROTLINGS ⭐", UDim2.new(0, 900, 0, 64), UDim2.new(0.5, 0, 0, 28), 48, GuiKit.COLORS.Gold)
+local title = titleLabel(titleFrame, "TitleText", "⭐ SPACE ROCK BRAINROTS! ⭐", UDim2.new(0, 900, 0, 64), UDim2.new(0.5, 0, 0, 28), 48, GuiKit.COLORS.Gold)
 title.AnchorPoint = Vector2.new(0.5, 0)
 
 -- Our tagline, under the title (the same line as the crater billboard).

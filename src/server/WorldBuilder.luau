@@ -1421,7 +1421,7 @@ local function buildTitleBillboard()
 	title.Name = "TitleText"
 	title.Size = UDim2.new(1, 0, 0.6, 0)
 	title.BackgroundTransparency = 1
-	title.Text = "⭐ STARFALL ROTLINGS ⭐"
+	title.Text = "⭐ SPACE ROCK BRAINROTS! ⭐"
 	title.Font = Enum.Font.FredokaOne
 	title.TextScaled = true
 	title.TextColor3 = Color3.fromRGB(255, 220, 90)
