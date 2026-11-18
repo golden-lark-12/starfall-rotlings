@@ -1,17 +1,19 @@
 --!strict
--- Starfall Rotlings: photo mode.
--- Press P (or type /photo in chat) to step through FOUR fixed camera
--- shots, the same views the judge sees — the FINAL 4, all real
--- gameplay, full HUD in every frame: (1) belt / grab moment — low
--- and close down the conveyor; (2) storm — the glowing storm wall,
--- the green SAFE DOME over a base, the (x2) income boost readout and
--- the red banner in one frame; (3) packed base — pads full of placed
--- Rotlings with the Lv sign; (4) hero Rotling close-up — low and
--- close on the belt's nearest Rotling, tags readable. The title
+-- Space Rock Brainrots!: photo mode.
+-- Press P (or type /photo in chat) to step through FIVE fixed camera
+-- shots: the FINAL 4 submission shots, all real gameplay, full HUD in
+-- every frame — (1) belt / grab moment — low and close down the
+-- conveyor; (2) storm — the glowing storm wall, the green SAFE DOME
+-- over a base, the (x2) income boost readout and the red banner in one
+-- frame; (3) packed base — pads full of placed Rotlings with the Lv
+-- sign; (4) hero Rotling close-up — low and close on the belt's
+-- nearest Rotling, tags readable — plus (5) the ICON shot: the logo
+-- stage near spawn, one big bright Rotling front-centre with the fiery
+-- meteor behind it, framed square for the 512x512 icon. The title
 -- screen stays in the game but is NOT one of the 4 shots: the
 -- submission sheet is gameplay only, no key art. Each shot is a
 -- deterministic fixed CFrame — never a free-fly — and the chat is
--- hidden while a shot is framed, so the capture is clean. A 5th press
+-- hidden while a shot is framed, so the capture is clean. A 6th press
 -- exits photo mode and hands the camera back to the player.
 --
 -- Roblox gives a LocalScript no screenshot-file API, so a shot is
@@ -36,10 +38,10 @@ local GuiKit = require(script.Parent:WaitForChild("GuiKit"))
 
 local player = Players.LocalPlayer
 
--- The 4 shots, in order — the FINAL submission sheet. Positions are
--- fixed in world space (belt, storm, hero) or fixed relative to the
--- player (base). Tune a CFrame here and every capture of that shot
--- moves.
+-- The 5 shots, in order — the FINAL 4 submission shots plus the icon
+-- shot. Positions are fixed in world space (belt, storm, hero, icon)
+-- or fixed relative to the player (base). Tune a CFrame here and every
+-- capture of that shot moves.
 local SHOTS = {
 	{
 		-- BELT / GRAB MOMENT, and the first thumbnail: low and close
@@ -79,9 +81,20 @@ local SHOTS = {
 		position = Vector3.new(10, 3.5, 7),
 		lookAt = Vector3.new(0, 2, 0),
 	},
+	{
+		name = "Icon — 512x512",
+		detail = "Icon: logo stage near spawn — one big bright Rotling front-centre, fiery meteor behind, square crop",
+		-- Icon shot: the logo stage near spawn (-25, 0, 88) with its
+		-- three hero Rotlings and the fiery meteor prop behind them.
+		-- Camera 10 studs south of the stage, looking north at the
+		-- centre Rotling with the meteor above/behind it — framed
+		-- for a square 512x512 icon crop.
+		position = Vector3.new(-25, 4, 98),
+		lookAt = Vector3.new(-25, 3, 88),
+	},
 }
 
-local shotIndex = 0 -- 0 = photo mode off; 1-4 = the shot showing
+local shotIndex = 0 -- 0 = photo mode off; 1-5 = the shot showing
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "PhotoModeGui"
@@ -172,14 +185,14 @@ local function showShot(index: number)
 	hideChat()
 	titleLabel.Text = "📷 Photo " .. shot.name .. " — " .. shot.detail
 	helpLabel.Text = "Capture it: ⋯ menu → Screenshot (saves to Photos). P = next shot."
-	nextButton.Text = if index == 4 then "Exit ✕" else "Next ▶"
+	nextButton.Text = if index == #SHOTS then "Exit ✕" else "Next ▶"
 	bar.Visible = true
 end
 
 local function advanceShot()
 	if shotIndex == 0 then
 		showShot(1)
-	elseif shotIndex >= 4 then
+	elseif shotIndex >= #SHOTS then
 		exitPhotoMode()
 	else
 		showShot(shotIndex + 1)

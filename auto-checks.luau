@@ -1500,7 +1500,8 @@ end
 -- 1 belt (low, close down the conveyor), 2 storm (wide crater + sky
 -- with the banner, the dome and the giant meteors), 3 packed base
 -- close, 4 hero close-up (low and close on the belt's nearest
--- Rotling). The old crater isometric is gone.
+-- Rotling), 5 icon (the logo stage, one big Rotling + fiery meteor).
+-- The old crater isometric is gone.
 do
 	local photoSrc = read("src/client/PhotoModeController.client.luau")
 	if not photoSrc then
@@ -1530,25 +1531,37 @@ do
 		if not photoSrc:find("Vector3.new%(10, 3.5, 7%)") then
 			table.insert(problems, "shot 4 is not the hero close-up camera (10, 3.5, 7)")
 		end
+		-- Shot 5 (icon): the logo stage near spawn, one big bright
+		-- Rotling front-centre with the fiery meteor behind it.
+		if not photoSrc:find("Icon — 512x512") then
+			table.insert(problems, "no icon shot (Icon — 512x512)")
+		end
+		if not photoSrc:find("Vector3.new%(%-25, 4, 98%)") then
+			table.insert(problems, "icon shot is not the logo-stage camera (-25, 4, 98)")
+		end
+		if not photoSrc:find("Vector3.new%(%-25, 3, 88%)") then
+			table.insert(problems, "icon shot does not look at the logo stage (-25, 3, 88)")
+		end
 		-- The crater isometric is gone.
 		if photoSrc:find("Vector3.new%(24, 24, 24%)") then
 			table.insert(problems, "the old isometric crater camera (24, 24, 24) is still a shot")
 		end
-		-- Exactly 4 shots: the "4/4" label exists, no "5/5" anywhere.
+		-- 4 submission shots + 1 icon shot: the "4/4" label exists
+		-- and the icon shot is named, not numbered.
 		if not photoSrc:find('"4/4') then
-			table.insert(problems, 'no "4/4" shot label — photo mode is not the 4-shot layout')
+			table.insert(problems, 'no "4/4" shot label — photo mode is not the 4-shot submission layout')
 		end
 		if photoSrc:find('"5/5') or photoSrc:find('"1/5') then
-			table.insert(problems, "photo mode still has a 5-shot layout (1/5 or 5/5 found)")
+			table.insert(problems, "photo mode numbers the icon as a 5th submission shot (1/5 or 5/5 found)")
 		end
-		-- The 5th press exits (advance past shot 4).
-		if not photoSrc:find("shotIndex >= 4") then
-			table.insert(problems, "photo mode does not exit after shot 4 (shotIndex >= 4)")
+		-- The 6th press exits (advance past shot 5).
+		if not photoSrc:find("shotIndex >= #SHOTS") then
+			table.insert(problems, "photo mode does not exit after shot 5 (shotIndex >= #SHOTS)")
 		end
 		if #problems > 0 then
-			check("ac", false, "photo-mode cameras are not the 4 bounty shots — " .. table.concat(problems, "; ") .. ". Parts: SHOTS / shotCFrame (PhotoModeController.client.luau)")
+			check("ac", false, "photo-mode cameras are not the 4 bounty shots + icon — " .. table.concat(problems, "; ") .. ". Parts: SHOTS / shotCFrame (PhotoModeController.client.luau)")
 		else
-			check("ac", true, "photo cameras are the 4 bounty shots — belt close on the conveyor, storm wide (48, 10, 18) looking at the sky, base 16 out / 7 up, hero close-up (10, 3.5, 7)")
+			check("ac", true, "photo cameras are the 4 bounty shots + icon — belt close on the conveyor, storm wide (48, 10, 18) looking at the sky, base 16 out / 7 up, hero close-up (10, 3.5, 7), icon on the logo stage (-25, 4, 98)")
 		end
 	end
 end
