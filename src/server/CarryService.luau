@@ -454,6 +454,13 @@ function CarryService.restorePlaced(player: Player, saved: { State.PlacedEntry }
 			end
 		end
 	end
+	-- Sync the "place" mission to the live placed count (fix round 4,
+	-- item 3): a player who already has enough placed when the "place"
+	-- mission is active completes it on join instead of staring at
+	-- 0/3. placeOnPad already adds 1 per restore, but only while
+	-- "place" is active; the sync catches the case where the mission
+	-- became active after the placements were made.
+	MissionService.syncPlaceMission(player)
 end
 
 return CarryService

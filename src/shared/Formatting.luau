@@ -5,17 +5,23 @@
 
 local Formatting = {}
 
--- Short money: 999 -> "$999", 1,250 -> "$1.25K", 2,400,000 -> "$2.40M".
+-- Short money: 999 -> "$999", 1,250 -> "$1.25K", 2,400,000 -> "$2.40M", 40,000 -> "$40K".
+-- Drop a useless ".00": $40,000 reads "$40K", not "$40.00K" (the
+-- playtest flagged the extra decimals as a formatting bug).
+local function stripCents(s: string): string
+	return (s:gsub("%.00([KMB])", "%1"))
+end
+
 function Formatting.formatMoney(n: number): string
 	local value = math.floor(n)
 	if value < 1000 then
 		return "$" .. tostring(value)
 	elseif value < 1_000_000 then
-		return string.format("$%.2fK", value / 1000)
+		return stripCents(string.format("$%.2fK", value / 1000))
 	elseif value < 1_000_000_000 then
-		return string.format("$%.2fM", value / 1_000_000)
+		return stripCents(string.format("$%.2fM", value / 1_000_000))
 	else
-		return string.format("$%.2fB", value / 1_000_000_000)
+		return stripCents(string.format("$%.2fB", value / 1_000_000_000))
 	end
 end
 

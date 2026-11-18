@@ -95,6 +95,9 @@
 --   (bt) selling does nothing in either case (the SELL pad prompt is
 --       not proven wired at boot, or sell attempts/results are not
 --       logged, so the next playtest cannot tell which side failed)
+--   (bu) the money/progress numbers lie (no REBIRTH READY state, the
+--       rebirth label ignores banked coins, "$40.00K" for $40,000, or
+--       the "place" mission never syncs to the live placed count)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -4026,6 +4029,55 @@ do
 			check("bt", false, "the sell fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: SellService.luau")
 		else
 			check("bt", true, "sell is observable: init logs the wired pad prompt (or warns), every attempt + result is logged, carried first then placed, model destroyed and coins paid")
+		end
+	end
+end
+
+-- -- (bu) money/progress numbers are honest (fix round 4, item 3) --
+-- Playtest 4: $2.07M cash but the HUD said "NEXT REBIRTH: $2.07M /
+-- $40.00K" with no READY state; the quest said "Place 3 Brainrots on
+-- your base 0/3" while the index was 14/20; XP sat at 0/100 at level 12.
+-- The causes: the HUD never said READY when rebirthProgress >= 1, the
+-- label used only wallet coins (not coins + banked, which the server's
+-- progress counts), formatMoney printed "$40.00K" for $40,000, and the
+-- "place" mission only counted placements made while it was active —
+-- placements made under other missions never counted. XP display math
+-- was already correct (xp % 100; level 12 at xp=1100 is a boundary),
+-- and XP was starved by the broken grab (no grabs/places, no +10/+15).
+do
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local fmtSrc = read("src/shared/Formatting.luau")
+	local missionSrc = read("src/server/MissionService.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	if not hudSrc or not fmtSrc or not missionSrc or not carrySrc then
+		check("bu", false, "could not verify the money/progress fix — HUDController.client.luau, Formatting.luau, MissionService.luau or CarryService.luau missing")
+	else
+		local problems: { string } = {}
+		if not hudSrc:find("REBIRTH READY! Press R") then
+			table.insert(problems, "HUD never says REBIRTH READY when progress >= 1")
+		end
+		if not hudSrc:find("hud%.coins %+ hud%.banked") then
+			table.insert(problems, "rebirth label uses wallet coins only, not coins + banked (the server's progress counts both)")
+		end
+		if not fmtSrc:find("stripCents") or not fmtSrc:find('%.00%(%[KMB%]%)') then
+			table.insert(problems, "formatMoney still prints '$40.00K' for $40,000 (no .00 strip)")
+		end
+		if not missionSrc:find("syncPlaceMission") then
+			table.insert(problems, "no syncPlaceMission in MissionService")
+		end
+		if not missionSrc:find("getPlacedForPlayer%(player%)") then
+			table.insert(problems, "syncPlaceMission does not read the live placed count")
+		end
+		if not carrySrc:find("syncPlaceMission%(player%)") then
+			table.insert(problems, "restorePlaced does not sync the place mission on join/restore")
+		end
+		if not missionSrc:find("MissionService%.syncPlaceMission%(player%)") then
+			table.insert(problems, "addProgress does not sync the next mission after a completion")
+		end
+		if #problems > 0 then
+			check("bu", false, "the money/progress fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: HUDController.client.luau, Formatting.luau, MissionService.luau, CarryService.luau")
+		else
+			check("bu", true, "numbers honest: REBIRTH READY at progress >= 1 (label + button), label counts coins + banked, $40K not $40.00K, place mission syncs to the live placed count on join/restore and after completions")
 		end
 	end
 end

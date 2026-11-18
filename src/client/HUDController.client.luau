@@ -439,7 +439,18 @@ local function onHudData(data: Remotes.HudData)
 
 	-- NEXT REBIRTH bar (cheap win 2): coins / cost.
 	rebirthFill.Size = UDim2.new(math.clamp(hud.rebirthProgress, 0, 1), 0, 1, 0)
-	rebirthProgressLabel.Text = "NEXT REBIRTH: " .. Formatting.formatMoney(hud.coins) .. " / " .. Formatting.formatMoney(hud.rebirthCost)
+	-- READY state (fix round 4, item 3): at progress >= 1 the player
+	-- can afford the rebirth — say so. The old text kept showing the
+	-- progress line even at $2.07M / $40K, so it read as "not ready".
+	-- The numerator is coins + banked, matching the server's
+	-- rebirthProgress (which counts the banked cash too).
+	if hud.rebirthProgress >= 1 then
+		rebirthProgressLabel.Text = "✨ REBIRTH READY! Press R ✨"
+		rebirthButton.Text = "✨ REBIRTH READY! ✨"
+	else
+		rebirthProgressLabel.Text = "NEXT REBIRTH: " .. Formatting.formatMoney(hud.coins + hud.banked) .. " / " .. Formatting.formatMoney(hud.rebirthCost)
+		rebirthButton.Text = "✨ Rebirth (R)"
+	end
 
 	-- Leaderboard: top 3 by coins, one row each; empty rows stay blank.
 	for i = 1, 3 do
