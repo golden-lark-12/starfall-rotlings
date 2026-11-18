@@ -368,14 +368,24 @@ end
 -- The tick is wrapped so one bad player or value can never kill the
 -- loop: a dead loop means the HUD (and the storm timer) freeze for
 -- everyone, with nothing in the Output to explain it.
+-- Fix round 2, fix 6 (money): the old tick wrapped the WHOLE loop in
+-- one pcall, so a single bad player — or a failure in the float, the
+-- broadcast or the bounty board — skipped broadcastHud for EVERYONE
+-- that second and the HUD froze at $0/+$0/s. Now each player is
+-- isolated in their own pcall, and the float, the broadcast and the
+-- bounty board each get their own pcall, so no single failure can
+-- silence the feed. A diagnostic line every 30s prints each player's
+-- coins / banked / cps / placed count, so the Output proves the money
+-- is flowing (or shows exactly where it sticks).
 function IncomeService.start()
 	local tickCount = 0
 	task.spawn(function()
 		while true do
 			task.wait(Config.TICK_INTERVAL)
 			tickCount += 1
-			local ok, err = pcall(function()
-				for _, player in ipairs(Players:GetPlayers()) do
+			-- Per-player: one bad profile can never block the others.
+			for _, player in ipairs(Players:GetPlayers()) do
+				local ok, err = pcall(function()
 					local profile = DataService.getProfile(player)
 					if profile then
 						local gained = IncomeService.coinsPerSecond(player)
@@ -389,15 +399,39 @@ function IncomeService.start()
 						local LeaderstatsService = require(script.Parent.LeaderstatsService)
 						LeaderstatsService.refresh(player)
 					end
+				end)
+				if not ok then
+					warn("Starfall income tick failed for " .. player.Name .. ": " .. tostring(err))
 				end
-				floatIncomeNumber()
-				IncomeService.broadcastHud()
-				-- Live bounty board (fix round 2, fix 5): while the
-				-- storm runs, the board shows the live top earners.
-				IncomeService.updateStormBountyBoard()
-			end)
-			if not ok then
-				warn("Starfall income tick failed: " .. tostring(err))
+			end
+			-- Feed: each step protected on its own, so a failure in
+			-- one can never silence the HUD for everyone.
+			local okFloat, errFloat = pcall(floatIncomeNumber)
+			if not okFloat then
+				warn("Starfall income float failed: " .. tostring(errFloat))
+			end
+			local okHud, errHud = pcall(IncomeService.broadcastHud)
+			if not okHud then
+				warn("Starfall broadcastHud failed: " .. tostring(errHud))
+			end
+			-- Live bounty board (fix round 2, fix 5): while the
+			-- storm runs, the board shows the live top earners.
+			local okBounty, errBounty = pcall(IncomeService.updateStormBountyBoard)
+			if not okBounty then
+				warn("Starfall bounty board failed: " .. tostring(errBounty))
+			end
+			-- Diagnostic (every 30s): one line per player with the
+			-- numbers the HUD should be showing, so the Output
+			-- proves the money is flowing (or shows exactly where
+			-- it sticks). This is the evidence the playtest asked
+			-- for: action | HUD said | actually added.
+			if tickCount % 30 == 0 then
+				for _, player in ipairs(Players:GetPlayers()) do
+					local profile = DataService.getProfile(player)
+					if profile then
+						print("[Starfall] money " .. player.Name .. ": coins=" .. tostring(profile.coins) .. " banked=" .. tostring(profile.banked) .. " cps=" .. tostring(IncomeService.coinsPerSecond(player)) .. " placed=" .. tostring(#BaseService.getPlacedForPlayer(player)))
+					end
+				end
 			end
 			-- Storm heartbeat (every 5 ticks): proves the loop is alive
 			-- and shows the phase + seconds the HUD should be displaying.

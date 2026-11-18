@@ -154,4 +154,20 @@ print("  sell pays baseCps x " .. tostring(SELL_MULT) .. " to the WALLET (Mister
 print("  mission 3 (Earn $5,000) counts the income tick (gained) — progress $" .. tostring(banked) .. " / $5,000 after 60s")
 print("  daily $1,000, storm bounty $500, index $500/$5,000, offline earnings: all pay the WALLET")
 print("  storm boost IS paid (into banked, at the x2 rate) — it was invisible, not missing")
+print("")
+-- --- Money table (fix round 2, fix 6): action | HUD said | actually added --
+-- The playtest asked for this table: for each money action, what the
+-- HUD shows and what actually lands, computed from the same formulas
+-- above. Loadout: wombat (1/s) + puddles (1/s) + boba (4.4/s) = 6.4/s.
+local sellBoba = math.floor(baseCps("boba") * SELL_MULT)
+local storm8 = 8 * cpsStorm
+print("MONEY TABLE — action | HUD said | actually added (same loadout, no rebirth/tier/boost):")
+print("  grab a Brainrot      | nothing ($0)                    | $0 coins, +10 XP, Brainrot carried")
+print("  place on base        | nothing ($0)                    | $0 coins, +15 XP, income +" .. tostring(baseCps("boba")) .. "/s (Boba Blob)")
+print("  base income (1s)     | big number +$" .. tostring(cpsCalm) .. "         | +$" .. tostring(cpsCalm) .. " to banked (total wealth rises)")
+print("  base income (60s)    | big number +$" .. tostring(banked) .. "        | +$" .. tostring(banked) .. " to banked (52x$" .. tostring(cpsCalm) .. " + 8x$" .. tostring(cpsStorm) .. ")")
+print("  storm boost (8s)     | cps shows $" .. tostring(cpsStorm) .. "/s (x2) next to $" .. tostring(cpsCalm) .. "/s | +$" .. tostring(storm8) .. " to banked (8s at the x2 rate)")
+print("  sell (Boba Blob)     | banner 'Sold Boba Blob for $" .. tostring(sellBoba) .. "!' | +$" .. tostring(sellBoba) .. " to WALLET (4.4 x " .. tostring(SELL_MULT) .. "), Brainrot gone from base")
+print("  collect              | wallet +$banked, At base $0    | banked moves into the wallet, $ for $")
+print("  storm bounty (win)   | banner + wallet +$500          | +$500 to WALLET (top earner of the storm)")
 print("== end ==")

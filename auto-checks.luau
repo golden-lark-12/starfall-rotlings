@@ -3673,6 +3673,56 @@ do
 	end
 end
 
+-- -- (bo) money feed is isolated per player + diagnosed (fix round 2, fix 6) --
+-- The playtest showed cash $0 and +$0/s. The income math is right
+-- (sim-money) and every module call resolves (bk), but the old tick
+-- wrapped the WHOLE loop in one pcall — so one bad player, or a
+-- failure in the float, the broadcast or the bounty board, skipped
+-- broadcastHud for EVERYONE that second and the HUD froze at $0. Now
+-- each player is isolated in their own pcall, and the float, the
+-- broadcast and the bounty board each get their own pcall, so no
+-- single failure can silence the feed. A diagnostic line every 30s
+-- prints each player's coins / banked / cps / placed count, so the
+-- Output proves the money is flowing.
+do
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local simSrc = read("sim-money.luau")
+	if not incomeSrc or not simSrc then
+		check("bo", false, "could not verify the money feed — IncomeService.luau or sim-money.luau missing")
+	else
+		local problems: { string } = {}
+		if not incomeSrc:find("for _, player in ipairs%(Players:GetPlayers%(%)%) do%s*\n%s*local ok, err = pcall%(function%(%)") then
+			table.insert(problems, "the tick does not isolate each player in their own pcall")
+		end
+		if not incomeSrc:find("local okHud, errHud = pcall%(IncomeService%.broadcastHud%)") then
+			table.insert(problems, "broadcastHud does not have its own pcall (a float/bounty failure can silence it)")
+		end
+		if not incomeSrc:find("local okFloat, errFloat = pcall%(floatIncomeNumber%)") then
+			table.insert(problems, "floatIncomeNumber does not have its own pcall")
+		end
+		if not incomeSrc:find("local okBounty, errBounty = pcall%(IncomeService%.updateStormBountyBoard%)") then
+			table.insert(problems, "updateStormBountyBoard does not have its own pcall")
+		end
+		if not incomeSrc:find("%[Starfall%] money ") then
+			table.insert(problems, "no diagnostic money line (coins/banked/cps/placed) in the tick")
+		end
+		if not incomeSrc:find("tickCount %% 30 == 0") then
+			table.insert(problems, "the diagnostic money line is not on a 30s cadence")
+		end
+		if not simSrc:find("MONEY TABLE") then
+			table.insert(problems, "sim-money.luau has no action | HUD said | actually added table")
+		end
+		if not simSrc:find("sell %(Boba Blob%)") then
+			table.insert(problems, "sim-money.luau money table does not cover the sell")
+		end
+		if #problems > 0 then
+			check("bo", false, "the money-feed fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: IncomeService.luau (tick), sim-money.luau")
+		else
+			check("bo", true, "money feed is isolated: each player in their own pcall, float/broadcast/bounty each in their own pcall, diagnostic money line every 30s; sim-money prints the action | HUD said | actually added table")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
