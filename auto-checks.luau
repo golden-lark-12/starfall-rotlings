@@ -107,6 +107,9 @@
 --   (bx) the buddy blocks the view or the camera clips white shapes
 --       (BUDDY_SCALE not 0.28, domes still at 0.82, or the CraterBeam
 --       still 1.5 studs / 0.6 transparent)
+--   (by) the belt is still a flat strip (no raised slab, side walls,
+--       glowing stripes, +X arrows or flush rollers; or Bloom/Brightness
+--       not lowered to 0.1 / 1.8)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -3891,10 +3894,11 @@ end
 -- Malek (Nov 18 16:43): keep it daytime and bright, but lower the
 -- bloom and exposure so nothing glows white; the ground a real colour
 -- (green grass), the sky blue, so the Brainrots and the HUD stand out.
--- Bloom 0.35 -> 0.15, base Brightness 3 -> 2, ColorCorrection
--- Brightness 0.2 -> 0.0, ground Slate -> Grass material in a natural
--- green, sky stays blue. The storm must restore to the NEW base (2)
--- and darken to 1.2, not to the old values.
+-- Bloom 0.35 -> 0.15 -> 0.1 (fix round 4, item 7), base Brightness
+-- 3 -> 2 -> 1.8 (fix round 4, item 7), ColorCorrection Brightness
+-- 0.2 -> 0.0, ground Slate -> Grass material in a natural green, sky
+-- stays blue. The storm must restore to the NEW base (1.8) and darken
+-- to 1.2, not to the old values.
 do
 	local projectSrc = read("default.project.json")
 	local starSrc = read("src/server/StarfallService.luau")
@@ -3902,11 +3906,11 @@ do
 		check("br", false, "could not verify the lighting — default.project.json or StarfallService.luau missing")
 	else
 		local problems: { string } = {}
-		if not projectSrc:find('"Brightness": 2') then
-			table.insert(problems, "base Lighting Brightness is not 2 (exposure not lowered)")
+		if not projectSrc:find('"Brightness": 1%.8') then
+			table.insert(problems, "base Lighting Brightness is not 1.8 (exposure not lowered)")
 		end
-		if not projectSrc:find('"Intensity": 0%.15') then
-			table.insert(problems, "Bloom Intensity is not 0.15 (bloom not lowered)")
+		if not projectSrc:find('"Intensity": 0%.1') then
+			table.insert(problems, "Bloom Intensity is not 0.1 (bloom not lowered)")
 		end
 		if not projectSrc:find('"Brightness": 0%.0') then
 			table.insert(problems, "ColorCorrection Brightness is not 0.0 (exposure not lowered)")
@@ -3923,8 +3927,8 @@ do
 		if not projectSrc:find('"Color": %[%s*0%.65,%s*0%.75,%s*1%.0%s*%]') then
 			table.insert(problems, "Atmosphere color is not the blue [0.65, 0.75, 1.0]")
 		end
-		if not starSrc:find("Lighting%.Brightness = 2") then
-			table.insert(problems, "restoreSky does not restore the new base Brightness 2")
+		if not starSrc:find("Lighting%.Brightness = 1%.8") then
+			table.insert(problems, "restoreSky does not restore the new base Brightness 1.8")
 		end
 		if not starSrc:find("Lighting%.Brightness = 1%.2") then
 			table.insert(problems, "dimSky does not darken to the softened 1.2")
@@ -3932,7 +3936,7 @@ do
 		if #problems > 0 then
 			check("br", false, "the lighting is not the fixed preset — " .. table.concat(problems, "; ") .. ". Parts: default.project.json, StarfallService.luau")
 		else
-			check("br", true, "lighting: daytime + bright (ClockTime 12.5, Saturation 1.0, blue sky), Bloom 0.15, Brightness 2, ColorCorrection 0.0 — nothing glows white; natural grass ground; storm restores to 2, darkens to 1.2")
+			check("br", true, "lighting: daytime + bright (ClockTime 12.5, Saturation 1.0, blue sky), Bloom 0.1, Brightness 1.8, ColorCorrection 0.0 — nothing glows white; natural grass ground; storm restores to 1.8, darkens to 1.2")
 		end
 	end
 end
@@ -3960,8 +3964,8 @@ do
 		check("bs", false, "could not verify the grab fix — SpawnService.luau, CarryService.luau, GuardianService.luau or Config.luau missing")
 	else
 		local problems: { string } = {}
-		if not configSrc:find("BELT_TOP_Y = 0%.65") then
-			table.insert(problems, "Config has no BELT_TOP_Y = 0.65 (belt walking surface)")
+		if not configSrc:find("BELT_TOP_Y = 1%.2") then
+			table.insert(problems, "Config has no BELT_TOP_Y = 1.2 (raised belt walking surface)")
 		end
 		if spawnSrc:find("CFrame%.new%(newX, Config%.CRATER_FLOOR_Y") then
 			table.insert(problems, "animateFree still rebuilds the base at CRATER_FLOOR_Y — Rotlings sink halfway")
@@ -4226,6 +4230,62 @@ do
 			check("bx", false, "the buddy/camera fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, BuddyService.luau, WorldBuilder.luau")
 		else
 			check("bx", true, "buddy is knee height (0.28, low/beside/behind, tag 1.2, bob 0.15); domes fainter (0.9), beam thinner (1.0) and more transparent (0.8), light 0.3")
+		end
+	end
+end
+
+-- -- (by) the belt is a proper raised conveyor (fix round 4, item 7) --
+-- Playtest 4: keep the moving belt, but build it as a proper raised
+-- conveyor with glowing edges and arrows, Brainrots spaced out and
+-- standing on top, arriving a few at a time and never stacked, one
+-- consistent ground material, and lower bloom/exposure so nothing
+-- glows white. The old belt was a flat 0.4-thick strip at Y 0.45 — it
+-- read as a dark line on the floor. Now: a 0.6-thick slab centred at
+-- Y 0.9 (top 1.2, half a stud above the crater floor), side walls
+-- slightly proud, glowing Neon edge stripes ON the top surface,
+-- chevron arrows pointing +X every 5 studs, end rollers flush with
+-- the belt top. Spawns are already gradual (2, then +1 every 3s,
+-- spaced >= 6 studs) and the ground is one Grass cover (v41). Bloom
+-- 0.15 -> 0.1, Brightness 2 -> 1.8.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local projectSrc = read("default.project.json")
+	if not configSrc or not worldSrc or not projectSrc then
+		check("by", false, "could not verify the conveyor fix — Config.luau, WorldBuilder.luau or default.project.json missing")
+	else
+		local problems: { string } = {}
+		if not configSrc:find("BELT_TOP_Y = 1%.2") then
+			table.insert(problems, "BELT_TOP_Y is not 1.2 (the belt is not raised)")
+		end
+		if not worldSrc:find('part%("ConveyorBelt", Enum%.PartType%.Block, Vector3%.new%(40, 0%.6, 8%)') then
+			table.insert(problems, "ConveyorBelt is not the 0.6-thick raised slab")
+		end
+		if not worldSrc:find('part%("BeltSideWall"') then
+			table.insert(problems, "no BeltSideWall — the raised body has no side walls")
+		end
+		if not worldSrc:find('part%("BeltArrow"') then
+			table.insert(problems, "no BeltArrow chevrons on the belt")
+		end
+		if not worldSrc:find("CFrame%.lookAt%(centre, tip%)") then
+			table.insert(problems, "arrows are not aimed +X via lookAt")
+		end
+		if not worldSrc:find('Vector3%.new%(8, 1%.6, 1%.6%)') then
+			table.insert(problems, "end rollers are not 1.6 diameter (flush with the belt top)")
+		end
+		if not projectSrc:find('"Intensity": 0%.1') then
+			table.insert(problems, "Bloom Intensity is not 0.1")
+		end
+		if not projectSrc:find('"Brightness": 1%.8') then
+			table.insert(problems, "base Lighting Brightness is not 1.8")
+		end
+		if not worldSrc:find('part%("GroundCover"') then
+			table.insert(problems, "ground is not one consistent GroundCover")
+		end
+		if #problems > 0 then
+			check("by", false, "the conveyor fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, WorldBuilder.luau, default.project.json")
+		else
+			check("by", true, "raised conveyor: 0.6 slab, top 1.2, side walls, glowing edge stripes, +X chevrons every 5 studs, rollers flush; one Grass ground; Bloom 0.1, Brightness 1.8")
 		end
 	end
 end

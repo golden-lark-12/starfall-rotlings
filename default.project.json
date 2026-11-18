@@ -9,7 +9,7 @@
      0.88,
      0.95
     ],
-    "Brightness": 2,
+    "Brightness": 1.8,
     "ClockTime": 12.5,
     "FogColor": [
      0.65,
@@ -48,7 +48,7 @@
    "Bloom": {
     "$className": "BloomEffect",
     "$properties": {
-     "Intensity": 0.15,
+     "Intensity": 0.1,
      "Size": 16,
      "Threshold": 0.9
     }

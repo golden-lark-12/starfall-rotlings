@@ -130,12 +130,14 @@ Config.BELT_HALF_WIDTH = 3 -- the belt is 6 studs wide (z in [-3, 3])
 Config.BELT_SPAWN_Z = 2 -- spawn z stays within [-2, 2] so every Rotling stands on the belt
 Config.BELT_HALF_LENGTH = 20 -- the belt is 40 studs long (x in [-20, 20]); free Rotlings spawn and travel on it
 Config.BELT_TRAVEL_SPEED = 1.5 -- studs/sec a free Rotling walks along the belt (fix round 3, item 8): slow enough to grab, fast enough to see it travel; ~27s end to end, then it wraps to the start
--- Belt walking surface (fix round 4, item 1): the belt's top face.
--- WorldBuilder.buildBelt builds the belt 0.4 thick centred at Y=0.45,
--- so its top is 0.65. Rotlings spawn and rest with their body bottom
--- ON this surface — never on CRATER_FLOOR_Y (0.4), which sits 0.25
--- below the belt and sank every Rotling halfway into the ground.
-Config.BELT_TOP_Y = 0.65
+-- Belt walking surface (fix round 4, items 1 + 7): the belt's top face.
+-- WorldBuilder.buildBelt builds a RAISED conveyor: a 0.6-thick slab
+-- centred at Y=0.9, so its top is 1.2 — half a stud above the crater
+-- floor (0.7), with glowing edge stripes, direction arrows and end
+-- rollers. Rotlings spawn and rest with their body bottom ON this
+-- surface — never on CRATER_FLOOR_Y (0.4), which sits 0.8 below the
+-- belt and sank every Rotling halfway into the ground.
+Config.BELT_TOP_Y = 1.2
 
 -- Economy.
 Config.TICK_INTERVAL = 1 -- coins are paid out once a second

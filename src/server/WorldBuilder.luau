@@ -708,18 +708,55 @@ end
 -- runs across the crater on the X axis at z = 0, 36 studs long, so the
 -- spawn line reads as a conveyor, not a scattered crater.
 local function buildBelt()
-	local belt = part("ConveyorBelt", Enum.PartType.Block, Vector3.new(40, 0.4, 8), Color3.fromRGB(30, 28, 45), CFrame.new(0, 0.45, 0), Enum.Material.Slate)
+	-- Raised conveyor (fix round 4, item 7): the old belt was a flat
+	-- 0.4-thick strip at Y 0.45 — it read as a dark line on the floor.
+	-- Now a proper raised conveyor: a 0.6-thick slab centred at Y 0.9
+	-- (top 1.2, half a stud above the crater floor), side walls
+	-- slightly proud of the slab so the raised body reads, glowing
+	-- edge stripes ON the top surface, chevron arrows pointing +X
+	-- (the travel direction) every 5 studs, and end rollers flush
+	-- with the belt top. Brainrots stand ON the top (BELT_TOP_Y) and
+	-- walk +X; the stripes and arrows are flat (0.06-0.08) so nothing
+	-- trips a walking Rotling. All parts CanCollide=false: the belt
+	-- is a visual, players and rivals walk through it at floor level.
+	local top = Config.BELT_TOP_Y
+	local belt = part("ConveyorBelt", Enum.PartType.Block, Vector3.new(40, 0.6, 8), Color3.fromRGB(30, 28, 45), CFrame.new(0, top - 0.3, 0), Enum.Material.Slate)
 	belt.CanCollide = false
 	belt.CastShadow = false
+	-- Side walls: 0.05 proud of the slab on each long edge, a shade
+	-- lighter, so the raised body reads from every angle.
 	for _, side in ipairs({ -1, 1 }) do
-		local stripe = part("BeltStripe", Enum.PartType.Block, Vector3.new(40, 0.45, 0.6), Color3.fromRGB(255, 200, 60), CFrame.new(0, 0.46, side * 4))
+		local wall = part("BeltSideWall", Enum.PartType.Block, Vector3.new(40, 0.55, 0.25), Color3.fromRGB(55, 50, 75), CFrame.new(0, top - 0.28, side * 4.05), Enum.Material.Metal)
+		wall.CanCollide = false
+		wall.CastShadow = false
+	end
+	-- Glowing edge stripes on the top surface, near the edges.
+	for _, side in ipairs({ -1, 1 }) do
+		local stripe = part("BeltStripe", Enum.PartType.Block, Vector3.new(40, 0.08, 0.5), Color3.fromRGB(255, 200, 60), CFrame.new(0, top + 0.04, side * 3.6))
 		stripe.CanCollide = false
 		stripe.CastShadow = false
 		stripe.Material = Enum.Material.Neon
 	end
+	-- Direction arrows: chevrons pointing +X (the travel direction),
+	-- one every 5 studs. Each chevron is two thin Neon arms meeting
+	-- at a tip; CFrame.lookAt aligns each arm's long (Z) axis with
+	-- the centre-to-tip line, so the ">" always points +X.
+	for x = -17.5, 17.5, 5 do
+		local tip = Vector3.new(x + 0.5, top + 0.03, 0)
+		for _, zSign in ipairs({ 1, -1 }) do
+			local far = Vector3.new(x - 0.5, top + 0.03, zSign * 0.6)
+			local centre = (tip + far) / 2
+			local arm = part("BeltArrow", Enum.PartType.Block, Vector3.new(0.45, 0.06, 1.2), Color3.fromRGB(255, 200, 60), CFrame.lookAt(centre, tip), Enum.Material.Neon)
+			arm.CanCollide = false
+			arm.CastShadow = false
+		end
+	end
 	-- Belt end caps: chunky rollers so the strip reads as a machine.
+	-- Diameter 1.6, centre Y = top - 0.8, so the roller's top is
+	-- flush with the belt top (1.2) and its bottom is buried in the
+	-- floor — the belt visibly rolls off the ends.
 	for _, side in ipairs({ -1, 1 }) do
-		local roller = part("ConveyorRoller", Enum.PartType.Cylinder, Vector3.new(8, 2, 2), Color3.fromRGB(60, 55, 80), CFrame.new(side * 20, 0.9, 0) * CFrame.Angles(math.rad(90), 0, 0), Enum.Material.Metal)
+		local roller = part("ConveyorRoller", Enum.PartType.Cylinder, Vector3.new(8, 1.6, 1.6), Color3.fromRGB(60, 55, 80), CFrame.new(side * 20, top - 0.8, 0) * CFrame.Angles(math.rad(90), 0, 0), Enum.Material.Metal)
 		roller.CanCollide = false
 	end
 end

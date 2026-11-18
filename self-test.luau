@@ -1138,7 +1138,13 @@ do
 			table.insert(problems, "restoreSky does not restore Atmosphere Density 0.08")
 		end
 		if not starSrc:find("Lighting%.Brightness = 1%.2") then
-			table.insert(problems, "storm dark is not softened to Brightness 1.2 (base 2, fix round 2 lighting)")
+			table.insert(problems, "storm dark is not softened to Brightness 1.2 (base 1.8, fix round 4 lighting)")
+		end
+		if not projectSrc:find('"Intensity": 0%.1') then
+			table.insert(problems, "Bloom Intensity is not 0.1 (fix round 4, item 7)")
+		end
+		if not projectSrc:find('"Brightness": 1%.8') then
+			table.insert(problems, "base Lighting Brightness is not 1.8 (fix round 4, item 7)")
 		end
 		for _, name in ipairs({ "1/4 — Hero", "2/4 — Belt", "3/4 — Storm", "4/4 — Packed base", "Icon — 512x512" }) do
 			if not photoSrc:find(name, 1, true) then
@@ -1154,7 +1160,7 @@ do
 		if #problems > 0 then
 			step("bright-capture", false, table.concat(problems, "; "))
 		else
-			step("bright-capture", true, "bright daytime lighting (Saturation 1.0, Density 0.08, Bloom 0.15, Brightness 2, natural grass ground, blue sky), storm restores to it, final 4 photo shots (hero close-up, belt, storm, packed base) + icon shot")
+			step("bright-capture", true, "bright daytime lighting (Saturation 1.0, Density 0.08, Bloom 0.1, Brightness 1.8, natural grass ground, blue sky), storm restores to it, final 4 photo shots (hero close-up, belt, storm, packed base) + icon shot")
 		end
 	end
 end

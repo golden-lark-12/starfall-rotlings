@@ -94,7 +94,7 @@ end
 -- Storm palette: a dark RED sky, not just dim. The storm darkens the
 -- world and turns it red, so the threat reads even before a meteor
 -- falls. These must restore to the bright base lighting in
--- default.project.json (Brightness 2, ClockTime 12.5, Ambient
+-- default.project.json (Brightness 1.8, ClockTime 12.5, Ambient
 -- 0.9/0.88/0.95, OutdoorAmbient 1/1/1, Atmosphere Density 0.08):
 -- a storm darkens the world, it never leaves it dark.
 -- The storm dark is SOFTENED (Brightness 1.2, not 0.9) so the storm
@@ -102,7 +102,10 @@ end
 -- and the (x2) income readout must all read in the same frame.
 -- (Fix round 2, lighting: base Brightness lowered 3 -> 2 and Bloom
 -- 0.35 -> 0.15 so nothing glows white; the storm dark follows it
--- down 1.5 -> 1.2 so the storm still reads darker than calm.)
+-- down 1.5 -> 1.2 so the storm still reads darker than calm. Fix
+-- round 4, item 7: base Brightness 2 -> 1.8 and Bloom 0.15 -> 0.1,
+-- one more step down so nothing glows white; the storm dark stays
+-- 1.2, still darker than calm.)
 local function dimSky()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
@@ -122,7 +125,7 @@ local function restoreSky()
 		atmosphere.Color = Color3.fromRGB(166, 191, 255)
 	end
 	Lighting.ClockTime = 12.5
-	Lighting.Brightness = 2
+	Lighting.Brightness = 1.8
 	Lighting.Ambient = Color3.new(0.9, 0.88, 0.95)
 	Lighting.OutdoorAmbient = Color3.new(1.0, 1.0, 1.0)
 end
