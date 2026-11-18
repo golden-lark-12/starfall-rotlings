@@ -232,18 +232,21 @@ function CarryService.tryGrab(player: Player, model: Model)
 		return
 	end
 	if #CarryService.getCarried(player) >= CarryService.getCarrySlots(player) then
+		print("[Grab] " .. player.Name .. " arms full (" .. tostring(#CarryService.getCarried(player)) .. "/" .. tostring(CarryService.getCarrySlots(player)) .. ") — grab of " .. model.Name .. " refused")
 		Remotes.bannerEvent():FireClient(player, "Your arms are full! Buy Extra Arms in the shop.", 3)
 		return
 	end
 	-- Already carrying this exact model (a prompt double-fire must
 	-- never insert it twice): ignore the second grab.
 	if table.find(CarryService.getCarried(player), model) then
+		print("[Grab] " .. player.Name .. " already carrying " .. model.Name .. " — duplicate grab ignored")
 		return
 	end
 	-- The real model at a readable size, in front of the chest — never
 	-- a shrunken box above the head, never a bubble.
 	RotlingFactory.setCarriedVisual(model, true)
 	if not weldToPlayer(model, player) then
+		print("[Grab] " .. player.Name .. " weld failed for " .. model.Name .. " — grab aborted, crater look restored")
 		-- Weld failed: restore the crater look so the Rotling is not
 		-- left shrunken on the floor.
 		RotlingFactory.setCarriedVisual(model, false)
@@ -251,6 +254,7 @@ function CarryService.tryGrab(player: Player, model: Model)
 		RotlingFactory.refreshLabelOffset(model)
 		return
 	end
+	print("[Grab] " .. player.Name .. " grabbed " .. model.Name)
 	CarryService.carryRotling(player, model)
 	-- THE CHASE: grabbing a Brainrot from the crater wakes the Crater
 	-- Guardian. Deferred require: GuardianService requires this module.
@@ -395,10 +399,13 @@ function CarryService.scatterToCrater(model: Model)
 	local pos = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
 	-- Lift from the scaled body, so the bigger crater Rotling rests on
-	-- the floor instead of sinking into it.
+	-- the belt top instead of sinking into it (the old +0.8 floated it
+	-- half a stud above the belt; animateFree then dropped it to the
+	-- floor level on the next tick). Body bottom = pos.Y + lift -
+	-- bodySize.Y/2 = BELT_TOP_Y exactly.
 	local body = model.PrimaryPart
 	local lift = if body and body:IsA("BasePart")
-		then body.Size.Y / 2 + 0.8
+		then body.Size.Y / 2 + (Config.BELT_TOP_Y - Config.CRATER_FLOOR_Y)
 		elseif def then def.size * 0.55 + 0.6
 		else 2.5
 	for _, part in ipairs(model:GetDescendants()) do

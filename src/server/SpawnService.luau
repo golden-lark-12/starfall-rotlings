@@ -20,6 +20,14 @@ local SpawnService = {}
 local running = false
 local bobBases: { [Model]: CFrame } = {}
 local bobSeeds: { [Model]: number } = {}
+-- Rest height per free Rotling (fix round 4, item 1): the body's centre
+-- Y when it was registered, i.e. standing ON the belt top
+-- (BELT_TOP_Y + half its body height, set by RotlingFactory.build).
+-- animateFree MUST use this stored height. It used to rebuild the base
+-- with Y = CRATER_FLOOR_Y (0.4) — the body's centre at the belt's
+-- surface level — which sank every Rotling by half its height on the
+-- first 0.1s tick, burying the prompt with it.
+local restY: { [Model]: number } = {}
 -- Prompts wired once per model (weak keys: a destroyed model drops
 -- out on its own). placeOnPad re-wires every placed Rotling so a
 -- Rotling restored from a save gets its Take prompt; without this
@@ -55,11 +63,19 @@ function SpawnService.connectPrompt(model: Model)
 	end
 	connected[model] = true
 	prompt.Triggered:Connect(function(player: Player)
+		-- [Grab] log (fix round 4, item 1): the prompt shows but the
+		-- playtest said E does nothing, so the trigger itself must
+		-- prove it reaches the server. If this line never prints, the
+		-- prompt is not firing; if it prints and nothing is carried,
+		-- the failure is inside tryGrab.
+		print("[Grab] prompt triggered by " .. player.Name .. " on " .. model.Name)
 		CarryService.tryGrab(player, model)
 	end)
 end
 
--- Register a free Rotling for the idle bob and spin.
+-- Register a free Rotling for the idle bob and spin. Records the
+-- body's rest height (centre Y) so animateFree can keep it standing
+-- ON the belt instead of sinking it to the crater floor level.
 function SpawnService.registerFree(model: Model)
 	local body = model.PrimaryPart
 	if not body then
@@ -67,11 +83,13 @@ function SpawnService.registerFree(model: Model)
 	end
 	bobBases[model] = body.CFrame
 	bobSeeds[model] = math.random() * math.pi * 2
+	restY[model] = body.CFrame.Position.Y
 end
 
 function SpawnService.unregister(model: Model)
 	bobBases[model] = nil
 	bobSeeds[model] = nil
+	restY[model] = nil
 end
 
 -- Bob, spin and BELT TRAVEL for free Rotlings. This is the ONLY loop
@@ -92,14 +110,19 @@ local function animateFree()
 			if not model.Parent then
 				bobBases[model] = nil
 				bobSeeds[model] = nil
+				restY[model] = nil
 			else
 				local state = model:GetAttribute("State")
 				if state ~= "free" then
 					bobBases[model] = nil
 					bobSeeds[model] = nil
+					restY[model] = nil
 				else
 					local seed = bobSeeds[model] or 0
-					local bob = math.sin(now * 2 + seed) * 0.25
+					-- Bob 0..0.25, never below rest: the old sin * 0.25
+					-- dipped 0.25 UNDER the base every cycle, so the
+					-- feet sank into the belt even at the right height.
+					local bob = (math.sin(now * 2 + seed) + 1) / 2 * 0.25
 					local spin = math.sin(now * 0.5 + seed) * 0.3
 					-- Advance along the belt; wrap at the far end.
 					-- The stored base moves with the Rotling, so the
@@ -111,7 +134,12 @@ local function animateFree()
 					-- Face the travel direction (+X): -90 degrees
 					-- about Y turns the model's +Z face toward +X.
 					local yaw = -math.pi / 2 + spin
-					local newBase = CFrame.new(newX, Config.CRATER_FLOOR_Y, baseCf.Position.Z) * CFrame.Angles(0, yaw, 0)
+					-- Rest height from registration, NOT CRATER_FLOOR_Y:
+					-- the old code rebuilt the base at Y = 0.4 (the
+					-- body's centre at the belt's surface), sinking
+					-- the Rotling by half its height on the first tick.
+					local restHeight = restY[model] or baseCf.Position.Y
+					local newBase = CFrame.new(newX, restHeight, baseCf.Position.Z) * CFrame.Angles(0, yaw, 0)
 					bobBases[model] = newBase
 					model:PivotTo(newBase * CFrame.new(0, bob, 0))
 				end
@@ -147,9 +175,13 @@ local function findSpawnPosition(): Vector3
 	for _ = 1, 12 do
 		-- On the belt: x along the belt's length, z within the belt's
 		-- width, so every Rotling stands on the conveyor in a line.
+		-- Y = BELT_TOP_Y - 0.1: RotlingFactory.build seats the body
+		-- bottom at position.Y + 0.1, so the body bottom lands exactly
+		-- on the belt top (0.65). The old CRATER_FLOOR_Y (0.4) put the
+		-- body bottom 0.15 under the belt top at spawn.
 		local x = (math.random() * 2 - 1) * Config.BELT_HALF_LENGTH -- on the belt, not past its ends (a spawn past +20 would wrap to -20 on the first travel tick)
 		local z = (math.random() * 2 - 1) * Config.BELT_SPAWN_Z
-		local candidate = Vector3.new(x, Config.CRATER_FLOOR_Y, z)
+		local candidate = Vector3.new(x, Config.BELT_TOP_Y - 0.1, z)
 		local gap = math.huge
 		for _, pos in ipairs(others) do
 			local flat = Vector3.new(candidate.X - pos.X, 0, candidate.Z - pos.Z)
@@ -168,7 +200,7 @@ local function findSpawnPosition(): Vector3
 	end
 	local x = (math.random() * 2 - 1) * Config.BELT_HALF_LENGTH -- on the belt, not past its ends (a spawn past +20 would wrap to -20 on the first travel tick)
 	local z = (math.random() * 2 - 1) * Config.BELT_SPAWN_Z
-	return Vector3.new(x, Config.CRATER_FLOOR_Y, z)
+	return Vector3.new(x, Config.BELT_TOP_Y - 0.1, z)
 end
 
 function SpawnService.spawnOne(): Model?
@@ -212,7 +244,12 @@ function SpawnService.spawnRareAt(position: Vector3): Model?
 	end
 	local def = defs[math.random(1, #defs)]
 	local mutation = MutationConfig.rollMutation()
-	local model = RotlingFactory.build(def.id, mutation, position, 1.5)
+	-- Seat it on the belt top, not at the meteor's impact Y: the impact
+	-- point sits at CRATER_FLOOR_Y (0.4), 0.25 under the belt, so a rare
+	-- built there would spawn sunk. BELT_TOP_Y - 0.1 puts its body
+	-- bottom exactly on the belt (build adds +0.1).
+	local buildPos = Vector3.new(position.X, Config.BELT_TOP_Y - 0.1, position.Z)
+	local model = RotlingFactory.build(def.id, mutation, buildPos, 1.5)
 	if not model then
 		return nil
 	end

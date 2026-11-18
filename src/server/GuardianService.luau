@@ -290,6 +290,28 @@ end
 
 -- Spawn a guardian at the crater floor and start the chase.
 -- `rarity` is the grabbed Brainrot's rarity: it sets the speed.
+-- Where it spawns (fix round 4, item 1): at the crater rim OPPOSITE
+-- the target, never on top of them. The old code spawned it at the
+-- target's exact position (same X/Z, Y = CRATER_FLOOR_Y), so the
+-- guardian's root landed ~0 studs from the player's root — inside the
+-- 5-stud catch radius on the FIRST chase tick. Every grab was caught
+-- instantly, the Brainrot dropped straight back into the crater, and
+-- pressing E read as "does nothing". A rim spawn is always >= 24 studs
+-- away, so the player gets a real head start to run home — and the
+-- guardian is slower than the player (15.5 max vs walk 16), so running
+-- always escapes it.
+local function guardianSpawnPos(targetPos: Vector3): Vector3
+	local flat = Vector3.new(targetPos.X, 0, targetPos.Z)
+	local dir: Vector3
+	if flat.Magnitude > 1 then
+		dir = -flat.Unit -- opposite side of the crater from the target
+	else
+		dir = Vector3.new(1, 0, 0) -- target at the centre: fixed rim point
+	end
+	local p = dir * 24
+	return Vector3.new(p.X, Config.CRATER_FLOOR_Y, p.Z)
+end
+
 local function spawnGuardian(target: Model, targetPlayer: Player?, rarity: string, spawnPos: Vector3): Model?
 	local speed = speedForRarity(rarity)
 	local model = buildGuardian(spawnPos)
@@ -333,9 +355,10 @@ function GuardianService.onGrab(player: Player, grabbed: Model)
 	local def = RotlingCatalog.getDef(grabbed:GetAttribute("DefId") :: string)
 	local rarity = if def then def.rarity else "Common"
 	local root = character:FindFirstChild("HumanoidRootPart")
-	local spawnPos = if root then root.Position else Vector3.new(0, Config.CRATER_FLOOR_Y, 0)
-	-- The guardian climbs out of the crater floor near the grab.
-	spawnPos = Vector3.new(spawnPos.X, Config.CRATER_FLOOR_Y, spawnPos.Z)
+	-- The guardian climbs out of the crater rim opposite the grabber
+	-- (guardianSpawnPos): never on top of the player, or the catch is
+	-- instant and the grab reads as broken.
+	local spawnPos = if root then guardianSpawnPos(root.Position) else Vector3.new(24, Config.CRATER_FLOOR_Y, 0)
 	spawnGuardian(character, player, rarity, spawnPos)
 end
 
@@ -344,8 +367,7 @@ function GuardianService.onRaiderGrab(raiderModel: Model, stolen: Model)
 	local def = RotlingCatalog.getDef(stolen:GetAttribute("DefId") :: string)
 	local rarity = if def then def.rarity else "Common"
 	local root = raiderModel:FindFirstChild("HumanoidRootPart")
-	local spawnPos = if root then root.Position else Vector3.new(0, Config.CRATER_FLOOR_Y, 0)
-	spawnPos = Vector3.new(spawnPos.X, Config.CRATER_FLOOR_Y, spawnPos.Z)
+	local spawnPos = if root then guardianSpawnPos(root.Position) else Vector3.new(24, Config.CRATER_FLOOR_Y, 0)
 	spawnGuardian(raiderModel, nil, rarity, spawnPos)
 end
 

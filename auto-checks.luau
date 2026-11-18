@@ -88,6 +88,10 @@
 --   (bc) the bright capture setup is missing (lighting not the
 --       brightest vivid preset, storm does not restore to it, or the
 --       photo shots are not the final 4)
+--   (bs) grabbing is broken (free Rotlings sink into the belt because
+--       animateFree rebuilds them at CRATER_FLOOR_Y, the bob dips below
+--       rest, the guardian spawns on the grabber and insta-catches, or
+--       no [Grab] log proves the trigger reaches the server)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -3914,6 +3918,67 @@ do
 			check("br", false, "the lighting is not the fixed preset — " .. table.concat(problems, "; ") .. ". Parts: default.project.json, StarfallService.luau")
 		else
 			check("br", true, "lighting: daytime + bright (ClockTime 12.5, Saturation 1.0, blue sky), Bloom 0.15, Brightness 2, ColorCorrection 0.0 — nothing glows white; natural grass ground; storm restores to 2, darkens to 1.2")
+		end
+	end
+end
+
+-- -- (bs) grabbing works: Rotlings stand on the belt, E grabs, the guardian does not insta-catch (fix round 4, item 1) --
+-- Playtest 4: the "E Grab" prompt showed but E did nothing, and the
+-- Brainrots were sunk halfway into the ground. Two causes, both proven:
+-- (1) SpawnService.animateFree rebuilt every free Rotling's base at Y =
+-- CRATER_FLOOR_Y (0.4) — the body's centre at the belt's surface — so
+-- the first 0.1s tick sank it by half its height; the bob then dipped
+-- a further 0.25 under. (2) GuardianService spawned the guardian AT the
+-- grabber's exact position, inside the 5-stud catch radius, so every
+-- grab was caught instantly and the Brainrot dropped straight back.
+-- The fix: rest height stored per model at registration and used by
+-- animateFree, bob 0..0.25 (never below rest), spawns seated on the
+-- belt top (BELT_TOP_Y - 0.1), [Grab] logs on trigger and every early
+-- return, and the guardian spawns at the crater rim opposite the
+-- target (>= 24 studs away).
+do
+	local spawnSrc = read("src/server/SpawnService.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	local guardianSrc = read("src/server/GuardianService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not spawnSrc or not carrySrc or not guardianSrc or not configSrc then
+		check("bs", false, "could not verify the grab fix — SpawnService.luau, CarryService.luau, GuardianService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if not configSrc:find("BELT_TOP_Y = 0%.65") then
+			table.insert(problems, "Config has no BELT_TOP_Y = 0.65 (belt walking surface)")
+		end
+		if spawnSrc:find("CFrame%.new%(newX, Config%.CRATER_FLOOR_Y") then
+			table.insert(problems, "animateFree still rebuilds the base at CRATER_FLOOR_Y — Rotlings sink halfway")
+		end
+		if not spawnSrc:find("restY%[model%]") then
+			table.insert(problems, "no stored rest height per model (restY) in SpawnService")
+		end
+		if not spawnSrc:find("%(math%.sin%(now %* 2 %+ seed%) %+ 1%) / 2 %* 0%.25") then
+			table.insert(problems, "bob still dips below rest (sin * 0.25) instead of 0..0.25")
+		end
+		if not spawnSrc:find("BELT_TOP_Y %- 0%.1") then
+			table.insert(problems, "spawns are not seated on the belt top (BELT_TOP_Y - 0.1)")
+		end
+		if not spawnSrc:find('%[Grab%] prompt triggered by') then
+			table.insert(problems, "no [Grab] log on prompt trigger — the next playtest cannot prove the trigger reaches the server")
+		end
+		if not carrySrc:find('%[Grab%] ') then
+			table.insert(problems, "no [Grab] logs in tryGrab early returns")
+		end
+		if not carrySrc:find("BELT_TOP_Y %- Config%.CRATER_FLOOR_Y") then
+			table.insert(problems, "scatterToCrater still floats/scatters with the old +0.8 lift instead of seating on the belt top")
+		end
+		if not guardianSrc:find("guardianSpawnPos") then
+			table.insert(problems, "no guardianSpawnPos — the guardian still spawns on the grabber")
+		end
+		if guardianSrc:find("spawnPos = if root then root%.Position else") then
+			table.insert(problems, "onGrab still spawns the guardian at the player's exact position (instant catch)")
+		end
+		if #problems > 0 then
+			check("bs", false, "the grab fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: SpawnService.luau, CarryService.luau, GuardianService.luau, Config.luau")
+		else
+			check("bs", true, "grab works: rest height stored per model, bob never below rest, spawns on the belt top, [Grab] logs on trigger + early returns, guardian spawns at the opposite rim (>= 24 studs away)")
 		end
 	end
 end
