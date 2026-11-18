@@ -784,6 +784,34 @@ do
 	end
 end
 
+-- 23. Cheap HUD wins: carrying banner, rebirth tier line, named raiders.
+do
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local raiderSrc = read("src/server/RaiderService.luau")
+	if not hudSrc or not raiderSrc then
+		step("hud-wins", false, "HUDController.client.luau or RaiderService.luau missing")
+	else
+		local problems: { string } = {}
+		if not hudSrc:find("CarryBanner") then
+			table.insert(problems, "no CarryBanner in the HUD")
+		end
+		if not hudSrc:find("CARRYING: ") then
+			table.insert(problems, 'no "CARRYING: <name>" banner text')
+		end
+		if not hudSrc:find("Rebirth ") then
+			table.insert(problems, "no rebirth tier next to the cash")
+		end
+		if not raiderSrc:find("RAIDER_TITLES") then
+			table.insert(problems, "no named raider titles")
+		end
+		if #problems > 0 then
+			step("hud-wins", false, table.concat(problems, "; "))
+		else
+			step("hud-wins", true, "red CARRYING banner names the catch, rebirth tier + multiplier next to cash, every raider has its own bandit title")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

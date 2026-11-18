@@ -156,6 +156,16 @@ function IncomeService.broadcastHud()
 				end
 				local mission = MissionService.currentMission(player)
 				local rebirthCost = Config.REBIRTH_BASE_COST * (profile.rebirths + 1) * (profile.rebirths + 1)
+				-- The name of the Rotling being carried (for the
+				-- CARRYING banner — the threat shot names the catch).
+				local carriedName: string? = nil
+				local carriedModels = CarryService.getCarried(player)
+				if #carriedModels > 0 then
+					local carriedDef = RotlingCatalog.getDef(carriedModels[1]:GetAttribute("DefId") :: string)
+					if carriedDef then
+						carriedName = carriedDef.name
+					end
+				end
 				local boosts: { { kind: string, seconds: number } } = {}
 				for kind, boost in pairs(State.boosts[player.UserId] or {}) do
 					local left = math.ceil(boost.expiresAt - time())
@@ -180,6 +190,7 @@ function IncomeService.broadcastHud()
 					lockTier = profile.lockTier,
 					carried = #CarryService.getCarried(player),
 					carrySlots = CarryService.getCarrySlots(player),
+					carriedName = carriedName,
 					lockRemaining = if baseId then BaseService.lockRemaining(baseId) else 0,
 					lockCooldown = if baseId then BaseService.lockCooldownRemaining(baseId) else 0,
 					stormPhase = storm.phase,

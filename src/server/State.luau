@@ -34,6 +34,7 @@ export type Profile = {
 
 export type Raider = {
 	model: Model,
+	name: string, -- our own bandit title, e.g. "Grimble the Grabber"
 	phase: string, -- "hunt" | "carry" | "flee"
 	targetBase: number,
 	targetPad: number,

@@ -18,6 +18,17 @@ local State = require(script.Parent.State)
 
 local RaiderService = {}
 
+-- Our own bandit titles, one per raider — invented here, none of them
+-- a real meme name and none borrowed from any other entry.
+local RAIDER_TITLES = {
+	"Grimble the Grabber",
+	"Snatch",
+	"Lootfang",
+	"Nabbit",
+	"Pilfer Pete",
+	"Slink the Sneak",
+}
+
 local running = false
 
 local function makePart(name: string, shape: Enum.PartType, size: Vector3, color: Color3, material: Enum.Material?): Part
@@ -36,9 +47,12 @@ local function makePart(name: string, shape: Enum.PartType, size: Vector3, color
 end
 
 -- Build a raider: a dark hooded figure with red glowing eyes and a sack.
+-- Each one gets its own bandit title, shown under the THIEF sign.
 local function buildRaider(position: Vector3): Model
 	local model = Instance.new("Model")
 	model.Name = "Rot Raider"
+	local raiderTitle = RAIDER_TITLES[math.random(1, #RAIDER_TITLES)]
+	model:SetAttribute("RaiderName", raiderTitle)
 
 	local body = makePart("Body", Enum.PartType.Block, Vector3.new(3, 3.6, 2.2), Color3.fromRGB(45, 30, 70))
 	body.CFrame = CFrame.new(position + Vector3.new(0, 2.4, 0))
@@ -94,12 +108,13 @@ local function buildRaider(position: Vector3): Model
 	light.Range = 10
 	light.Parent = body
 
-	-- A red THIEF sign over its head, so the steal is visible from
+	-- A red THIEF sign over its head, with the raider's own bandit
+	-- title under it, so the steal is visible — and named — from
 	-- across the map (item 7b).
 	local thiefSign = Instance.new("BillboardGui")
 	thiefSign.Name = "ThiefSign"
-	thiefSign.Size = UDim2.fromOffset(160, 36)
-	thiefSign.StudsOffsetWorldSpace = Vector3.new(0, 5, 0)
+	thiefSign.Size = UDim2.fromOffset(200, 64)
+	thiefSign.StudsOffsetWorldSpace = Vector3.new(0, 5.5, 0)
 	thiefSign.AlwaysOnTop = true
 	thiefSign.LightInfluence = 0
 	thiefSign.MaxDistance = 80
@@ -107,7 +122,7 @@ local function buildRaider(position: Vector3): Model
 	local thiefLabel = Instance.new("TextLabel")
 	thiefLabel.Size = UDim2.new(1, 0, 1, 0)
 	thiefLabel.BackgroundTransparency = 1
-	thiefLabel.Text = "🚨 THIEF!"
+	thiefLabel.Text = "🚨 THIEF!\n" .. raiderTitle
 	thiefLabel.Font = Enum.Font.FredokaOne
 	thiefLabel.TextScaled = true
 	thiefLabel.TextColor3 = Color3.fromRGB(255, 60, 60)
@@ -154,7 +169,7 @@ function RaiderService.bonkRaider(model: Model, byPlayer: Player?)
 	end
 	raider.phase = "flee"
 	if byPlayer then
-		Remotes.bannerEvent():FireClient(byPlayer, "Bonk! The Raider dropped your Rotling!", 3)
+		Remotes.bannerEvent():FireClient(byPlayer, "Bonk! " .. raider.name .. " dropped your Rotling!", 3)
 	end
 end
 
@@ -240,7 +255,7 @@ local function runRaid(model: Model)
 		if owner then
 			local def = RotlingCatalog.getDef(stolen:GetAttribute("DefId") :: string)
 			local name = if def then def.name else "a Rotling"
-			Remotes.bannerEvent():FireClient(owner, "🚨 THIEF AT YOUR BASE! A Rot Raider is stealing your " .. name .. "! Bonk it!", 5)
+			Remotes.bannerEvent():FireClient(owner, "🚨 THIEF AT YOUR BASE! " .. raider.name .. " is stealing your " .. name .. "! Bonk it!", 5)
 		end
 	end
 	-- Carry: run for the crater edge. If it gets there, the loot is gone.
@@ -257,7 +272,7 @@ local function runRaid(model: Model)
 		if ownerId then
 			local owner = Players:GetPlayerByUserId(ownerId)
 			if owner then
-				Remotes.bannerEvent():FireClient(owner, "The Rot Raider escaped with your Rotling!", 4)
+				Remotes.bannerEvent():FireClient(owner, raider.name .. " escaped with your Rotling!", 4)
 			end
 		end
 	end
@@ -298,6 +313,7 @@ function RaiderService.spawnRaider(): Model?
 	model.Parent = workspace
 	State.raiders[model] = {
 		model = model,
+		name = model:GetAttribute("RaiderName") :: string,
 		phase = "hunt",
 		targetBase = baseId,
 		targetPad = padIndex,
@@ -351,6 +367,7 @@ function RaiderService.spawnRaiderForTour(baseId: number, padIndex: number): Mod
 	model.Parent = workspace
 	State.raiders[model] = {
 		model = model,
+		name = model:GetAttribute("RaiderName") :: string,
 		phase = "carry",
 		targetBase = baseId,
 		targetPad = padIndex,

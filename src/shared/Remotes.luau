@@ -24,6 +24,7 @@ export type HudData = {
 	lockTier: number,
 	carried: number,
 	carrySlots: number,
+	carriedName: string?, -- name of the Rotling being carried (for the CARRYING banner)
 	lockRemaining: number,
 	lockCooldown: number,
 	stormPhase: string,

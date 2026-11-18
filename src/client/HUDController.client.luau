@@ -81,7 +81,7 @@ local coinsLabel = GuiKit.makeLabel(gui, "Coins", "$0", UDim2.new(0, 220, 0, 48)
 coinsLabel.AnchorPoint = Vector2.new(0.5, 0)
 -- Stardust (the second currency) sits right of the coins, same row.
 local stardustLabel = GuiKit.makeLabel(gui, "Stardust", "💎 0", UDim2.new(0, 130, 0, 40), UDim2.new(0.5, 130, 0, 40), 24, Color3.fromRGB(160, 225, 255))
-local cpsLabel = GuiKit.makeLabel(gui, "Cps", "+$0/s", UDim2.new(0, 340, 0, 26), UDim2.new(0.5, 0, 0, 88), 20, GuiKit.COLORS.Green)
+local cpsLabel = GuiKit.makeLabel(gui, "Cps", "+$0/s", UDim2.new(0, 480, 0, 26), UDim2.new(0.5, 0, 0, 88), 20, GuiKit.COLORS.Green)
 cpsLabel.AnchorPoint = Vector2.new(0.5, 0)
 
 -- Top-left buttons at y=60: below Roblox's own top-left menu (which
@@ -192,6 +192,24 @@ local bannerLabel = GuiKit.makeLabel(gui, "Banner", "", UDim2.new(0, 640, 0, 44)
 bannerLabel.AnchorPoint = Vector2.new(0.5, 0)
 bannerLabel.Visible = false
 
+-- Carrying banner (cheap win): a big red bar above the hint line while
+-- the player holds a Rotling — it names the catch and tells them to
+-- run home. Hidden while empty-handed.
+local carryBanner = Instance.new("Frame")
+carryBanner.Name = "CarryBanner"
+carryBanner.Size = UDim2.new(0, 640, 0, 44)
+carryBanner.Position = UDim2.new(0.5, 0, 1, -108)
+carryBanner.AnchorPoint = Vector2.new(0.5, 0)
+carryBanner.BackgroundColor3 = Color3.fromRGB(180, 20, 20)
+carryBanner.BackgroundTransparency = 0.15
+carryBanner.BorderSizePixel = 0
+carryBanner.Visible = false
+local carryCorner = Instance.new("UICorner")
+carryCorner.CornerRadius = UDim.new(0, 10)
+carryCorner.Parent = carryBanner
+carryBanner.Parent = gui
+local carryBannerLabel = GuiKit.makeLabel(carryBanner, "CarryBannerLabel", "", UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), 26, GuiKit.COLORS.White)
+
 -- Leaderboard panel, top-right under the Lock button: the top 3 players
 -- by coins, always visible, so every shot shows the competition (like the
 -- top entries' leaderboard panels). Fed by the HUD broadcast's top3.
@@ -245,6 +263,7 @@ local hud = {
 	rebirthProgress = 0,
 	carried = 0,
 	carrySlots = 1,
+	carriedName = nil,
 	lockRemaining = 0,
 	lockCooldown = 0,
 	stormPhase = "calm",
@@ -346,6 +365,7 @@ local function onHudData(data: Remotes.HudData)
 	hud.rebirthProgress = data.rebirthProgress or 0
 	hud.carried = data.carried
 	hud.carrySlots = data.carrySlots
+	hud.carriedName = data.carriedName
 	hud.lockRemaining = data.lockRemaining
 	hud.lockCooldown = data.lockCooldown
 	hud.stormPhase = data.stormPhase
@@ -371,7 +391,11 @@ local function onHudData(data: Remotes.HudData)
 
 	coinsLabel.Text = Formatting.formatMoney(hud.coins)
 	stardustLabel.Text = "💎 " .. tostring(hud.stardust)
-	cpsLabel.Text = Formatting.formatCps(hud.cps) .. "  •  Rebirths: " .. tostring(hud.rebirths) .. "  •  📖 " .. tostring(hud.indexCount) .. "/" .. tostring(hud.indexTotal)
+	-- Income line: income/s, then the current rebirth tier and its
+	-- multiplier ("Rebirth 2 · x1.5 cash"), then the Index count.
+	local rebirthMult = 1 + 0.25 * hud.rebirths
+	local multText = string.format("%.2f", rebirthMult):gsub("0$", ""):gsub("%.$", "")
+	cpsLabel.Text = Formatting.formatCps(hud.cps) .. "  •  Rebirth " .. tostring(hud.rebirths) .. " · x" .. multText .. " cash  •  📖 " .. tostring(hud.indexCount) .. "/" .. tostring(hud.indexTotal)
 
 	-- XP bar: level + progress toward the next level.
 	local xpIntoLevel = hud.xp - (hud.level - 1) * 100
@@ -452,9 +476,15 @@ local function onHudData(data: Remotes.HudData)
 
 	if hud.carried > 0 then
 		hintLabel.Text = "Carrying " .. tostring(hud.carried) .. "/" .. tostring(hud.carrySlots) .. " — stand on your base and press E on a pad!"
+		-- The carrying banner names the catch: the threat shot's drama
+		-- is what you are carrying home.
+		local carriedName = hud.carriedName or "a Rotling"
+		carryBannerLabel.Text = "🚨 CARRYING: " .. carriedName .. " — RUN HOME! 🚨"
+		carryBanner.Visible = true
 	else
 		local buddyText = if hud.buddyName then "  •  🐾 Buddy: " .. hud.buddyName else ""
 		hintLabel.Text = "Grab a Rotling in the crater! (E)" .. buddyText
+		carryBanner.Visible = false
 	end
 
 	-- Mission bar: text + progress + reward, fill grows left to right.

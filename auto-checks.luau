@@ -2611,6 +2611,65 @@ do
 	end
 end
 
+-- -- (ay) the cheap HUD wins ---------------------------------------------------------
+-- Step 3: (a) a big red CARRYING banner that names the Rotling while
+-- the player holds one; (b) the current rebirth tier and multiplier
+-- next to cash ("Rebirth 2 · x1.5 cash"); (c) every raider carries one
+-- of our own bandit titles above its head.
+do
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	local raiderSrc = read("src/server/RaiderService.luau")
+	local stateSrc = read("src/server/State.luau")
+	if not hudSrc or not incomeSrc or not remotesSrc or not raiderSrc or not stateSrc then
+		check("ay", false, "could not verify the HUD wins — HUDController.client.luau, IncomeService.luau, Remotes.luau, RaiderService.luau or State.luau missing")
+	else
+		local problems: { string } = {}
+		if not hudSrc:find("CarryBanner") then
+			table.insert(problems, "no CarryBanner frame in the HUD")
+		end
+		if not hudSrc:find("CARRYING: ") then
+			table.insert(problems, 'no "CARRYING: <name>" banner text')
+		end
+		if not hudSrc:find("RUN HOME!") then
+			table.insert(problems, 'no "RUN HOME!" on the carrying banner')
+		end
+		if not remotesSrc:find("carriedName") then
+			table.insert(problems, "HudData carries no carriedName")
+		end
+		if not incomeSrc:find("carriedName = carriedName") then
+			table.insert(problems, "the HUD feed never sends the carried Rotling's name")
+		end
+		if not hudSrc:find("Rebirth ") then
+			table.insert(problems, "no rebirth tier next to the cash")
+		end
+		if not hudSrc:find("· x") then
+			table.insert(problems, "no rebirth multiplier (· xN) next to the cash")
+		end
+		if not hudSrc:find("cash  •") then
+			table.insert(problems, 'no "cash" on the income line')
+		end
+		if not raiderSrc:find("RAIDER_TITLES") then
+			table.insert(problems, "no named raider titles in RaiderService")
+		end
+		if not raiderSrc:find("Grimble the Grabber") then
+			table.insert(problems, "no own bandit title on the raider sign")
+		end
+		if not stateSrc:find("name: string, %-%- our own bandit title") then
+			table.insert(problems, "the Raider record carries no name")
+		end
+		if raiderSrc:find("FURBETTO") then
+			table.insert(problems, "a copied bandit title (FURBETTO) is in RaiderService")
+		end
+		if #problems > 0 then
+			check("ay", false, "the HUD wins are missing — " .. table.concat(problems, "; ") .. ". Parts: CarryBanner + rebirth line (HUDController), carriedName (Remotes/IncomeService), titles (RaiderService.luau)")
+		else
+			check("ay", true, "HUD wins: red CARRYING banner names the catch, rebirth tier + multiplier next to cash, every raider has its own bandit title")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
