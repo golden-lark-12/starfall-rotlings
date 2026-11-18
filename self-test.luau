@@ -631,6 +631,40 @@ do
 	end
 end
 
+-- 15c. Raider steal (fix 4): ONE clear rival behaviour, end to end.
+-- A raider targets a real player's base, the owner is warned at
+-- spawn, it grabs a Rotling and runs for the crater edge, and a
+-- bonk/slap drops the loot and makes it visibly flee.
+do
+	local raiderSrc = read("src/server/RaiderService.luau")
+	local slapSrc = read("src/server/SlapService.luau")
+	if not raiderSrc or not slapSrc then
+		step("raider-steal", false, "RaiderService.luau or SlapService.luau missing")
+	else
+		local problems: { string } = {}
+		if not raiderSrc:find("playerBases") or not raiderSrc:find("ownerId > 0") then
+			table.insert(problems, "spawnRaider does not prefer a real player's base")
+		end
+		if not raiderSrc:find("is sneaking toward your base!") then
+			table.insert(problems, "no raid-incoming banner at spawn")
+		end
+		if not raiderSrc:find("shouldCancel") or not raiderSrc:find("function fleeAndDespawn") then
+			table.insert(problems, "a bonked raider does not cancel its walk and visibly flee")
+		end
+		if not raiderSrc:find("CarryService%.scatterToCrater%(raider%.stolen%)") then
+			table.insert(problems, "bonkRaider does not drop the stolen Rotling")
+		end
+		if not slapSrc:find("RaiderService%.bonkRaider%(raiderModel, player%)") then
+			table.insert(problems, "the slap bat does not bonk raiders")
+		end
+		if #problems > 0 then
+			step("raider-steal", false, table.concat(problems, "; "))
+		else
+			step("raider-steal", true, "raider targets a real player's base, owner warned at spawn, grabs and runs for the edge, bonk/slap drops the loot and the raider flees")
+		end
+	end
+end
+
 -- 15b. Bots move (fix 2): the base edge and the crater rim no longer
 -- trap them. A wedge ramp at every base front, raiders spawning on
 -- open ground, a stuck bot that jumps, and bots that run for cover

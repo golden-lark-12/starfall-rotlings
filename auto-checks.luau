@@ -3195,6 +3195,58 @@ do
 	end
 end
 
+-- -- (bg) one clear rival behaviour: the raider steal (fix 4) ----------------
+-- The competition is ONE behaviour, end to end: a raider comes for a
+-- REAL player's base (not another bot's), the owner is warned the
+-- moment it spawns, it grabs a Rotling and runs for the crater edge,
+-- and a bonk/slap makes it drop the loot and visibly flee. No second
+-- or third half-working system.
+do
+	local raiderSrc = read("src/server/RaiderService.luau")
+	local slapSrc = read("src/server/SlapService.luau")
+	if not raiderSrc or not slapSrc then
+		check("bg", false, "could not verify the raider steal — RaiderService.luau or SlapService.luau missing")
+	else
+		local problems: { string } = {}
+		-- The raid targets a real player's base first.
+		if not raiderSrc:find("playerBases") then
+			table.insert(problems, "spawnRaider does not prefer real-player bases (no playerBases)")
+		end
+		if not raiderSrc:find("ownerId > 0") then
+			table.insert(problems, "spawnRaider does not distinguish real players (ownerId > 0) from rival bases")
+		end
+		if not raiderSrc:find("if #playerBases > 0 then playerBases else anyBases") then
+			table.insert(problems, "spawnRaider does not fall back to any stocked base when no real player is stocked")
+		end
+		-- The owner is warned at spawn, not only after the grab.
+		if not raiderSrc:find("is sneaking toward your base!") then
+			table.insert(problems, 'no raid-incoming banner at spawn ("is sneaking toward your base!")')
+		end
+		-- A bonk cancels the walk and the raider visibly flees.
+		if not raiderSrc:find("shouldCancel") then
+			table.insert(problems, "walkTo has no shouldCancel (a bonked raider cannot stop its walk)")
+		end
+		if not raiderSrc:find("function fleeAndDespawn") then
+			table.insert(problems, "no fleeAndDespawn (a bonked raider does not visibly run away)")
+		end
+		if not raiderSrc:find('raider%.phase == "flee"') then
+			table.insert(problems, "runRaid never checks for the flee phase after a walk")
+		end
+		-- The bonk drops the loot (and the slap bat reaches raiders).
+		if not raiderSrc:find("CarryService%.scatterToCrater%(raider%.stolen%)") then
+			table.insert(problems, "bonkRaider does not scatter the stolen Rotling back to the crater")
+		end
+		if not slapSrc:find("RaiderService%.bonkRaider%(raiderModel, player%)") then
+			table.insert(problems, "SlapService.trySlap does not bonk raiders")
+		end
+		if #problems > 0 then
+			check("bg", false, "the raider steal is not one clear behaviour — " .. table.concat(problems, "; ") .. ". Parts: spawnRaider (RaiderService.luau), bonk/flee (RaiderService.luau, SlapService.luau)")
+		else
+			check("bg", true, "one clear rival behaviour: raider targets a real player's base, owner warned at spawn, grabs and runs for the crater edge, bonk/slap drops the loot and the raider visibly flees")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

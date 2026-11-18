@@ -179,7 +179,11 @@ end
 -- pushes against it until the timeout. The jump clears the 2-stud base
 -- edge and the crater rim steps, so a stuck bot hops over the obstacle
 -- instead of timing out and despawning.
-local function walkTo(model: Model, target: Vector3, timeout: number): boolean
+-- shouldCancel (fix 4): a function that returns true when the walk
+-- must stop early — a bonked raider (phase "flee") stops walking to
+-- its target and runs away instead of standing still until the
+-- timeout expires.
+local function walkTo(model: Model, target: Vector3, timeout: number, shouldCancel: (() -> boolean)?): boolean
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	local root = model:FindFirstChild("HumanoidRootPart")
 	if not humanoid or not root then
@@ -198,6 +202,9 @@ local function walkTo(model: Model, target: Vector3, timeout: number): boolean
 		task.wait(0.5)
 		waited += 0.5
 		if not model.Parent then
+			break
+		end
+		if shouldCancel and shouldCancel() then
 			break
 		end
 		if (root.Position - target).Magnitude < 4 then
@@ -220,6 +227,20 @@ local function walkTo(model: Model, target: Vector3, timeout: number): boolean
 		connection:Disconnect()
 	end
 	return done
+end
+
+-- Flee visibly (fix 4): a bonked raider runs for the crater edge and
+-- despawns, instead of standing still until its walk times out. The
+-- player sees the bonk work — the thief drops the loot and runs.
+local function fleeAndDespawn(model: Model)
+	local raider = State.raiders[model]
+	if not raider then
+		return
+	end
+	local angle = math.random() * math.pi * 2
+	local exit = Vector3.new(math.cos(angle) * (Config.CRATER_RADIUS + 30), 0, math.sin(angle) * (Config.CRATER_RADIUS + 30))
+	walkTo(model, exit, 20)
+	RaiderService.despawnRaider(model)
 end
 
 -- Storm cover (fix 2): when a storm is running, a raider runs for the
@@ -285,11 +306,18 @@ local function runRaid(model: Model)
 		RaiderService.despawnRaider(model)
 		return
 	end
-	if not walkTo(model, padCf.Position, 40) then
-		RaiderService.despawnRaider(model)
+	-- Hunt: walk to the target pad. A bonk mid-hunt cancels the walk
+	-- (the raider flees instead of standing still until the timeout).
+	if not walkTo(model, padCf.Position, 40, function()
+		return raider.phase == "flee"
+	end) then
+		if raider.phase == "flee" then
+			fleeAndDespawn(model)
+		else
+			RaiderService.despawnRaider(model)
+		end
 		return
 	end
-	-- Grab the Rotling off the pad.
 	local stolen = BaseService.removePlaced(raider.targetBase, raider.targetPad)
 	if not stolen then
 		RaiderService.despawnRaider(model)
@@ -328,10 +356,20 @@ local function runRaid(model: Model)
 		return
 	end
 	-- Carry: run for the crater edge. If it gets there, the loot is gone.
+	-- A bonk mid-carry cancels the escape (the raider drops the loot
+	-- and flees instead of standing still until the timeout).
 	local angle = math.random() * math.pi * 2
 	local exit = Vector3.new(math.cos(angle) * (Config.CRATER_RADIUS + 30), 0, math.sin(angle) * (Config.CRATER_RADIUS + 30))
-	walkTo(model, exit, 40)
+	walkTo(model, exit, 40, function()
+		return raider.phase == "flee"
+	end)
 	if not model.Parent or State.raiders[model] == nil then
+		return
+	end
+	if raider.phase == "flee" then
+		-- Bonked: the loot was already scattered by bonkRaider, so
+		-- the thief just runs.
+		fleeAndDespawn(model)
 		return
 	end
 	if raider.phase == "carry" and raider.stolen then
@@ -349,20 +387,31 @@ local function runRaid(model: Model)
 end
 
 -- Spawn one raider at the crater edge, targeting a random stocked base.
+-- Fix 4: prefer a REAL player's base over a rival's — the one clear
+-- rival behaviour is a raider coming for YOUR Rotlings, not a bot
+-- raiding another bot where the player never sees it. Only when no
+-- real player's base is stocked does it fall back to any stocked base.
 function RaiderService.spawnRaider(): Model?
-	local candidates: { number } = {}
+	local playerBases: { number } = {}
+	local anyBases: { number } = {}
 	for baseId = 1, Config.BASE_COUNT do
 		local ownerId = BaseService.getBaseOwner(baseId)
 		if ownerId and not BaseService.isLocked(baseId) then
 			local placed = State.placed[baseId]
 			if placed then
 				for _ in pairs(placed) do
-					table.insert(candidates, baseId)
+					table.insert(anyBases, baseId)
+					-- A real player owns this base (rival bases have
+					-- a negative owner id, reserved at server start).
+					if ownerId > 0 then
+						table.insert(playerBases, baseId)
+					end
 					break
 				end
 			end
 		end
 	end
+	local candidates = if #playerBases > 0 then playerBases else anyBases
 	if #candidates == 0 then
 		return nil
 	end
@@ -394,6 +443,16 @@ function RaiderService.spawnRaider(): Model?
 		stolen = nil,
 		bornAt = time(),
 	}
+	-- Telegraph the raid (fix 4): the owner is warned the moment the
+	-- raider spawns, not only after it grabs — so the steal is a
+	-- threat the player can see coming and stop in time.
+	local ownerId = BaseService.getBaseOwner(baseId)
+	if ownerId and ownerId > 0 then
+		local owner = Players:GetPlayerByUserId(ownerId)
+		if owner then
+			Remotes.bannerEvent():FireClient(owner, "🚨 " .. (model:GetAttribute("RaiderName") :: string) .. " is sneaking toward your base! Guard your Rotlings — bonk it or slap it!", 5)
+		end
+	end
 	-- Touching it bonks it (with a short debounce per raider).
 	local body = model.PrimaryPart
 	if body then
