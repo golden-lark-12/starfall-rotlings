@@ -39,9 +39,9 @@
       0.4,
       0.9
      ],
-     "Density": 0.12,
+     "Density": 0.08,
      "Glare": 0.08,
-     "Haze": 0.5,
+     "Haze": 0.4,
      "Offset": 0.25
     }
    },
@@ -56,9 +56,9 @@
    "ColorCorrection": {
     "$className": "ColorCorrectionEffect",
     "$properties": {
-     "Brightness": 0.15,
-     "Contrast": 0.15,
-     "Saturation": 0.8,
+     "Brightness": 0.2,
+     "Contrast": 0.2,
+     "Saturation": 1.0,
      "TintColor": [
       1,
       0.95,
@@ -76,7 +76,7 @@
    "SunRays": {
     "$className": "SunRaysEffect",
     "$properties": {
-     "Intensity": 0.2,
+     "Intensity": 0.3,
      "Spread": 0.7
     }
    }
@@ -243,9 +243,9 @@
     "$properties": {
      "Anchored": true,
      "Color": [
-      0.78,
-      0.68,
-      0.5
+      0.35,
+      0.75,
+      0.3
      ],
      "Locked": true,
      "Material": "Slate",

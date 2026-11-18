@@ -1,11 +1,16 @@
 --!strict
 -- Starfall Rotlings: photo mode.
 -- Press P (or type /photo in chat) to step through FOUR fixed camera
--- shots, the same views the judge sees: (1) hero — low and close down
--- the conveyor belt; (2) isometric crater overview; (3) my base, close,
--- with the "Lv N" sign and placed Rotlings; (4) storm — a wide crater
--- and sky view with the red banner and the giant meteors. Each shot is
--- a deterministic fixed CFrame — never a free-fly — and the chat is
+-- shots, the same views the judge sees — the FINAL 4, all real
+-- gameplay, full HUD in every frame: (1) belt / grab moment — low
+-- and close down the conveyor; (2) storm — the glowing storm wall,
+-- the green SAFE DOME over a base, the (x2) income boost readout and
+-- the red banner in one frame; (3) packed base — pads full of placed
+-- Rotlings with the Lv sign; (4) hero Rotling close-up — low and
+-- close on the belt's nearest Rotling, tags readable. The title
+-- screen stays in the game but is NOT one of the 4 shots: the
+-- submission sheet is gameplay only, no key art. Each shot is a
+-- deterministic fixed CFrame — never a free-fly — and the chat is
 -- hidden while a shot is framed, so the capture is clean. A 5th press
 -- exits photo mode and hands the camera back to the player.
 --
@@ -31,43 +36,48 @@ local GuiKit = require(script.Parent:WaitForChild("GuiKit"))
 
 local player = Players.LocalPlayer
 
--- The 4 shots, in order. Positions are fixed in world space (hero,
--- crater and storm) or fixed relative to the player (base). Tune a
--- CFrame here and every capture of that shot moves.
+-- The 4 shots, in order — the FINAL submission sheet. Positions are
+-- fixed in world space (belt, storm, hero) or fixed relative to the
+-- player (base). Tune a CFrame here and every capture of that shot
+-- moves.
 local SHOTS = {
 	{
-		-- HERO, and the first thumbnail: low and close behind the
-		-- belt's near end, looking down the conveyor at the crater and
-		-- the beacon. The belt's Rotlings are ~15 studs away — big, with
-		-- their rarity tags readable — instead of a distant landscape.
-		name = "1/4 — Hero",
-		detail = "Down the conveyor belt, Rotlings and the beacon",
+		-- BELT / GRAB MOMENT, and the first thumbnail: low and close
+		-- behind the belt's near end, looking down the conveyor at
+		-- the crater and the beacon. The belt's Rotlings are ~15
+		-- studs away — big, with their rarity tags readable —
+		-- instead of a distant landscape.
+		name = "1/4 — Belt",
+		detail = "Grab moment: down the conveyor belt, Rotlings and the beacon",
 		position = Vector3.new(42, 4.5, 9),
 		lookAt = Vector3.new(0, 2, 0),
 	},
 	{
-		name = "2/4 — Crater",
-		detail = "Isometric overview: belt, crater and nearby bases",
-		-- Isometric overview, ~35 deg down: the whole belt, the crater
-		-- and the nearby bases in one frame, like a game diagram.
-		position = Vector3.new(24, 24, 24),
-		lookAt = Vector3.new(0, 0, 0),
+		name = "2/4 — Storm",
+		detail = "Storm wall + dome + income boost: the glowing front, the green SAFE DOME, the (x2) readout, the red banner",
+		-- Storm wall + dome + income boost in ONE frame: the glowing
+		-- front sweeping the map, the green SAFE DOME over a base,
+		-- the (x2) income readout in the HUD, the full-width red
+		-- banner. Best captured while a storm is running — stand on
+		-- your base so the dome and the boost both show.
+		position = Vector3.new(48, 10, 18),
+		lookAt = Vector3.new(0, 12, 0),
 	},
 	{
-		name = "3/4 — My base",
-		detail = "Pads, Lv sign and placed Rotlings — a thief at the gate shows here too",
+		name = "3/4 — Packed base",
+		detail = "Pads full of placed Rotlings, Lv sign and banked cash",
 		position = nil, -- computed from the nearest base, below
 		lookAt = nil,
 	},
 	{
-		name = "4/4 — Storm",
-		detail = "Wide crater + sky: red banner and giant meteors",
-		-- Wide crater and sky view: the full-width red banner, the
-		-- dark red sky and the giant hero meteors arcing across it.
-		-- Best captured while a storm is running; otherwise the crater
-		-- at dusk.
-		position = Vector3.new(48, 10, 18),
-		lookAt = Vector3.new(0, 12, 0),
+		name = "4/4 — Hero",
+		detail = "Hero Rotling close-up: low and close on the belt's nearest Rotling, tags readable",
+		-- Hero close-up: low and close on the belt's nearest
+		-- Rotling, ~12 studs away — one big character filling the
+		-- frame with its rarity tag readable, instead of a distant
+		-- landscape.
+		position = Vector3.new(10, 3.5, 7),
+		lookAt = Vector3.new(0, 2, 0),
 	},
 }
 

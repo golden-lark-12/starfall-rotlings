@@ -89,8 +89,11 @@ end
 -- world and turns it red, so the threat reads even before a meteor
 -- falls. These must restore to the bright base lighting in
 -- default.project.json (Brightness 3, ClockTime 12.5, Ambient
--- 0.9/0.88/0.95, OutdoorAmbient 1/1/1, Atmosphere Density 0.12):
+-- 0.9/0.88/0.95, OutdoorAmbient 1/1/1, Atmosphere Density 0.08):
 -- a storm darkens the world, it never leaves it dark.
+-- The storm dark is SOFTENED (Brightness 1.5, not 0.9) so the storm
+-- shot stays readable at thumbnail size: the wall, the dome, the base
+-- and the (x2) income readout must all read in the same frame.
 local function dimSky()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
@@ -98,15 +101,15 @@ local function dimSky()
 		atmosphere.Color = Color3.fromRGB(200, 60, 50)
 	end
 	Lighting.ClockTime = 14.0
-	Lighting.Brightness = 0.9
-	Lighting.Ambient = Color3.new(0.3, 0.12, 0.15)
-	Lighting.OutdoorAmbient = Color3.new(0.5, 0.25, 0.3)
+	Lighting.Brightness = 1.5
+	Lighting.Ambient = Color3.new(0.45, 0.25, 0.3)
+	Lighting.OutdoorAmbient = Color3.new(0.65, 0.4, 0.45)
 end
 
 local function restoreSky()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
-		atmosphere.Density = 0.12
+		atmosphere.Density = 0.08
 		atmosphere.Color = Color3.fromRGB(166, 191, 255)
 	end
 	Lighting.ClockTime = 12.5
@@ -177,7 +180,7 @@ local function lightningFlash()
 	playThunder()
 	task.wait(0.12)
 	if stormActive then
-		Lighting.Brightness = 0.9
+		Lighting.Brightness = 1.5
 	end
 end
 

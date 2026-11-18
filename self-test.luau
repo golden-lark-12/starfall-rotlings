@@ -916,6 +916,48 @@ do
 	end
 end
 
+-- 27. Bright capture setup: brightest lighting preset, vivid ground,
+-- storm restores to it, final 4 photo shots.
+do
+	local projectSrc = read("default.project.json")
+	local starSrc = read("src/server/StarfallService.luau")
+	local photoSrc = read("src/client/PhotoModeController.client.luau")
+	local packageSrc = read("../bounty-package.md")
+	if not projectSrc or not starSrc or not photoSrc or not packageSrc then
+		step("bright-capture", false, "default.project.json, StarfallService.luau, PhotoModeController.client.luau or bounty-package.md missing")
+	else
+		local problems: { string } = {}
+		if not projectSrc:find('"Saturation": 1%.0') then
+			table.insert(problems, "ColorCorrection Saturation is not 1.0 (not the brightest vivid preset)")
+		end
+		if not projectSrc:find('"Density": 0%.08') then
+			table.insert(problems, "Atmosphere Density is not 0.08")
+		end
+		if not starSrc:find("atmosphere%.Density = 0%.08") then
+			table.insert(problems, "restoreSky does not restore Atmosphere Density 0.08")
+		end
+		if not starSrc:find("Lighting%.Brightness = 1%.5") then
+			table.insert(problems, "storm dark is not softened to Brightness 1.5")
+		end
+		for _, name in ipairs({ "1/4 — Belt", "2/4 — Storm", "3/4 — Packed base", "4/4 — Hero" }) do
+			if not photoSrc:find(name, 1, true) then
+				table.insert(problems, 'photo shot "' .. name .. '" not found')
+			end
+		end
+		if photoSrc:find('"2/4 — Crater"', 1, true) then
+			table.insert(problems, 'the old "Crater" isometric shot is still in PhotoModeController')
+		end
+		if not packageSrc:find("is NOT one of the 4 shots", 1, true) then
+			table.insert(problems, "bounty-package.md does not say the title screen is NOT one of the 4 shots")
+		end
+		if #problems > 0 then
+			step("bright-capture", false, table.concat(problems, "; "))
+		else
+			step("bright-capture", true, "brightest lighting (Saturation 1.0, Density 0.08, vivid ground), storm restores to it, final 4 photo shots (belt, storm, packed base, hero close-up)")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

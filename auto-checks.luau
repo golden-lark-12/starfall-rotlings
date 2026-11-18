@@ -85,6 +85,9 @@
 --   (bb) the storm income readout is missing (no Safe Dome x2 during
 --       the storm, or the HUD never shows the boosted rate next to
 --       the normal one)
+--   (bc) the bright capture setup is missing (lighting not the
+--       brightest vivid preset, storm does not restore to it, or the
+--       photo shots are not the final 4)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -1494,22 +1497,26 @@ end
 
 -- -- (ac) photo-mode cameras are the 4 bounty shots ---------------------------
 -- The judge sees only 4 screenshots, so photo mode has exactly 4 shots:
--- 1 hero (low, close down the belt), 2 isometric crater, 3 my base
--- close, 4 storm (wide crater + sky with the banner and giant meteors).
--- The old 5-shot layout (carrying + HUD shots) is gone.
+-- 1 belt (low, close down the conveyor), 2 storm (wide crater + sky
+-- with the banner, the dome and the giant meteors), 3 packed base
+-- close, 4 hero close-up (low and close on the belt's nearest
+-- Rotling). The old crater isometric is gone.
 do
 	local photoSrc = read("src/client/PhotoModeController.client.luau")
 	if not photoSrc then
 		check("ac", false, "could not verify photo-mode cameras — PhotoModeController.client.luau missing")
 	else
 		local problems: { string } = {}
-		-- Shot 1 (hero): low and close behind the belt's near end.
+		-- Shot 1 (belt): low and close behind the belt's near end.
 		if not photoSrc:find("Vector3.new%(42, 4.5, 9%)") then
-			table.insert(problems, "shot 1 is not the close hero camera (42, 4.5, 9)")
+			table.insert(problems, "shot 1 is not the close belt camera (42, 4.5, 9)")
 		end
-		-- Shot 2 (crater): isometric overview.
-		if not photoSrc:find("Vector3.new%(24, 24, 24%)") then
-			table.insert(problems, "shot 2 is not the isometric overview (24, 24, 24)")
+		-- Shot 2 (storm): wide crater + sky view, banner and meteors.
+		if not photoSrc:find("Vector3.new%(48, 10, 18%)") then
+			table.insert(problems, "shot 2 is not the wide storm camera (48, 10, 18)")
+		end
+		if not photoSrc:find("Vector3.new%(0, 12, 0%)") then
+			table.insert(problems, "shot 2 does not look at the crater + sky (0, 12, 0)")
 		end
 		-- Shot 3 (base): 16 out, 7 up — closer than the old 30/12.
 		if not photoSrc:find("%* 16") then
@@ -1518,12 +1525,14 @@ do
 		if not photoSrc:find("Vector3.new%(0, 7, 0%)") then
 			table.insert(problems, "shot 3 is not 7 studs up")
 		end
-		-- Shot 4 (storm): wide crater + sky view, banner and meteors.
-		if not photoSrc:find("Vector3.new%(48, 10, 18%)") then
-			table.insert(problems, "shot 4 is not the wide storm camera (48, 10, 18)")
+		-- Shot 4 (hero close-up): low and close on the belt's
+		-- nearest Rotling.
+		if not photoSrc:find("Vector3.new%(10, 3.5, 7%)") then
+			table.insert(problems, "shot 4 is not the hero close-up camera (10, 3.5, 7)")
 		end
-		if not photoSrc:find("Vector3.new%(0, 12, 0%)") then
-			table.insert(problems, "shot 4 does not look at the crater + sky (0, 12, 0)")
+		-- The crater isometric is gone.
+		if photoSrc:find("Vector3.new%(24, 24, 24%)") then
+			table.insert(problems, "the old isometric crater camera (24, 24, 24) is still a shot")
 		end
 		-- Exactly 4 shots: the "4/4" label exists, no "5/5" anywhere.
 		if not photoSrc:find('"4/4') then
@@ -1539,7 +1548,7 @@ do
 		if #problems > 0 then
 			check("ac", false, "photo-mode cameras are not the 4 bounty shots — " .. table.concat(problems, "; ") .. ". Parts: SHOTS / shotCFrame (PhotoModeController.client.luau)")
 		else
-			check("ac", true, "photo cameras are the 4 bounty shots — hero close on the belt, crater isometric, base 16 out / 7 up, storm wide (48, 10, 18) looking at the sky")
+			check("ac", true, "photo cameras are the 4 bounty shots — belt close on the conveyor, storm wide (48, 10, 18) looking at the sky, base 16 out / 7 up, hero close-up (10, 3.5, 7)")
 		end
 	end
 end
@@ -2873,6 +2882,133 @@ do
 			check("bb", false, "the storm income readout is missing — " .. table.concat(problems, "; ") .. ". Parts: STORM_DOME_MULT (Config), stormBoostActive / incomeMult / coinsPerSecond (IncomeService.luau), HudData (Remotes.luau), income line (HUDController)")
 		else
 			check("bb", true, "storm income readout: Safe Dome x2 during the storm (own base only), HUD shows boosted (x2) next to the normal rate")
+		end
+	end
+end
+
+-- -- (bc) bright capture setup ------------------------------------------------
+-- BRIGHT CAPTURE SETUP: the brightest lighting preset for the 4
+-- captures (daytime sky, vivid ground) while keeping the meteor
+-- theme, and the FINAL 4 photo-mode shots (belt, storm, packed base,
+-- hero close-up) — the title screen is not one of them.
+do
+	local ok, projectText = pcall(fs.readFile, root .. "/default.project.json")
+	local project: any = nil
+	if ok then
+		local decOk, decoded = pcall(serde.decode, "json", projectText)
+		if decOk then
+			project = decoded
+		end
+	end
+	local starSrc = read("src/server/StarfallService.luau")
+	local photoSrc = read("src/client/PhotoModeController.client.luau")
+	local packageText = read("../bounty-package.md")
+	if not project or not starSrc or not photoSrc or not packageText then
+		check("bc", false, "could not verify the bright capture setup — default.project.json, StarfallService.luau, PhotoModeController.client.luau or bounty-package.md missing")
+	else
+		local problems: { string } = {}
+		local lighting = project.tree and project.tree.Lighting
+		local props = if lighting then lighting["$properties"] else nil
+		local cc = if lighting then lighting.ColorCorrection else nil
+		local ccProps = if cc then cc["$properties"] else nil
+		local atmo = if lighting then lighting.Atmosphere else nil
+		local atmoProps = if atmo then atmo["$properties"] else nil
+		local rays = if lighting then lighting.SunRays else nil
+		local raysProps = if rays then rays["$properties"] else nil
+		if not props or not ccProps or not atmoProps then
+			table.insert(problems, "Lighting / ColorCorrection / Atmosphere properties not found in default.project.json")
+		else
+			local sat = num(tostring(ccProps.Saturation))
+			if not sat then
+				table.insert(problems, "ColorCorrection Saturation not found")
+			elseif sat < 0.9 then
+				table.insert(problems, "Saturation " .. tostring(sat) .. " (under 0.9 — not the brightest vivid preset)")
+			end
+			local density = num(tostring(atmoProps.Density))
+			if not density then
+				table.insert(problems, "Atmosphere Density not found")
+			elseif density > 0.1 then
+				table.insert(problems, "Atmosphere Density " .. tostring(density) .. " (over 0.1 — hazy sky)")
+			end
+			local haze = num(tostring(atmoProps.Haze))
+			if haze and haze > 0.5 then
+				table.insert(problems, "Atmosphere Haze " .. tostring(haze) .. " (over 0.5)")
+			end
+			local clock = num(tostring(props.ClockTime))
+			if not clock then
+				table.insert(problems, "Lighting ClockTime not found")
+			elseif clock < 10 or clock > 15 then
+				table.insert(problems, "ClockTime " .. tostring(clock) .. " (not bright midday 10–15)")
+			end
+		end
+		if raysProps then
+			local rayI = num(tostring(raysProps.Intensity))
+			if rayI and rayI < 0.25 then
+				table.insert(problems, "SunRays Intensity " .. tostring(rayI) .. " (under 0.25 — no sunny feel)")
+			end
+		end
+		-- Vivid green ground, not tan and not purple.
+		local ground = project.tree and project.tree.Workspace and project.tree.Workspace.Ground
+		local groundProps = if ground then ground["$properties"] else nil
+		local groundColor = if groundProps then groundProps.Color else nil
+		if not groundColor then
+			table.insert(problems, "Ground Color not found in default.project.json")
+		else
+			local r = num(tostring(groundColor[1]))
+			local g = num(tostring(groundColor[2]))
+			local b = num(tostring(groundColor[3]))
+			if not r or not g or not b then
+				table.insert(problems, "Ground Color not numeric")
+			elseif g < 0.6 or r > 0.5 or b > 0.5 then
+				table.insert(problems, "Ground is not vivid green (RGB " .. tostring(r) .. ", " .. tostring(g) .. ", " .. tostring(b) .. ")")
+			end
+		end
+		-- restoreSky must restore the NEW bright preset (Density
+		-- 0.08), or the first storm leaves the game on the old light.
+		if not starSrc:find("atmosphere%.Density = 0%.08") then
+			table.insert(problems, "restoreSky does not restore Atmosphere Density 0.08 (the new bright preset)")
+		end
+		-- The storm dark is softened so the storm shot reads: dimSky
+		-- and the lightning-flash restore must both use 1.5.
+		local dimBody = functionBody(starSrc, "dimSky")
+		local flashBody = functionBody(starSrc, "lightningFlash")
+		if not dimBody or not dimBody:find("Brightness = 1%.5") then
+			table.insert(problems, "dimSky does not use the softened Brightness 1.5")
+		end
+		if not flashBody or not flashBody:find("Brightness = 1%.5") then
+			table.insert(problems, "lightningFlash does not restore the softened Brightness 1.5")
+		end
+		-- The FINAL 4 photo shots: belt, storm, packed base, hero.
+		for _, name in ipairs({ "1/4 — Belt", "2/4 — Storm", "3/4 — Packed base", "4/4 — Hero" }) do
+			if not photoSrc:find(name, 1, true) then
+				table.insert(problems, 'photo shot "' .. name .. '" not found in PhotoModeController')
+			end
+		end
+		local shotCount = 0
+		for _ in photoSrc:gmatch('name = "%d/4') do
+			shotCount += 1
+		end
+		if shotCount ~= 4 then
+			table.insert(problems, "PhotoMode has " .. tostring(shotCount) .. " numbered shots (not 4)")
+		end
+		if photoSrc:find('"2/4 — Crater"', 1, true) then
+			table.insert(problems, 'the old "Crater" isometric shot is still in PhotoModeController')
+		end
+		-- The bounty package lists the same final 4, and says the
+		-- title screen is NOT one of them.
+		if not packageText:find("2-storm-wall.png", 1, true) then
+			table.insert(problems, "bounty-package.md shot list does not name 2-storm-wall.png")
+		end
+		if not packageText:find("4-hero-closeup.png", 1, true) then
+			table.insert(problems, "bounty-package.md shot list does not name 4-hero-closeup.png")
+		end
+		if not packageText:find("is NOT one of the 4 shots", 1, true) then
+			table.insert(problems, "bounty-package.md does not say the title screen is NOT one of the 4 shots")
+		end
+		if #problems > 0 then
+			check("bc", false, "the bright capture setup is missing — " .. table.concat(problems, "; ") .. ". Parts: Lighting / Ground (default.project.json), restoreSky / dimSky (StarfallService.luau), photo shots (PhotoModeController), shot list (bounty-package.md)")
+		else
+			check("bc", true, "bright capture setup: Saturation 1.0, Density 0.08, vivid green ground, storm restores to it, final 4 photo shots (belt, storm, packed base, hero close-up), title screen not one of the 4")
 		end
 	end
 end
