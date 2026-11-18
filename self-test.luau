@@ -1269,6 +1269,35 @@ do
 	end
 end
 
+-- Fix round 8, item 2 — guardian threat: a catch deals 40 HP damage
+-- (two catches kill), knocks down, bursts red, thuds, banners the damage.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local guardianSrc = read("src/server/GuardianService.luau")
+	if not configSrc or not guardianSrc then
+		step("guardian-threat", false, "Config.luau or GuardianService.luau missing")
+	else
+		local problems: { string } = {}
+		if not configSrc:find("GUARDIAN_CATCH_DAMAGE = 40") then
+			table.insert(problems, "no GUARDIAN_CATCH_DAMAGE = 40 in Config")
+		end
+		if not guardianSrc:find("TakeDamage%(Config%.GUARDIAN_CATCH_DAMAGE%)") then
+			table.insert(problems, "catchPlayer does not deal the catch damage")
+		end
+		if not guardianSrc:find("FeedbackService%.burst%(character") then
+			table.insert(problems, "no red impact burst on the catch")
+		end
+		if not guardianSrc:find("SMASHED YOU! %-\"") then
+			table.insert(problems, "the catch banner does not name the damage")
+		end
+		if #problems > 0 then
+			step("guardian-threat", false, table.concat(problems, "; "))
+		else
+			step("guardian-threat", true, "a catch deals 40 HP (two catches kill) + knockdown + red burst + thud + damage banner")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

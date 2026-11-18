@@ -4957,8 +4957,8 @@ do
 		if not guardianSrc:find("body%.Touched:Connect") then
 			table.insert(problems, "no touch-catch on the body ball — a touch can still slip between catch-radius ticks")
 		end
-		if not guardianSrc:find("caught .+ — knocked down, dropped") then
-			table.insert(problems, "the catch does not log the knockdown + drop — the catch trail has no proof")
+		if not guardianSrc:find("caught .+ — smashed for .+ HP %(now .+ HP%), knocked down, dropped") then
+			table.insert(problems, "the catch does not log the damage + remaining HP + knockdown + drop — the catch trail has no proof")
 		end
 		if not configSrc:find("%[1%] = 19") or not configSrc:find("%[6%] = 24") then
 			table.insert(problems, "guardian speeds are not 19 -> 24 (every tier must beat walk 16)")
@@ -6286,6 +6286,41 @@ do
 			check("df", false, "the guardian speed fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, GuardianService.luau")
 		else
 			check("df", true, "guardian speed: every tier beats walk 16 (Common 19 to Cosmic 24, sprint 26 still escapes), spawns 14 studs away, and the chase loop logs real studs/s + distance every 2s")
+		end
+	end
+end
+
+-- (dg) GUARDIAN THREAT (fix round 8, item 2): a catch used to only
+-- drop the Brainrot — Malek read it as harmless ("all it does is
+-- him getting dropped the brainrot"). A catch must cost health: 40
+-- damage (two catches kill), a knockdown, a red impact burst, a low
+-- thud, and a banner naming the damage.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local guardianSrc = read("src/server/GuardianService.luau")
+	if not configSrc or not guardianSrc then
+		check("dg", false, "could not verify the guardian threat — Config.luau or GuardianService.luau missing")
+	else
+		local problems: { string } = {}
+		if not configSrc:find("GUARDIAN_CATCH_DAMAGE = 40") then
+			table.insert(problems, "no GUARDIAN_CATCH_DAMAGE = 40 in Config")
+		end
+		if not guardianSrc:find("TakeDamage%(Config%.GUARDIAN_CATCH_DAMAGE%)") then
+			table.insert(problems, "catchPlayer does not deal the catch damage")
+		end
+		if not guardianSrc:find("FeedbackService%.burst%(character") then
+			table.insert(problems, "no red impact burst on the catch")
+		end
+		if not guardianSrc:find("SMASHED YOU! %-\"") then
+			table.insert(problems, "the catch banner does not name the damage")
+		end
+		if not guardianSrc:find("smashed for") then
+			table.insert(problems, "the catch log does not record the damage + remaining HP")
+		end
+		if #problems > 0 then
+			check("dg", false, "the guardian threat fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, GuardianService.luau")
+		else
+			check("dg", true, "guardian threat: a catch deals 40 HP (two catches kill), knocks down, fires a red burst + low thud, and banners the damage")
 		end
 	end
 end

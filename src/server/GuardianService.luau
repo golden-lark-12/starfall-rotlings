@@ -2,9 +2,12 @@
 -- Starfall Rotlings: the Crater Guardian (THE CHASE — the core of the game).
 -- When anyone grabs a Brainrot from the crater, a space rock monster
 -- (glowing red eyes) climbs out and chases them. Rarer Brainrot =
--- faster guardian: Common is slow, Legendary and up are nearly as fast
--- as the player. If it catches you, you are knocked down and drop the
--- Brainrot back. Reach your base or the Safe Dome and it gives up.
+-- faster guardian: every tier is faster than a walking player
+-- (Common 19 to Cosmic 24 — fix round 8, item 1). If it catches you,
+-- it SMASHES you: 40 HP damage + knocked down + you drop the
+-- Brainrot back (fix round 8, item 2 — two catches kill you, so a
+-- catch is a real threat, not a free reset). Reach your base or the
+-- Safe Dome and it gives up.
 -- Raider bots also grab from the crater, so the guardian chases them
 -- too — and a player can slap/bonk a raider to steal its Brainrot.
 -- The Cosmic Corn Dog is the final index entry: rarest spawn, and the
@@ -20,6 +23,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
+local FeedbackService = require(script.Parent.FeedbackService)
 local State = require(script.Parent.State)
 local WorldBuilder = require(script.Parent.WorldBuilder)
 
@@ -271,8 +275,12 @@ function GuardianService.despawnGuardian(model: Model, reason: string?)
 	model:Destroy()
 end
 
--- The knockdown: the guardian caught a player. Fall down, drop
--- everything carried back into the crater, then the guardian leaves.
+-- The knockdown: the guardian caught a player. It SMASHES them — 40 HP
+-- damage, knocked flat, everything carried drops back into the crater —
+-- then the guardian leaves. Two catches kill (100 HP), so a catch is a
+-- real threat, not a free reset: the old catch only dropped the
+-- Brainrot and Malek read it as harmless ("all it does is him getting
+-- dropped the brainrot", playtest 9).
 local function catchPlayer(guardian: Model, player: Player)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -282,12 +290,16 @@ local function catchPlayer(guardian: Model, player: Player)
 		if root then
 			root.AssemblyLinearVelocity = Vector3.new(0, 12, 0)
 		end
-		-- THE CATCH HURTS: knocked down and everything carried drops
-		-- back into the crater. The guardian is a threat, not a pet.
+		-- THE CATCH HURTS: 40 damage + knocked down + everything
+		-- carried drops back into the crater. The guardian is a
+		-- threat, not a pet.
+		humanoid:TakeDamage(Config.GUARDIAN_CATCH_DAMAGE)
+		FeedbackService.burst(character, Color3.fromRGB(255, 60, 50))
+		FeedbackService.playSound(player, 0.4, 1)
 		local dropped = #CarryService.getCarried(player)
 		CarryService.dropAllCarried(player)
-		Remotes.bannerEvent():FireClient(player, "🪨 THE GUARDIAN CAUGHT YOU! You dropped your Brainrot!", 4)
-		print("[Guardian] caught " .. player.Name .. " — knocked down, dropped " .. tostring(dropped) .. " Brainrot(s)")
+		Remotes.bannerEvent():FireClient(player, "🪨 THE GUARDIAN SMASHED YOU! -" .. tostring(Config.GUARDIAN_CATCH_DAMAGE) .. " HP — you dropped your Brainrot!", 4)
+		print("[Guardian] caught " .. player.Name .. " — smashed for " .. tostring(Config.GUARDIAN_CATCH_DAMAGE) .. " HP (now " .. tostring(math.floor(humanoid.Health)) .. " HP), knocked down, dropped " .. tostring(dropped) .. " Brainrot(s)")
 	end
 	GuardianService.despawnGuardian(guardian, "caught-player")
 end
@@ -319,7 +331,8 @@ end
 -- moving (advance to the next waypoint as soon as it is close, never
 -- wait for a repath), repaths only every 1.5s or when the target has
 -- moved far, and a touch-catch on the body ball so a touch can never
--- slip between ticks. Speeds are +2 per tier (10 -> 18.5).
+-- slip between ticks. Speeds beat a walk at every tier (19 -> 24,
+-- fix round 8 item 1).
 local function chaseLoop(guardian: Model)
 	local entry = active[guardian]
 	if not entry then

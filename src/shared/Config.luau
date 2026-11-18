@@ -191,6 +191,7 @@ Config.RAIDER_WALK_SPEED = 14
 Config.GUARDIAN_SPEED = { [1] = 19, [2] = 20, [3] = 21, [4] = 22, [5] = 23, [6] = 24 } -- per rarity tier (fix round 8, item 1: every tier beats walk 16; sprint 26 still escapes while stamina lasts)
 Config.GUARDIAN_SPAWN_DISTANCE = 14 -- studs from the grabber, on the opposite rim
 Config.GUARDIAN_CATCH_RADIUS = 5 -- studs: this close and it catches you
+Config.GUARDIAN_CATCH_DAMAGE = 40 -- HP lost when it catches you (fix round 8, item 2: the catch used to only drop the Brainrot — Malek: "all it does is him getting dropped the brainrot". 40 HP + a knockdown means two catches kill you, so a catch is a real threat, not a free reset)
 Config.GUARDIAN_GIVEUP_TIME = 25 -- seconds: a chase that drags on ends on its own
 
 -- Rival bots (item 7): 3-4 named rivals that own the other bases,
