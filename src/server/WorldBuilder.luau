@@ -111,6 +111,28 @@ function WorldBuilder.setBountyText(text: string)
 	end
 end
 
+-- Wind: the four quadrant drift emitters built by buildWind. Starfall
+-- calls setWind(true) when the storm starts and setWind(false) when it
+-- ends. This function did NOT exist until fix round 2: every storm
+-- cycle called it, hit "attempt to call a nil value", and the cycle's
+-- pcall aborted the storm — no wall, no meteors, no rumble, no bounty
+-- — while the 10s warning (which runs before the call) still showed,
+-- so the storm read as "does nothing". Gentle drift (Rate 4) in calm,
+-- howling wind (Rate 60, faster, bigger) in the storm.
+function WorldBuilder.setWind(on: boolean)
+	for _, emitter in ipairs(windEmitters) do
+		if on then
+			emitter.Rate = 60
+			emitter.Speed = NumberRange.new(25, 40)
+			emitter.Size = NumberSequence.new(1.2)
+		else
+			emitter.Rate = 4
+			emitter.Speed = NumberRange.new(8, 12)
+			emitter.Size = NumberSequence.new(0.5)
+		end
+	end
+end
+
 -- Shield dome: the visible force-field shown while a base is locked.
 function WorldBuilder.setShieldVisible(baseId: number, visible: boolean)
 	local dome = shieldDomes[baseId]

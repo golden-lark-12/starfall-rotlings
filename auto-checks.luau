@@ -3425,6 +3425,111 @@ do
 	end
 end
 
+-- -- (bk) every module call resolves to a real definition (fix round 2, fix 2) --
+-- The storm was dead for a whole round because StarfallService called
+-- WorldBuilder.setWind and setWind was never defined: the call errored,
+-- the cycle's pcall aborted the storm, and no pattern check caught it
+-- (they check that setWind(true) is CALLED, not that it EXISTS). This
+-- check scans every .luau file for calls to the game's own modules and
+-- proves each called function is actually defined in that module.
+-- A missing definition FAILS the build.
+do
+	local modules = {
+		BaseService = "src/server/BaseService.luau",
+		BankService = "src/server/BankService.luau",
+		BoostService = "src/server/BoostService.luau",
+		BuddyService = "src/server/BuddyService.luau",
+		CarryService = "src/server/CarryService.luau",
+		DailyService = "src/server/DailyService.luau",
+		DataService = "src/server/DataService.luau",
+		FeedbackService = "src/server/FeedbackService.luau",
+		GlobalEventService = "src/server/GlobalEventService.luau",
+		IncomeService = "src/server/IncomeService.luau",
+		LeaderstatsService = "src/server/LeaderstatsService.luau",
+		MeteorEggService = "src/server/MeteorEggService.luau",
+		MissionService = "src/server/MissionService.luau",
+		OfflineService = "src/server/OfflineService.luau",
+		RaiderService = "src/server/RaiderService.luau",
+		RebirthService = "src/server/RebirthService.luau",
+		RivalService = "src/server/RivalService.luau",
+		RotlingFactory = "src/server/RotlingFactory.luau",
+		SellService = "src/server/SellService.luau",
+		ShopService = "src/server/ShopService.luau",
+		SlapService = "src/server/SlapService.luau",
+		SpawnService = "src/server/SpawnService.luau",
+		StarfallService = "src/server/StarfallService.luau",
+		StealService = "src/server/StealService.luau",
+		WorldBuilder = "src/server/WorldBuilder.luau",
+		Config = "src/shared/Config.luau",
+		Formatting = "src/shared/Formatting.luau",
+		MutationConfig = "src/shared/MutationConfig.luau",
+		RarityConfig = "src/shared/RarityConfig.luau",
+		Remotes = "src/shared/Remotes.luau",
+		RotlingCatalog = "src/shared/RotlingCatalog.luau",
+		GuiKit = "src/client/GuiKit.luau",
+	}
+	-- Collect every defined function per module.
+	local defined: { [string]: { [string]: boolean } } = {}
+	local missingFiles: { string } = {}
+	for name, path in pairs(modules) do
+		local src = read(path)
+		if not src then
+			table.insert(missingFiles, name .. " (" .. path .. ")")
+		else
+			defined[name] = {}
+			for fn in src:gmatch("function " .. name .. "%.([%a_][%w_]*)") do
+				defined[name][fn] = true
+			end
+			-- Config-style fields (Config.FOO = ...) count as defined.
+			for field in src:gmatch(name .. "%.([%a_][%w_]*)%s*=") do
+				defined[name][field] = true
+			end
+		end
+	end
+	if #missingFiles > 0 then
+		check("bk", false, "could not verify module cross-references — missing files: " .. table.concat(missingFiles, ", "))
+	else
+		-- Scan every .luau file for calls to these modules.
+		local files: { string } = {}
+		local function walk(dir: string)
+			local ok, entries = pcall(fs.readDir, root .. "/" .. dir)
+			if not ok then
+				return
+			end
+			for _, entry in ipairs(entries) do
+				local p = dir .. "/" .. entry
+				if entry:match("%.luau$") then
+					table.insert(files, p)
+				elseif not entry:match("^%.") then
+					-- Recurse into subdirectories (no extension).
+					if not entry:find("%.", 1, true) then
+						walk(p)
+					end
+				end
+			end
+		end
+		walk("src")
+		local problems: { string } = {}
+		local seen: { [string]: boolean } = {}
+		for _, file in ipairs(files) do
+			local src = read(file)
+			if src then
+				for mod, fn in src:gmatch("([%a_][%w_]*)%.([%a_][%w_]*)%s*%(") do
+					if defined[mod] and not defined[mod][fn] and not seen[mod .. "." .. fn] then
+						seen[mod .. "." .. fn] = true
+						table.insert(problems, mod .. "." .. fn .. " is called (in " .. file .. ") but never defined")
+					end
+				end
+			end
+		end
+		if #problems > 0 then
+			check("bk", false, "missing module functions — " .. table.concat(problems, "; "))
+		else
+			check("bk", true, "every module call resolves: all WorldBuilder / StarfallService / IncomeService / CarryService (and every other game module) calls have a matching definition")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
