@@ -173,13 +173,13 @@ function CarryService.setPromptState(model: Model)
 	if state == "carried" then
 		prompt.Enabled = false
 	elseif state == "placed" then
-		-- One prompt for everyone: "Take" covers both the owner
+		-- One prompt for everyone: "Pick up" covers both the owner
 		-- picking their own Rotling back up and a rival stealing it.
 		-- tryGrab routes owners to pickupOwn and everyone else to
 		-- StealService.trySteal. The base id comes from the model's
 		-- own BaseId attribute (fix 2): the old code read an undefined
 		-- global, so the lock check silently never ran.
-		prompt.ActionText = "Take " .. name
+		prompt.ActionText = "Pick up " .. name
 		local placedBaseId = model:GetAttribute("BaseId") :: number?
 		prompt.Enabled = if placedBaseId then not BaseService.isLocked(placedBaseId) else true
 	else
@@ -208,20 +208,31 @@ end
 -- your own Rotlings ("That one is already yours") — a placed Rotling
 -- was stuck on its pad forever and could never be sold or moved.
 function CarryService.pickupOwn(player: Player, model: Model)
+	-- [Pickup] log (fix round 5, item 3): the playtest said the Take
+	-- prompt shows but E does not pick the Rotling up, so every
+	-- pickup attempt and its result must show in Output.
+	print("[Pickup] " .. player.Name .. " picking up " .. model.Name .. " (carrying " .. tostring(#CarryService.getCarried(player)) .. "/" .. tostring(CarryService.getCarrySlots(player)) .. ")")
 	if #CarryService.getCarried(player) >= CarryService.getCarrySlots(player) then
+		print("[Pickup] " .. player.Name .. " arms full — pickup of " .. model.Name .. " refused")
 		Remotes.bannerEvent():FireClient(player, "Your arms are full! Buy Extra Arms in the shop.", 3)
 		return
 	end
 	local baseId = model:GetAttribute("BaseId") :: number
 	local padIndex = model:GetAttribute("PadIndex") :: number
-	BaseService.removePlaced(baseId, padIndex)
-	RotlingFactory.setCarriedVisual(model, true)
+	-- Validate the weld BEFORE lifting the Rotling off its pad: the
+	-- old order removed it from the pad first, then returned silently
+	-- when the character or body was missing — leaving the Rotling
+	-- off its pad (earning nothing) with no log and no banner.
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	local body = model.PrimaryPart
 	if not root or not body then
+		print("[Pickup] " .. player.Name .. " pickup of " .. model.Name .. " failed — no character root or body")
+		Remotes.bannerEvent():FireClient(player, "Could not pick it up — try again.", 2)
 		return
 	end
+	BaseService.removePlaced(baseId, padIndex)
+	RotlingFactory.setCarriedVisual(model, true)
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.Anchored = false
@@ -241,6 +252,7 @@ function CarryService.pickupOwn(player: Player, model: Model)
 	local BuddyService = require(script.Parent.BuddyService)
 	BuddyService.refreshBuddy(player)
 	Remotes.bannerEvent():FireClient(player, "Picked it back up — place it on another pad or sell it.", 3)
+	print("[Pickup] " .. player.Name .. " picked up " .. model.Name)
 end
 
 -- The one entry point for every grab prompt trigger.

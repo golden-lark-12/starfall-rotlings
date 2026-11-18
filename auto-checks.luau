@@ -2055,7 +2055,7 @@ end
 -- -- (al) selling is a clearing tool, and owners can pick up their own Rotlings --
 -- Item 9: sell value is ~25x income/s (never above 30x) for EVERY
 -- Rotling, so placing is always the better long-term choice; and the
--- owner can pick up their own placed Rotling ("Take") and carry it
+-- owner can pick up their own placed Rotling ("Pick up") and carry it
 -- again, while the steal path for other players' bases is unchanged.
 do
 	local configSrc = read("src/shared/Config.luau")
@@ -2078,15 +2078,24 @@ do
 			table.insert(problems, "SellService.sellValue does not use Config.SELL_MULT")
 		end
 		-- Own-base pickup: CarryService.pickupOwn exists, tryGrab
-		-- routes owners to it, and the prompt says "Take".
+		-- routes owners to it, and the prompt says "Pick up".
 		if not carrySrc:find("function CarryService.pickupOwn") then
 			table.insert(problems, "CarryService.pickupOwn not found (owners cannot pick up their own Rotlings)")
 		end
 		if not carrySrc:find("pickupOwn%(player, model%)") then
 			table.insert(problems, "tryGrab never routes an owner to pickupOwn")
 		end
-		if not carrySrc:find('"Take ') then
-			table.insert(problems, 'no "Take <name>" prompt for own-base pickup')
+		if not carrySrc:find('"Pick up ') then
+			table.insert(problems, 'no "Pick up <name>" prompt for own-base pickup')
+		end
+		-- Fix round 5, item 3: pickupOwn logs every attempt and
+		-- validates the weld before lifting the Rotling off its pad
+		-- (the old order removed it first, then failed silently).
+		if not carrySrc:find('%[Pickup%]') then
+			table.insert(problems, "pickupOwn does not log attempts/results")
+		end
+		if not carrySrc:find("Could not pick it up") then
+			table.insert(problems, "pickupOwn has no failure banner when the weld cannot be made")
 		end
 		-- The steal path is untouched: StealService still refuses your
 		-- own Rotlings when reached directly, and tryGrab still routes

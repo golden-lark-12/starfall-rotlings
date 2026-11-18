@@ -55,13 +55,19 @@ function StealService.trySteal(player: Player, model: Model)
 		return
 	end
 	local padIndex = model:GetAttribute("PadIndex") :: number
-	BaseService.removePlaced(baseId, padIndex)
+	-- Validate the weld BEFORE lifting the Rotling off its pad (same
+	-- fix as pickupOwn, fix round 5 item 3): the old order removed it
+	-- first, then returned silently when the character or body was
+	-- missing — leaving the Rotling off its pad with no log.
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	local body = model.PrimaryPart
 	if not root or not body then
+		print("[Steal] " .. player.Name .. " steal of " .. model.Name .. " failed — no character root or body")
+		Remotes.bannerEvent():FireClient(player, "Could not steal it — try again.", 2)
 		return
 	end
+	BaseService.removePlaced(baseId, padIndex)
 	-- Same carried look as a grab: the real model at a readable size,
 	-- in front of the chest at arm height — never a shrunken box above
 	-- the head, never a bubble.

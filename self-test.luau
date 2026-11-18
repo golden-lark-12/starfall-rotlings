@@ -638,8 +638,8 @@ do
 		if not carrySrc:find("CarryService%.pickupOwn%(player, model%)") then
 			table.insert(problems, "tryGrab never routes an owner to pickupOwn")
 		end
-		if not carrySrc:find('"Take "') then
-			table.insert(problems, 'no "Take <name>" prompt for own-base pickup')
+		if not carrySrc:find('"Pick up "') then
+			table.insert(problems, 'no "Pick up <name>" prompt for own-base pickup')
 		end
 		if not carrySrc:find("StealService%.trySteal%(player, model%)") then
 			table.insert(problems, "other players' Rotlings no longer route to StealService.trySteal")
@@ -647,7 +647,7 @@ do
 		if #problems > 0 then
 			step("own-pickup", false, table.concat(problems, "; "))
 		else
-			step("own-pickup", true, "owners pick up their own Rotlings (Take prompt); rivals still steal")
+			step("own-pickup", true, "owners pick up their own Rotlings (Pick up prompt); rivals still steal")
 		end
 	end
 end
