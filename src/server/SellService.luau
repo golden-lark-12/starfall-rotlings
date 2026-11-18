@@ -141,11 +141,23 @@ end
 -- Sell: the carried Rotling first, else the best placed one on the
 -- player's own base. One entry point for the remote and the pad prompt.
 function SellService.sell(player: Player): (boolean, string)
+	-- [Sell] log (fix round 4, item 2): the playtest said selling does
+	-- nothing in both cases, so every attempt and its result must show
+	-- in Output. The sell logic itself is correct (sellCarried /
+	-- sellPlaced both pay, destroy and broadcast); the failure was
+	-- upstream — grabbing was broken, so there was never anything to
+	-- carry, and a pad prompt that never fired would also land here.
 	local carried = CarryService.getCarried(player)
+	local placedCount = #BaseService.getPlacedForPlayer(player)
+	print("[Sell] attempt by " .. player.Name .. " (carried=" .. tostring(#carried) .. ", placed=" .. tostring(placedCount) .. ")")
+	local ok, message
 	if #carried > 0 then
-		return SellService.sellCarried(player)
+		ok, message = SellService.sellCarried(player)
+	else
+		ok, message = SellService.sellPlaced(player)
 	end
-	return SellService.sellPlaced(player)
+	print("[Sell] result for " .. player.Name .. ": " .. tostring(ok) .. " — " .. message)
+	return ok, message
 end
 
 -- Wire the SellRotling remote and the SELL pad's prompt.
@@ -154,16 +166,25 @@ function SellService.init()
 		local ok, message = SellService.sell(player)
 		Remotes.bannerEvent():FireClient(player, message, 3)
 	end)
+	-- [Sell] wiring log (fix round 4, item 2): the pad prompt must
+	-- prove it was found and wired at boot. If this warns, pressing E
+	-- on the SELL pad can never reach sell() — the prompt shows but
+	-- nothing is connected to it.
 	local pad = workspace:FindFirstChild("SellPad")
-	if pad then
-		local prompt = pad:FindFirstChildOfClass("ProximityPrompt")
-		if prompt then
-			prompt.Triggered:Connect(function(player: Player)
-				local ok, message = SellService.sell(player)
-				Remotes.bannerEvent():FireClient(player, message, 3)
-			end)
-		end
+	if not pad then
+		warn("[Sell] SellPad NOT FOUND in workspace — pad selling disabled (remote only)")
+		return
 	end
+	local prompt = pad:FindFirstChildOfClass("ProximityPrompt")
+	if not prompt then
+		warn("[Sell] SellPad has no ProximityPrompt — pad selling disabled (remote only)")
+		return
+	end
+	print("[Sell] SELL pad prompt wired (pad=" .. pad.Name .. ", prompt=" .. prompt.ActionText .. ")")
+	prompt.Triggered:Connect(function(player: Player)
+		local ok, message = SellService.sell(player)
+		Remotes.bannerEvent():FireClient(player, message, 3)
+	end)
 end
 
 return SellService

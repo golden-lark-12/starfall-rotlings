@@ -92,6 +92,9 @@
 --       animateFree rebuilds them at CRATER_FLOOR_Y, the bob dips below
 --       rest, the guardian spawns on the grabber and insta-catches, or
 --       no [Grab] log proves the trigger reaches the server)
+--   (bt) selling does nothing in either case (the SELL pad prompt is
+--       not proven wired at boot, or sell attempts/results are not
+--       logged, so the next playtest cannot tell which side failed)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -3979,6 +3982,50 @@ do
 			check("bs", false, "the grab fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: SpawnService.luau, CarryService.luau, GuardianService.luau, Config.luau")
 		else
 			check("bs", true, "grab works: rest height stored per model, bob never below rest, spawns on the belt top, [Grab] logs on trigger + early returns, guardian spawns at the opposite rim (>= 24 studs away)")
+		end
+	end
+end
+
+-- -- (bt) selling works in both cases and proves it (fix round 4, item 2) --
+-- Playtest 4: selling did nothing — the Brainrot did not disappear and
+-- no cash was added, both when carried straight from the crater to
+-- SELL and when sold from the base. The sell logic itself is correct
+-- (sellCarried / sellPlaced both pay baseCps x 25, destroy the model,
+-- save, and broadcast the HUD immediately) and the wiring is sound
+-- (WorldBuilder.build creates the SellPad + prompt before
+-- SellService.init finds it). The failure was upstream: grabbing was
+-- broken, so there was never anything to carry. The fix makes the
+-- wiring observable — init logs the pad + prompt it found (or warns),
+-- and every sell attempt + result is logged — so the next playtest can
+-- prove which side of the pad the failure is on.
+do
+	local sellSrc = read("src/server/SellService.luau")
+	if not sellSrc then
+		check("bt", false, "could not verify the sell fix — SellService.luau missing")
+	else
+		local problems: { string } = {}
+		if not sellSrc:find('%[Sell%] SELL pad prompt wired') then
+			table.insert(problems, "init does not log the wired SELL pad prompt")
+		end
+		if not sellSrc:find('%[Sell%] SellPad NOT FOUND') then
+			table.insert(problems, "init does not warn when the SellPad is missing")
+		end
+		if not sellSrc:find('%[Sell%] attempt by') then
+			table.insert(problems, "sell() does not log the attempt (carried/placed counts)")
+		end
+		if not sellSrc:find('%[Sell%] result for') then
+			table.insert(problems, "sell() does not log the result")
+		end
+		if not sellSrc:find("sellCarried%(player%)") or not sellSrc:find("sellPlaced%(player%)") then
+			table.insert(problems, "sell() does not try carried first, then placed")
+		end
+		if not sellSrc:find("model:Destroy%(%)") or not sellSrc:find("profile%.coins %+= value") then
+			table.insert(problems, "sell does not destroy the model and pay the coins")
+		end
+		if #problems > 0 then
+			check("bt", false, "the sell fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: SellService.luau")
+		else
+			check("bt", true, "sell is observable: init logs the wired pad prompt (or warns), every attempt + result is logged, carried first then placed, model destroyed and coins paid")
 		end
 	end
 end
