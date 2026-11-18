@@ -264,6 +264,8 @@ local hud = {
 	level = 1,
 	xpProgress = 0,
 	cps = 0,
+	stormBoost = false,
+	baseCps = 0,
 	rebirths = 0,
 	rebirthCost = 10000,
 	rebirthProgress = 0,
@@ -371,6 +373,8 @@ local function onHudData(data: Remotes.HudData)
 	hud.level = data.level or 1
 	hud.xpProgress = data.xpProgress or 0
 	hud.cps = data.cps
+	hud.stormBoost = data.stormBoost or false
+	hud.baseCps = data.baseCps or data.cps
 	hud.rebirths = data.rebirths
 	hud.rebirthCost = data.rebirthCost or 10000
 	hud.rebirthProgress = data.rebirthProgress or 0
@@ -406,9 +410,18 @@ local function onHudData(data: Remotes.HudData)
 	-- current rebirth tier and its multiplier, then the Index count.
 	-- "At base" and the wallet are two different numbers on purpose:
 	-- income banks at the base until you Collect it.
+	-- Storm income readout: while the player shelters in their own
+	-- Safe Dome during the storm, the boosted rate shows with (x2)
+	-- NEXT TO the normal rate — the threat shot proves the event
+	-- with a doubled income number. The rebirth segment shortens
+	-- while boosted so the line still fits the 680px label.
 	local rebirthMult = 1 + 0.25 * hud.rebirths
 	local multText = string.format("%.2f", rebirthMult):gsub("0$", ""):gsub("%.$", "")
-	cpsLabel.Text = Formatting.formatCps(hud.cps) .. "  •  🏦 At base: " .. Formatting.formatMoney(hud.banked) .. "  •  Rebirth " .. tostring(hud.rebirths) .. " · x" .. multText .. " cash  •  📖 " .. tostring(hud.indexCount) .. "/" .. tostring(hud.indexTotal)
+	if hud.stormBoost then
+		cpsLabel.Text = Formatting.formatCps(hud.cps) .. " (x2)  •  " .. Formatting.formatCps(hud.baseCps) .. "  •  🏦 At base: " .. Formatting.formatMoney(hud.banked) .. "  •  R" .. tostring(hud.rebirths) .. " · x" .. multText .. "  •  📖 " .. tostring(hud.indexCount) .. "/" .. tostring(hud.indexTotal)
+	else
+		cpsLabel.Text = Formatting.formatCps(hud.cps) .. "  •  🏦 At base: " .. Formatting.formatMoney(hud.banked) .. "  •  Rebirth " .. tostring(hud.rebirths) .. " · x" .. multText .. " cash  •  📖 " .. tostring(hud.indexCount) .. "/" .. tostring(hud.indexTotal)
+	end
 
 	-- XP bar: level + progress toward the next level.
 	local xpIntoLevel = hud.xp - (hud.level - 1) * 100

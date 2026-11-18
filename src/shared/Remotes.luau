@@ -15,6 +15,8 @@ export type HudData = {
 	level: number,
 	xpProgress: number, -- 0..1 toward the next level
 	cps: number,
+	stormBoost: boolean, -- inside your own Safe Dome during the storm: income x2
+	baseCps: number, -- income/s WITHOUT the storm boost (the normal rate, shown next to the boosted one)
 	rebirths: number,
 	rebirthCost: number,
 	rebirthProgress: number, -- 0..1 toward the next rebirth

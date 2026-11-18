@@ -70,6 +70,12 @@ Config.STORM_HAZARD_LABEL = "DANGER: CRATER-WIDE METEOR RAIN" -- hazard label on
 Config.STORM_FRONT_HEIGHT = 40 -- studs tall: visible over the whole map
 Config.STORM_FRONT_LENGTH = 340 -- studs long: spans the map's width
 Config.STORM_FRONT_RANGE = 170 -- sweeps from x=-170 to x=+170
+-- Safe Dome storm boost: a player standing on their OWN base platform
+-- while the storm front passes earns double income — the dome is a
+-- shelter that pays. The HUD shows the boosted rate with (x2) next to
+-- the normal rate, so the threat shot proves the event with a doubled
+-- income number.
+Config.STORM_DOME_MULT = 2 -- income multiplier inside your own Safe Dome during the storm
 -- Storm extras: meteors that land near a player, and rare Rotlings at
 -- impact points. Half the storm's meteors aim near a random player so
 -- 6-10 crash close enough to shake the camera; hero meteors always

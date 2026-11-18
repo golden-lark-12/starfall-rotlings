@@ -82,6 +82,9 @@
 --       meter or belt list, Disco Pickle still named that)
 --   (av) the buddy Rotling is missing (no half-size follower, no tag,
 --       no +5% cash, no Index swap)
+--   (bb) the storm income readout is missing (no Safe Dome x2 during
+--       the storm, or the HUD never shows the boosted rate next to
+--       the normal one)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -2796,6 +2799,80 @@ do
 			check("ba", false, "banking is missing — " .. table.concat(problems, "; ") .. ". Parts: banked profile (State/DataService), tick (IncomeService.luau), collect (BankService.luau), HUD (HUDController)")
 		else
 			check("ba", true, "banking: income banks at the base, HUD shows At base vs Wallet, Collect moves it all into the wallet, base sign shows the banked cash")
+		end
+	end
+end
+
+-- -- (bb) storm income readout ------------------------------------------------
+-- STORM INCOME READOUT: a player sheltering in their OWN Safe Dome
+-- during the storm earns double income, and the HUD shows the boosted
+-- rate with (x2) next to the normal rate.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	if not configSrc or not incomeSrc or not remotesSrc or not hudSrc then
+		check("bb", false, "could not verify the storm income readout — Config.luau, IncomeService.luau, Remotes.luau or HUDController.client.luau missing")
+	else
+		local problems: { string } = {}
+		-- The dome multiplier is 2x.
+		local domeMult = configValue(configSrc, "STORM_DOME_MULT")
+		if not domeMult then
+			table.insert(problems, "Config.STORM_DOME_MULT not found")
+		elseif domeMult ~= 2 then
+			table.insert(problems, "STORM_DOME_MULT is " .. tostring(domeMult) .. " (not 2)")
+		end
+		-- The boost gates on the storm phase AND the player's own base.
+		if not incomeSrc:find("function IncomeService%.stormBoostActive") then
+			table.insert(problems, "IncomeService.stormBoostActive not found")
+		else
+			if not incomeSrc:find('getStatus%(%)%.phase ~= "storm"') then
+				table.insert(problems, "stormBoostActive does not gate on the storm phase")
+			end
+			if not incomeSrc:find("BaseService%.getPlayerBase%(player%.UserId%)") then
+				table.insert(problems, "stormBoostActive does not check the player's own base")
+			end
+			if not incomeSrc:find("STORM_BASE_SAFE_RADIUS") then
+				table.insert(problems, "stormBoostActive does not use STORM_BASE_SAFE_RADIUS")
+			end
+		end
+		-- The multiplier applies the dome boost, and the normal rate
+		-- is computed by excluding it.
+		if not incomeSrc:find("STORM_DOME_MULT") then
+			table.insert(problems, "incomeMult never applies STORM_DOME_MULT")
+		end
+		if not incomeSrc:find("coinsPerSecond%(player, false%)") then
+			table.insert(problems, "broadcastHud never computes the normal rate (coinsPerSecond(player, false))")
+		end
+		-- The HUD feed carries both numbers and the flag.
+		if not incomeSrc:find("stormBoost = IncomeService%.stormBoostActive%(player%)") then
+			table.insert(problems, "broadcastHud does not send stormBoost")
+		end
+		if not incomeSrc:find("baseCps = IncomeService%.coinsPerSecond%(player, false%)") then
+			table.insert(problems, "broadcastHud does not send baseCps")
+		end
+		if not remotesSrc:find("stormBoost: boolean") then
+			table.insert(problems, "HudData has no stormBoost field")
+		end
+		if not remotesSrc:find("baseCps: number") then
+			table.insert(problems, "HudData has no baseCps field")
+		end
+		-- The client renders the boosted rate with (x2) next to the
+		-- normal rate.
+		if not hudSrc:find("%(x2%)") then
+			table.insert(problems, 'HUD never renders "(x2)"')
+		end
+		if not hudSrc:find("hud%.stormBoost") then
+			table.insert(problems, "HUD never reads hud.stormBoost")
+		end
+		if not hudSrc:find("hud%.baseCps") then
+			table.insert(problems, "HUD never reads hud.baseCps")
+		end
+		if #problems > 0 then
+			check("bb", false, "the storm income readout is missing — " .. table.concat(problems, "; ") .. ". Parts: STORM_DOME_MULT (Config), stormBoostActive / incomeMult / coinsPerSecond (IncomeService.luau), HudData (Remotes.luau), income line (HUDController)")
+		else
+			check("bb", true, "storm income readout: Safe Dome x2 during the storm (own base only), HUD shows boosted (x2) next to the normal rate")
 		end
 	end
 end

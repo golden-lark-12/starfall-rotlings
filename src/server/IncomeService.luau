@@ -26,9 +26,37 @@ local WorldBuilder = require(script.Parent.WorldBuilder)
 
 local IncomeService = {}
 
+-- Safe Dome storm boost: a player standing on their OWN base platform
+-- while the storm front passes earns double income. The dome is a
+-- shelter that pays — the threat shot's income readout proves it.
+-- Only the storm phase counts (not the warning), and only your own
+-- base: a thief standing on someone else's base gets no boost.
+function IncomeService.stormBoostActive(player: Player): boolean
+	if StarfallService.getStatus().phase ~= "storm" then
+		return false
+	end
+	local baseId = BaseService.getPlayerBase(player.UserId)
+	if not baseId then
+		return false
+	end
+	local cf = WorldBuilder.baseCFrame(baseId)
+	if not cf then
+		return false
+	end
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return false
+	end
+	local flat = Vector3.new(root.Position.X - cf.Position.X, 0, root.Position.Z - cf.Position.Z)
+	return flat.Magnitude <= Config.STORM_BASE_SAFE_RADIUS
+end
+
 -- Player income multiplier: rebirths and shop income tiers stack, and
 -- on top of those: a 2x Cash boost or global event, and the Buddy's +5%.
-function IncomeService.incomeMult(player: Player): number
+-- includeStormBoost (default true): pass false for the NORMAL rate —
+-- the HUD shows it next to the boosted one during the storm.
+function IncomeService.incomeMult(player: Player, includeStormBoost: boolean?): number
 	local profile = DataService.getProfile(player)
 	if not profile then
 		return 1
@@ -43,6 +71,9 @@ function IncomeService.incomeMult(player: Player): number
 	end
 	if BuddyService.hasBuddy(player) then
 		mult *= (1 + Config.BUDDY_CASH_BONUS)
+	end
+	if includeStormBoost ~= false and IncomeService.stormBoostActive(player) then
+		mult *= Config.STORM_DOME_MULT
 	end
 	return mult
 end
@@ -78,7 +109,9 @@ function IncomeService.awardStormBounty()
 end
 
 -- Coins per second from one player's placed Rotlings, after multipliers.
-function IncomeService.coinsPerSecond(player: Player): number
+-- includeStormBoost (default true): pass false for the NORMAL rate —
+-- the HUD shows it next to the boosted one during the storm.
+function IncomeService.coinsPerSecond(player: Player, includeStormBoost: boolean?): number
 	local total = 0
 	for _, model in ipairs(BaseService.getPlacedForPlayer(player)) do
 		local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
@@ -86,7 +119,7 @@ function IncomeService.coinsPerSecond(player: Player): number
 			total += RotlingCatalog.baseCps(def, model:GetAttribute("Mutation") :: string?)
 		end
 	end
-	return math.floor(total * IncomeService.incomeMult(player))
+	return math.floor(total * IncomeService.incomeMult(player, includeStormBoost))
 end
 
 -- Send every player their current HUD numbers.
@@ -184,6 +217,11 @@ function IncomeService.broadcastHud()
 					level = profile.level,
 					xpProgress = (profile.xp % Config.XP_PER_LEVEL) / Config.XP_PER_LEVEL,
 					cps = IncomeService.coinsPerSecond(player),
+					-- Storm income readout: the boosted rate (cps, with
+					-- the Safe Dome x2 when active) next to the normal
+					-- rate (baseCps, without it), plus the flag.
+					stormBoost = IncomeService.stormBoostActive(player),
+					baseCps = IncomeService.coinsPerSecond(player, false),
 					rebirths = profile.rebirths,
 					rebirthCost = rebirthCost,
 					rebirthProgress = math.clamp(profile.coins / rebirthCost, 0, 1),

@@ -149,7 +149,7 @@ do
 		if not incomeSrc:find("BaseService%.getPlacedForPlayer%(player%)") then
 			table.insert(problems, "coinsPerSecond never sums the placed Rotlings")
 		end
-		if not incomeSrc:find("IncomeService%.incomeMult%(player%)") then
+		if not incomeSrc:find("IncomeService%.incomeMult%(player") then
 			table.insert(problems, "income never applies the rebirth/shop multiplier")
 		end
 		if not incomeSrc:find("floatIncomeNumber%(%)") then
@@ -869,6 +869,49 @@ do
 			step("banking", false, table.concat(problems, "; "))
 		else
 			step("banking", true, "income banks at the base, HUD shows At base vs Wallet, Collect moves it all into the wallet")
+		end
+	end
+end
+
+-- 26. Storm income readout: Safe Dome x2 during the storm, HUD shows
+-- the boosted rate next to the normal one.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	if not configSrc or not incomeSrc or not remotesSrc or not hudSrc then
+		step("storm-income", false, "Config.luau, IncomeService.luau, Remotes.luau or HUDController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not configSrc:find("STORM_DOME_MULT = 2") then
+			table.insert(problems, "Config.STORM_DOME_MULT is not 2")
+		end
+		if not incomeSrc:find("function IncomeService%.stormBoostActive") then
+			table.insert(problems, "no stormBoostActive")
+		end
+		if not incomeSrc:find("STORM_DOME_MULT") then
+			table.insert(problems, "incomeMult never applies STORM_DOME_MULT")
+		end
+		if not incomeSrc:find("stormBoost = IncomeService%.stormBoostActive%(player%)") then
+			table.insert(problems, "broadcastHud does not send stormBoost")
+		end
+		if not incomeSrc:find("baseCps = IncomeService%.coinsPerSecond%(player, false%)") then
+			table.insert(problems, "broadcastHud does not send baseCps")
+		end
+		if not remotesSrc:find("stormBoost: boolean") or not remotesSrc:find("baseCps: number") then
+			table.insert(problems, "HudData lacks stormBoost / baseCps")
+		end
+		if not hudSrc:find("%(x2%)") then
+			table.insert(problems, 'HUD never renders "(x2)"')
+		end
+		if not hudSrc:find("hud%.baseCps") then
+			table.insert(problems, "HUD never shows the normal rate next to the boosted one")
+		end
+		if #problems > 0 then
+			step("storm-income", false, table.concat(problems, "; "))
+		else
+			step("storm-income", true, "Safe Dome x2 during the storm (own base only), HUD shows boosted (x2) next to the normal rate")
 		end
 	end
 end
