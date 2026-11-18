@@ -196,6 +196,13 @@ local function walkTo(model: Model, target: Vector3, timeout: number, shouldCanc
 	return done
 end
 
+-- (fix round 7, item 7) The THIEF sign is also a red Highlight on the
+-- whole model, visible THROUGH walls (DepthMode Occluded) — so the
+-- player can see the thief even when it is behind the base walls or
+-- across the map. The sign and the Highlight are one switch: both go
+-- on when a steal starts and both go off at every steal end (all
+-- six setThiefSign(model, false) call sites), so a Highlight can
+-- never leak onto a rival that is not stealing.
 local function setThiefSign(model: Model, on: boolean)
 	local body = model.PrimaryPart
 	if not body then
@@ -204,6 +211,23 @@ local function setThiefSign(model: Model, on: boolean)
 	local sign = body:FindFirstChild("ThiefSign")
 	if sign and sign:IsA("BillboardGui") then
 		sign.Enabled = on
+	end
+	local highlight = model:FindFirstChild("ThiefHighlight")
+	if on then
+		if not highlight then
+			highlight = Instance.new("Highlight")
+			highlight.Name = "ThiefHighlight"
+			highlight.FillColor = Color3.fromRGB(255, 40, 40)
+			highlight.FillTransparency = 0.8
+			highlight.OutlineColor = Color3.fromRGB(255, 40, 40)
+			highlight.OutlineTransparency = 0
+			highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+			highlight.Parent = model
+		end
+	else
+		if highlight then
+			highlight:Destroy()
+		end
 	end
 end
 
@@ -770,6 +794,7 @@ local function spawnRival(index: number)
 		slapReadyAt = 0,
 		targetUserId = nil,
 		targetBase = nil,
+		lastThiefBannerAt = 0,
 		bornAt = time(),
 	}
 	State.rivals[model] = rival
@@ -821,6 +846,33 @@ function RivalService.start()
 		spawnRival(i)
 	end
 	task.spawn(earningsLoop)
+	task.spawn(function()
+		-- Thief-in-base watcher (fix round 7, item 7): a stealing
+		-- rival must be UNMISSABLE while it is inside the victim's
+		-- base. Every second, any rival in the steal phase that is
+		-- inside its victim's base re-banners the victim ("🚨 NAME
+		-- is IN your base — bonk them!") at most once per 3s — so
+		-- the player is told, repeatedly, while the thief is there.
+		-- (The red Highlight from setThiefSign makes the thief
+		-- visible through walls; the banner tells the player to look.)
+		while true do
+			task.wait(1)
+			for _, rival in pairs(State.rivals) do
+				if rival.phase == "steal" and rival.targetUserId and rival.targetBase then
+					local victim = Players:GetPlayerByUserId(rival.targetUserId)
+					local victimCf = WorldBuilder.baseCFrame(rival.targetBase)
+					local root = rival.model:FindFirstChild("HumanoidRootPart")
+					if victim and victimCf and root then
+						local dist = (Vector3.new(root.Position.X, 0, root.Position.Z) - Vector3.new(victimCf.Position.X, 0, victimCf.Position.Z)).Magnitude
+						if dist <= 20 and time() - rival.lastThiefBannerAt >= 3 then
+							rival.lastThiefBannerAt = time()
+							Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " is IN your base — bonk them!", 3)
+						end
+					end
+				end
+			end
+		end
+	end)
 	task.spawn(function()
 		-- Steal clock (fix round 7, item 2): the 0.35 idle roll plus a
 		-- 60-90s rival cycle made steals too rare to ever see — about

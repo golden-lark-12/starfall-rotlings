@@ -55,6 +55,7 @@ export type Rival = {
 	slapReadyAt: number,
 	targetUserId: number?, -- the player this rival is stealing from or chasing
 	targetBase: number?,
+	lastThiefBannerAt: number, -- last "is IN your base" repeat banner (fix round 7, item 7)
 	bornAt: number,
 }
 

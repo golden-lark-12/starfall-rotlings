@@ -5214,6 +5214,48 @@ do
 	end
 end
 
+-- -- (cp) the sneaking thief is unmissable (fix round 7, item 7)
+-- Malek: "also when someone sneaks into my base i should be able
+-- to see him .." A thief that cannot be seen reads as "zero action"
+-- even when the steal is happening. Now a stealing rival carries a
+-- red Highlight on its whole model, visible THROUGH walls (DepthMode
+-- Occluded) — tied to the THIEF sign, so it goes on when a steal
+-- starts and off at every steal end, and can never leak onto a rival
+-- that is not stealing. While the thief is inside the victim's base,
+-- the victim is re-bannered ("🚨 NAME is IN your base — bonk them!")
+-- at most once per 3s by a 1s watcher loop. Raiders are thieves for
+-- their whole life, so their Highlight is always on from build.
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	local raiderSrc = read("src/server/RaiderService.luau")
+	local stateSrc = read("src/server/State.luau")
+	if not rivalSrc or not raiderSrc or not stateSrc then
+		check("cp", false, "could not verify thief visibility — RivalService.luau, RaiderService.luau or State.luau missing")
+	else
+		local problems: { string } = {}
+		if not rivalSrc:find("ThiefHighlight") or not rivalSrc:find("HighlightDepthMode%.Occluded") then
+			table.insert(problems, "the stealing rival has no through-walls Highlight")
+		end
+		if not rivalSrc:find("highlight:Destroy%(%)") then
+			table.insert(problems, "the rival Highlight is never removed — it can leak onto a rival that stopped stealing")
+		end
+		if not rivalSrc:find("is IN your base — bonk them!") then
+			table.insert(problems, "no repeat banner while the thief is inside the victim's base")
+		end
+		if not rivalSrc:find("lastThiefBannerAt") or not stateSrc:find("lastThiefBannerAt: number") then
+			table.insert(problems, "no lastThiefBannerAt throttle — the repeat banner can spam every second")
+		end
+		if not raiderSrc:find("ThiefHighlight") or not raiderSrc:find("HighlightDepthMode%.Occluded") then
+			table.insert(problems, "the raider has no through-walls Highlight")
+		end
+		if #problems > 0 then
+			check("cp", false, "the thief visibility fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, RaiderService.luau, State.luau")
+		else
+			check("cp", true, "the sneaking thief is unmissable: stealing rivals get a red through-walls Highlight (on/off with the THIEF sign), the victim is re-bannered at most once per 3s while the thief is inside their base, raiders carry an always-on Highlight")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

@@ -132,6 +132,19 @@ local function buildRaider(position: Vector3): Model
 	thiefLabel.TextStrokeTransparency = 0.2
 	thiefLabel.Parent = thiefSign
 
+	-- A red Highlight on the whole model, visible THROUGH walls
+	-- (DepthMode Occluded) — a raider is a thief for its whole life,
+	-- so the Highlight is always on: the player can spot the thief
+	-- even behind the base walls. (fix round 7, item 7)
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "ThiefHighlight"
+	highlight.FillColor = Color3.fromRGB(255, 40, 40)
+	highlight.FillTransparency = 0.8
+	highlight.OutlineColor = Color3.fromRGB(255, 40, 40)
+	highlight.OutlineTransparency = 0
+	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+	highlight.Parent = model
+
 	-- A humanoid so it can walk with MoveTo.
 	local humanoid = Instance.new("Humanoid")
 	humanoid.WalkSpeed = Config.RAIDER_WALK_SPEED
