@@ -5308,6 +5308,59 @@ do
 	end
 end
 
+-- -- (cr) the Brainrot index looks polished (fix round 7, item 9)
+-- Malek: "also the brainrot index could look better". The old panel
+-- was text-only cards with a subtle found/unfound shade change and
+-- no progress feel. Now each card has a silhouette icon in the
+-- Brainrot's own colours (its unique silhouette key from the
+-- catalog, body = rarity colour, belly = lighter tint), a
+-- rarity-coloured strip on top, and a rarity-coloured glow border
+-- when found; unfound cards show the same shape in dark grey with
+-- "???". A progress bar fills as the set grows, and a tier line
+-- shows each rarity's found count in its colour. What it tracks is
+-- unchanged: 20 Brainrots, X/20, tier completion rewards. The Index
+-- button position and the "Set as Buddy" button are untouched.
+do
+	local indexSrc = read("src/client/IndexController.client.luau")
+	if not indexSrc then
+		check("cr", false, "could not verify the index polish — IndexController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not indexSrc:find("local function buildIcon") then
+			table.insert(problems, "no buildIcon — cards have no silhouette icon")
+		end
+		if not indexSrc:find("def%.silhouette") then
+			table.insert(problems, "the icon does not use the Brainrot's unique silhouette key")
+		end
+		if not indexSrc:find("RarityStrip") then
+			table.insert(problems, "no rarity strip on top of each card")
+		end
+		if not indexSrc:find("FoundGlow") then
+			table.insert(problems, "no glow border on found cards")
+		end
+		if not indexSrc:find("ProgressFill") or not indexSrc:find("progressFill%.Size = UDim2%.new%(found / #RotlingCatalog%.DEFS") then
+			table.insert(problems, "no progress bar that fills with the set")
+		end
+		if not indexSrc:find("tierLine%.Text = table%.concat%(parts") then
+			table.insert(problems, "no tier line showing each rarity's found count in its colour")
+		end
+		if not indexSrc:find("Color3%.fromRGB%(60, 55, 80%)") then
+			table.insert(problems, "unfound cards do not show a dark grey silhouette")
+		end
+		if not indexSrc:find('"Set as Buddy"') then
+			table.insert(problems, "the Set as Buddy button is gone")
+		end
+		if not indexSrc:find('UDim2%.new%(1, %-172, 0, 364%)') then
+			table.insert(problems, "the Index button moved — it must stay below the leaderboard")
+		end
+		if #problems > 0 then
+			check("cr", false, "the index polish is incomplete — " .. table.concat(problems, "; ") .. ". Parts: IndexController.client.luau")
+		else
+			check("cr", true, "the Brainrot index looks polished: silhouette icons in each Brainrot's colours (grey when unfound), rarity strips, glow borders on found cards, a progress bar, and a per-tier found-count line — tracking unchanged (20, X/20, tier rewards)")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
