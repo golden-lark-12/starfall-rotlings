@@ -217,8 +217,14 @@ local function buildGuardian(position: Vector3): Model
 	tag.Parent = billboard
 
 	-- A humanoid so it can walk with MoveTo (same pattern as raiders).
+	-- HipHeight MUST match the build: the root sits at the body
+	-- ball's centre, 3.2 studs above the floor (the ball is 5 tall,
+	-- centred at +3.2). The default HipHeight 2 made the Humanoid
+	-- push the whole model down into the floor while it walked —
+	-- part of the jerky "in blocks" motion (fix round 7, item 1).
 	local humanoid = Instance.new("Humanoid")
 	humanoid.WalkSpeed = Config.GUARDIAN_SPEED[1]
+	humanoid.HipHeight = 3.2
 	humanoid.Parent = model
 	local root = Instance.new("Part")
 	root.Name = "HumanoidRootPart"
@@ -273,8 +279,12 @@ local function catchPlayer(guardian: Model, player: Player)
 		if root then
 			root.AssemblyLinearVelocity = Vector3.new(0, 12, 0)
 		end
+		-- THE CATCH HURTS: knocked down and everything carried drops
+		-- back into the crater. The guardian is a threat, not a pet.
+		local dropped = #CarryService.getCarried(player)
 		CarryService.dropAllCarried(player)
 		Remotes.bannerEvent():FireClient(player, "🪨 THE GUARDIAN CAUGHT YOU! You dropped your Brainrot!", 4)
+		print("[Guardian] caught " .. player.Name .. " — knocked down, dropped " .. tostring(dropped) .. " Brainrot(s)")
 	end
 	GuardianService.despawnGuardian(guardian, "caught-player")
 end
@@ -287,19 +297,26 @@ local function catchRaider(guardian: Model, raiderModel: Model)
 	GuardianService.despawnGuardian(guardian, "caught-raider")
 end
 
--- Chase loop: re-path to the target's LIVE position every 0.5s and
--- follow the path, so the guardian keeps cutting toward the player
--- and circling them instead of standing still on a stale target.
+-- Chase loop: follow a path to the target's LIVE position, waypoint
+-- by waypoint, on a fast tick — so the guardian flows continuously
+-- instead of hopping in blocks.
 -- Ends on catch, on give-up (safe base / nothing carried / timeout),
--- or when the target is gone.
--- (fix round 6, item 4) The old loop used straight-line MoveTo: the
--- guardian spawns INSIDE the crater (radius 24) and the player runs
--- out, so the straight line pushed it against the tiered rim (rings
--- 2.5 / 4 / 5.5 studs high) until the 25s timeout — it "stopped
--- halfway" and never left the middle. Pathfinding routes it around /
--- over the rim (through the entrance gap), and a 3s no-progress
--- fallback climbs it out onto the rim nearest the target, so the
--- chase can never die in the middle.
+-- or when the target is gone. The chase is NOT bounded to the crater:
+-- it follows the target anywhere on the map (Malek: "he has to chase
+-- me even outside his spawning circle").
+-- (fix round 7, item 1) The round-6 loop re-pathed to the live target
+-- every 0.5s and issued ONE MoveTo to the first waypoint >2 studs
+-- away, then waited 0.5s. The guardian reached a 2-4 stud waypoint
+-- in ~0.2s and then STOOD STILL until the next tick — ~50% duty
+-- cycle, half its WalkSpeed, moving in short hops ("in blocks").
+-- At that effective speed it never closed on a walking player (16),
+-- never got inside the 5-stud catch radius, and the catch — knock
+-- down + drop the Brainrot — never fired: "no dmg, no drops, no
+-- deaths, nothing". The fix: a 0.1s tick that keeps the Humanoid
+-- moving (advance to the next waypoint as soon as it is close, never
+-- wait for a repath), repaths only every 1.5s or when the target has
+-- moved far, and a touch-catch on the body ball so a touch can never
+-- slip between ticks. Speeds are +2 per tier (10 -> 18.5).
 local function chaseLoop(guardian: Model)
 	local entry = active[guardian]
 	if not entry then
@@ -319,6 +336,10 @@ local function chaseLoop(guardian: Model)
 		AgentJumpHeight = 7,
 		AgentMaxSlope = 45,
 	})
+	local waypoints: { PathWaypoint } = {}
+	local wpIndex = 1
+	local pathTarget: Vector3? = nil
+	local lastRepathAt = 0
 	local lastChasePos = root.Position
 	local noProgressTime = 0
 	while guardian.Parent and active[guardian] do
@@ -350,7 +371,8 @@ local function chaseLoop(guardian: Model)
 				return
 			end
 		end
-		-- Caught?
+		-- Caught? Checked every 0.1s tick, so a fast guardian cannot
+		-- step over the catch radius between ticks.
 		if (root.Position - targetRoot.Position).Magnitude <= Config.GUARDIAN_CATCH_RADIUS then
 			if entry.targetPlayer then
 				catchPlayer(guardian, entry.targetPlayer)
@@ -359,33 +381,48 @@ local function chaseLoop(guardian: Model)
 			end
 			return
 		end
-		-- Steer: pathfind to the target's live position (re-computed
-		-- every tick, so the guardian cuts corners and circles the
-		-- player). Fall back to straight-line MoveTo when no path
-		-- computes — a direct chase beats standing still.
+		-- Steer: repath rarely (every 1.5s, or when the target has
+		-- moved far from where the path leads), then walk the path
+		-- waypoint by waypoint — advancing the moment the guardian
+		-- is close to one, so it never stops to wait for a repath.
+		-- The path routes over/around the rim through the entrance
+		-- gap; direct MoveTo is only the fallback when no path
+		-- computes. The chase follows the target anywhere on the
+		-- map, inside or outside the crater.
 		local targetPos = targetRoot.Position
+		local now = time()
+		if #waypoints == 0 or now - lastRepathAt >= 1.5 or (pathTarget and (targetPos - pathTarget).Magnitude > 12) then
+			local computed = pcall(function()
+				path:ComputeAsync(root.Position, targetPos)
+			end)
+			if computed and path.Status == Enum.PathStatus.Success then
+				waypoints = path:GetWaypoints()
+				wpIndex = 2
+				pathTarget = targetPos
+				lastRepathAt = now
+			else
+				waypoints = {}
+				pathTarget = nil
+			end
+		end
 		local steered = false
-		local computed = pcall(function()
-			path:ComputeAsync(root.Position, targetPos)
-		end)
-		if computed and path.Status == Enum.PathStatus.Success then
-			local waypoints = path:GetWaypoints()
-			for i = 2, #waypoints do
-				local wp = waypoints[i]
-				if (wp.Position - root.Position).Magnitude > 2 then
-					if wp.Action == Enum.PathWaypointAction.Jump then
-						humanoid.Jump = true
-					end
-					humanoid:MoveTo(wp.Position)
-					steered = true
-					break
+		while wpIndex <= #waypoints do
+			local wp = waypoints[wpIndex]
+			if (wp.Position - root.Position).Magnitude <= 3 then
+				wpIndex += 1
+			else
+				if wp.Action == Enum.PathWaypointAction.Jump then
+					humanoid.Jump = true
 				end
+				humanoid:MoveTo(wp.Position)
+				steered = true
+				break
 			end
 		end
 		if not steered then
 			humanoid:MoveTo(targetPos)
 		end
-		task.wait(0.5)
+		task.wait(0.1)
 		if not guardian.Parent then
 			return
 		end
@@ -394,7 +431,7 @@ local function chaseLoop(guardian: Model)
 		-- past the rim (outer ring ends at 39; 42 is clear) on the
 		-- target's side, so the chase never dies in the middle.
 		if (root.Position - lastChasePos).Magnitude < 0.5 then
-			noProgressTime += 0.5
+			noProgressTime += 0.1
 			if noProgressTime >= 3 then
 				local flat = Vector3.new(targetPos.X, 0, targetPos.Z)
 				local dir = if flat.Magnitude > 1 then flat.Unit else Vector3.new(1, 0, 0)
@@ -403,6 +440,7 @@ local function chaseLoop(guardian: Model)
 				print("[Guardian] climbed out of the crater (stuck " .. tostring(noProgressTime) .. "s) — chasing from the rim")
 				noProgressTime = 0
 				lastChasePos = root.Position
+				waypoints = {}
 			end
 		else
 			noProgressTime = 0
@@ -454,6 +492,34 @@ local function spawnGuardian(target: Model, targetPlayer: Player?, rarity: strin
 		speed = speed,
 		bornAt = time(),
 	}
+	-- Touch-catch (fix round 7, item 1): the catch radius is checked
+	-- every 0.1s tick, but a touch is instant — if the target's
+	-- character touches the guardian's body, the catch fires right
+	-- away instead of waiting for the next tick. The body only ever
+	-- touches the target this close (its own welded parts never fire
+	-- Touched on each other, and the ground is not the target), so a
+	-- touch IS a catch. This is what makes the guardian actually
+	-- hurt: "no dmg, no drops, no deaths, nothing" ends here.
+	local body = model.PrimaryPart
+	if body then
+		body.Touched:Connect(function(hit: BasePart)
+			local entry = active[model]
+			if not entry then
+				return
+			end
+			local hitCharacter = hit.Parent
+			if not hitCharacter then
+				return
+			end
+			if entry.targetPlayer then
+				if Players:GetPlayerFromCharacter(hitCharacter :: Model) == entry.targetPlayer then
+					catchPlayer(model, entry.targetPlayer)
+				end
+			elseif hitCharacter == entry.target then
+				catchRaider(model, entry.target)
+			end
+		end)
+	end
 	if targetPlayer then
 		chasedPlayers[targetPlayer.UserId] = true
 	end

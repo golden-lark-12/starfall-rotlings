@@ -4421,8 +4421,8 @@ end
 -- ("Index 14/20" in the HUD), Cosmic Corn Dog last, celebration per
 -- completed rarity tier. Verified against the code after items 1-8 —
 -- nothing here needed a change, so this check locks the mechanics in:
--- guardian speed by rarity (8 -> 16.5, fix round 6 item 4: +1 each —
--- Cosmic 16.5 is 0.5 faster than walk 16, but the escape is the
+-- guardian speed by rarity (10 -> 18.5, fix round 7 item 1: +2 each —
+-- Cosmic 18.5 is 2.5 faster than walk 16, but the escape is the
 -- base/dome or the 25s timeout, and a 24-stud head start still outruns
 -- it), catch radius 5, give-up 25s, rim
 -- spawn (fix 1, so the catch is not instant), safe-base give-up, the
@@ -4441,8 +4441,8 @@ do
 		check("ca", false, "could not verify the competition — Config.luau, GuardianService.luau, RaiderService.luau, RotlingCatalog.luau, RarityConfig.luau, IndexService.luau or HUDController.client.luau missing")
 	else
 		local problems: { string } = {}
-		if not configSrc:find("GUARDIAN_SPEED = { %[1%] = 8, %[2%] = 10, %[3%] = 12, %[4%] = 14, %[5%] = 15%.5, %[6%] = 16%.5 }") then
-			table.insert(problems, "guardian speed is not 8 -> 16.5 by rarity")
+		if not configSrc:find("GUARDIAN_SPEED = { %[1%] = 10, %[2%] = 12, %[3%] = 14, %[4%] = 16, %[5%] = 17%.5, %[6%] = 18%.5 }") then
+			table.insert(problems, "guardian speed is not 10 -> 18.5 by rarity")
 		end
 		if not configSrc:find("GUARDIAN_CATCH_RADIUS = 5") then
 			table.insert(problems, "guardian catch radius is not 5")
@@ -4788,18 +4788,21 @@ do
 	end
 end
 
--- -- (ch) the guardian chases all the way out: pathfinding + climb-out
--- + faster speeds (fix round 6, item 4)
--- The old chase used straight-line MoveTo from a spawn INSIDE the
--- crater (radius 24) while the player runs out — the straight line
--- pushed the guardian against the tiered rim (2.5 / 4 / 5.5 studs)
--- until the 25s timeout, so it "stopped halfway" and never left the
--- middle. The chase now pathfinds to the target's live position every
--- 0.5s (AgentRadius 3 / Height 5.5, sized for the rock ball, jumping
--- on Jump waypoints), and if it makes no progress for 3s it climbs
--- out onto open ground past the rim (radius 42) on the target's side.
--- Speeds are +1 per tier (8 -> 16.5); the escape stays the base/dome
--- or the 25s timeout, and despawns log who was chased and for how long.
+-- -- (ch) the guardian chases smoothly, fast, and actually catches
+-- (fix round 7, item 1)
+-- The round-6 chase re-pathed every 0.5s and issued ONE MoveTo to the
+-- first waypoint >2 studs away, then waited — the guardian reached a
+-- 2-4 stud waypoint in ~0.2s and stood still until the next tick, so
+-- it moved in blocks at half speed, never closed on a walking player,
+-- and the catch never fired ("no dmg, no drops, no deaths, nothing").
+-- The chase now ticks every 0.1s, walks its path waypoint by waypoint
+-- (advancing the moment it is close, never waiting for a repath),
+-- repaths only every 1.5s or when the target moved far, and a touch
+-- on the body ball catches instantly. HipHeight matches the build
+-- (3.2, the root's height above the floor — the default 2 pushed the
+-- model into the floor while it walked). Speeds are +2 per tier
+-- (10 -> 18.5). The chase follows the target anywhere on the map,
+-- inside or outside the crater, until catch / safe base / timeout.
 do
 	local guardianSrc = read("src/server/GuardianService.luau")
 	local configSrc = read("src/shared/Config.luau")
@@ -4819,13 +4822,28 @@ do
 		if not guardianSrc:find("chased .+ for ") then
 			table.insert(problems, "despawn does not log who was chased and for how long — the chase trail has no ending")
 		end
-		if not configSrc:find("%[1%] = 8") or not configSrc:find("%[6%] = 16%.5") then
-			table.insert(problems, "guardian speeds are not +1 per tier (8 -> 16.5)")
+		if not guardianSrc:find("task%.wait%(0%.1%)") then
+			table.insert(problems, "the chase tick is not 0.1s — the 0.5s repath wait is what made it move in blocks")
+		end
+		if not guardianSrc:find("wpIndex") or not guardianSrc:find("lastRepathAt") then
+			table.insert(problems, "the chase does not follow waypoints in sequence with rare repaths — it still issues one short MoveTo per repath")
+		end
+		if not guardianSrc:find("HipHeight = 3%.2") then
+			table.insert(problems, "HipHeight does not match the build (3.2) — the Humanoid still pushes the model into the floor while walking")
+		end
+		if not guardianSrc:find("body%.Touched:Connect") then
+			table.insert(problems, "no touch-catch on the body ball — a touch can still slip between catch-radius ticks")
+		end
+		if not guardianSrc:find("caught .+ — knocked down, dropped") then
+			table.insert(problems, "the catch does not log the knockdown + drop — the catch trail has no proof")
+		end
+		if not configSrc:find("%[1%] = 10") or not configSrc:find("%[6%] = 18%.5") then
+			table.insert(problems, "guardian speeds are not +2 per tier (10 -> 18.5)")
 		end
 		if #problems > 0 then
 			check("ch", false, "the guardian chase fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: GuardianService.luau, Config.luau")
 		else
-			check("ch", true, "the guardian chases all the way out: pathfinds to the live target every 0.5s (sized for its ball, jumps on Jump waypoints), climbs out past the rim after 3s with no progress, speeds 8 -> 16.5, despawns log target + chase duration")
+			check("ch", true, "the guardian chases smoothly and catches: 0.1s tick, waypoint-by-waypoint following with repaths only every 1.5s, HipHeight 3.2 matching the build, touch-catch on the body ball, catch logs the knockdown + drop, speeds 10 -> 18.5, chase follows the target anywhere on the map")
 		end
 	end
 end

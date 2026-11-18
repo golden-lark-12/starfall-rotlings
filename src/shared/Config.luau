@@ -158,7 +158,7 @@ Config.RAIDER_WALK_SPEED = 14
 -- anyone who grabs a Brainrot from the crater. Speed by the grabbed
 -- Brainrot's rarity tier: Common is slow, Legendary and up are nearly
 -- as fast as the player (walk 16). Cosmic is the fastest guardian.
-Config.GUARDIAN_SPEED = { [1] = 8, [2] = 10, [3] = 12, [4] = 14, [5] = 15.5, [6] = 16.5 } -- per rarity tier (fix round 6, item 4: +1 each — Malek: "speed it up a little"; Cosmic 16.5 is 0.5 faster than walk 16, so a head start + base/dome still escapes it: it gains 0.5/s from 24 studs back, needing 48s to catch a straight-line runner — the 25s timeout ends the chase first)
+Config.GUARDIAN_SPEED = { [1] = 10, [2] = 12, [3] = 14, [4] = 16, [5] = 17.5, [6] = 18.5 } -- per rarity tier (fix round 7, item 1: +2 each — the round-6 speeds (8 -> 16.5) never read as fast because the stop-start chase halved them; with a smooth chase these are the real speeds. Cosmic 18.5 is 2.5 faster than walk 16, so a head start + base/dome still escapes it — it gains 2.5/s from 24 studs back, needing ~10s to catch a straight-line runner, and the 25s timeout ends the chase first; sprint (26) still outruns it)
 Config.GUARDIAN_CATCH_RADIUS = 5 -- studs: this close and it catches you
 Config.GUARDIAN_GIVEUP_TIME = 25 -- seconds: a chase that drags on ends on its own
 
