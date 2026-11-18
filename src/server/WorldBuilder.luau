@@ -621,7 +621,12 @@ local function buildSpawnArea()
 	spawnLabel.Parent = spawnSignGui
 	-- Path: a warm stone walkway from the spawn platform to the crater
 	-- rim, so the first walk is guided, not a blind purple field.
-	for i = 0, 7 do
+	-- Fix 5: the path used to stop at z=57, 18 studs short of the
+	-- crater rim (z=39) — a walkway to nothing, with the "Crater"
+	-- signpost standing at its dead end. Now it runs all the way to
+	-- the rim (z=39), where the StonePath to the shop begins, so
+	-- spawn -> crater -> shop is one continuous walkway.
+	for i = 0, 13 do
 		local z = 78 - i * 3
 		local tile = part("SpawnPath", Enum.PartType.Block, Vector3.new(6, 0.4, 3.5), Color3.fromRGB(150, 130, 100), CFrame.new(0, 0.2, z))
 		tile.CanCollide = false
@@ -1331,8 +1336,11 @@ local function buildSignpostsAndFences()
 	signpost(Vector3.new(6, 0, 58), { "← Crater", "Shop →" })
 	signpost(Vector3.new(-22, 0, 28), { "Shop →", "← Crater" })
 	signpost(Vector3.new(6, 0, -48), { "Altar ↑", "← Crater" })
-	fenceLine(Vector3.new(-5, 0, 78), Vector3.new(-5, 0, 46))
-	fenceLine(Vector3.new(5, 0, 78), Vector3.new(5, 0, 46))
+	-- Fences flank the spawn path (fix 5): they used to stop at z=46
+	-- while the path stopped at z=57; now both run to the crater rim
+	-- (z=40), so the walkway is fenced all the way in.
+	fenceLine(Vector3.new(-5, 0, 78), Vector3.new(-5, 0, 40))
+	fenceLine(Vector3.new(5, 0, 78), Vector3.new(5, 0, 40))
 	fenceLine(Vector3.new(-6, 0, 42), Vector3.new(-40, 0, 44))
 	-- Stone paths: crater rim to the shop, and crater to the altar.
 	local function path(from: Vector3, to: Vector3)

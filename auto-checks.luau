@@ -3247,6 +3247,43 @@ do
 	end
 end
 
+-- -- (bh) the spawn path reaches the crater (fix 5) ------------------------
+-- The spawn walkway stopped at z=57, 18 studs short of the crater
+-- rim (z=39) — a path to nothing, with the "Crater" signpost at its
+-- dead end. Now it runs all the way to the rim, where the StonePath
+-- to the shop begins, and the fences flank it the whole way.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not worldSrc then
+		check("bh", false, "could not verify the spawn path — WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		-- The SpawnPath loop runs to z=39 (the crater rim).
+		if not worldSrc:find("for i = 0, 13 do") then
+			table.insert(problems, "the SpawnPath loop does not run to i=13 (z=39, the crater rim)")
+		end
+		if not worldSrc:find("local z = 78 %- i %* 3") then
+			table.insert(problems, "the SpawnPath tile spacing (z = 78 - i*3) is not found")
+		end
+		-- The fences flank the path all the way to the rim.
+		if not worldSrc:find("fenceLine%(Vector3%.new%(%-5, 0, 78%), Vector3%.new%(%-5, 0, 40%)%)") then
+			table.insert(problems, "the left fence does not run to z=40")
+		end
+		if not worldSrc:find("fenceLine%(Vector3%.new%(5, 0, 78%), Vector3%.new%(5, 0, 40%)%)") then
+			table.insert(problems, "the right fence does not run to z=40")
+		end
+		-- The StonePath from the rim to the shop still starts at the rim.
+		if not worldSrc:find('path%(Vector3%.new%(0, 0, 40%), Vector3%.new%(%-40, 0, 44%)%)') then
+			table.insert(problems, "the StonePath from the crater rim (0,0,40) to the shop is missing")
+		end
+		if #problems > 0 then
+			check("bh", false, "the spawn path goes to nothing — " .. table.concat(problems, "; ") .. ". Parts: SpawnPath + fences (WorldBuilder.luau)")
+		else
+			check("bh", true, "spawn path runs z=78 to z=39 (the crater rim), fences flank it to z=40, StonePath to the shop starts at the rim — spawn -> crater -> shop is one continuous walkway")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

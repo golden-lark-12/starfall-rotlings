@@ -459,6 +459,34 @@ do
 	end
 end
 
+-- 11b. Spawn path (fix 5): the walkway from spawn reaches the crater
+-- rim, where the StonePath to the shop begins — no dead end.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not worldSrc then
+		step("spawn-path", false, "WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find("for i = 0, 13 do") then
+			table.insert(problems, "SpawnPath loop does not run to i=13 (z=39, the crater rim)")
+		end
+		if not worldSrc:find("fenceLine%(Vector3%.new%(%-5, 0, 78%), Vector3%.new%(%-5, 0, 40%)%)") then
+			table.insert(problems, "left fence does not run to z=40")
+		end
+		if not worldSrc:find("fenceLine%(Vector3%.new%(5, 0, 78%), Vector3%.new%(5, 0, 40%)%)") then
+			table.insert(problems, "right fence does not run to z=40")
+		end
+		if not worldSrc:find('path%(Vector3%.new%(0, 0, 40%), Vector3%.new%(%-40, 0, 44%)%)') then
+			table.insert(problems, "StonePath from the rim to the shop is missing")
+		end
+		if #problems > 0 then
+			step("spawn-path", false, table.concat(problems, "; "))
+		else
+			step("spawn-path", true, "spawn path z=78 to z=39 (crater rim), fences to z=40, StonePath to the shop starts at the rim")
+		end
+	end
+end
+
 -- 12. Storm lands: a meteor actually falls within 10s of the storm
 -- starting, and it leaves a rare Rotling at the impact point. The old
 -- storm failed silently (countdown hit zero, nothing happened), so
