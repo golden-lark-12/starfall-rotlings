@@ -11,6 +11,7 @@
 -- fastest guardian in the game chases whoever grabs it.
 
 local Players = game:GetService("Players")
+local PathfindingService = game:GetService("PathfindingService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -182,7 +183,8 @@ function GuardianService.despawnGuardian(model: Model, reason: string?)
 	if guardian.targetPlayer then
 		chasedPlayers[guardian.targetPlayer.UserId] = nil
 	end
-	print("[Guardian] despawn (" .. tostring(reason or "?") .. ")")
+	local targetName = if guardian.targetPlayer then guardian.targetPlayer.Name else "raider"
+	print("[Guardian] despawn (" .. tostring(reason or "?") .. ") — chased " .. targetName .. " for " .. tostring(math.floor(time() - guardian.bornAt)) .. "s")
 	model:Destroy()
 end
 
@@ -211,9 +213,19 @@ local function catchRaider(guardian: Model, raiderModel: Model)
 	GuardianService.despawnGuardian(guardian, "caught-raider")
 end
 
--- Chase loop: re-target the moving target every 0.4s, jump when stuck.
+-- Chase loop: re-path to the target's LIVE position every 0.5s and
+-- follow the path, so the guardian keeps cutting toward the player
+-- and circling them instead of standing still on a stale target.
 -- Ends on catch, on give-up (safe base / nothing carried / timeout),
 -- or when the target is gone.
+-- (fix round 6, item 4) The old loop used straight-line MoveTo: the
+-- guardian spawns INSIDE the crater (radius 24) and the player runs
+-- out, so the straight line pushed it against the tiered rim (rings
+-- 2.5 / 4 / 5.5 studs high) until the 25s timeout — it "stopped
+-- halfway" and never left the middle. Pathfinding routes it around /
+-- over the rim (through the entrance gap), and a 3s no-progress
+-- fallback climbs it out onto the rim nearest the target, so the
+-- chase can never die in the middle.
 local function chaseLoop(guardian: Model)
 	local entry = active[guardian]
 	if not entry then
@@ -225,8 +237,16 @@ local function chaseLoop(guardian: Model)
 		GuardianService.despawnGuardian(guardian, "no-humanoid")
 		return
 	end
-	local lastPos = root.Position
-	local stuckTime = 0
+	-- Sized for the guardian's 5.5-stud rock ball, not a player.
+	local path = PathfindingService:CreatePath({
+		AgentRadius = 3,
+		AgentHeight = 5.5,
+		AgentCanJump = true,
+		AgentJumpHeight = 7,
+		AgentMaxSlope = 45,
+	})
+	local lastChasePos = root.Position
+	local noProgressTime = 0
 	while guardian.Parent and active[guardian] do
 		local target = entry.target
 		local targetRoot = target:FindFirstChild("HumanoidRootPart") or target.PrimaryPart
@@ -265,22 +285,55 @@ local function chaseLoop(guardian: Model)
 			end
 			return
 		end
-		humanoid:MoveTo(targetRoot.Position)
-		task.wait(0.4)
+		-- Steer: pathfind to the target's live position (re-computed
+		-- every tick, so the guardian cuts corners and circles the
+		-- player). Fall back to straight-line MoveTo when no path
+		-- computes — a direct chase beats standing still.
+		local targetPos = targetRoot.Position
+		local steered = false
+		local computed = pcall(function()
+			path:ComputeAsync(root.Position, targetPos)
+		end)
+		if computed and path.Status == Enum.PathStatus.Success then
+			local waypoints = path:GetWaypoints()
+			for i = 2, #waypoints do
+				local wp = waypoints[i]
+				if (wp.Position - root.Position).Magnitude > 2 then
+					if wp.Action == Enum.PathWaypointAction.Jump then
+						humanoid.Jump = true
+					end
+					humanoid:MoveTo(wp.Position)
+					steered = true
+					break
+				end
+			end
+		end
+		if not steered then
+			humanoid:MoveTo(targetPos)
+		end
+		task.wait(0.5)
 		if not guardian.Parent then
 			return
 		end
-		-- Stuck? Hop. Same fix as raiders: MoveTo never jumps alone.
-		if (root.Position - lastPos).Magnitude < 0.5 then
-			stuckTime += 0.4
-			if stuckTime >= 1.2 then
-				humanoid.Jump = true
-				stuckTime = 0
+		-- Truly stuck? The pathfinder + jumps should keep it moving;
+		-- if it has not moved in 3s, climb it out onto open ground
+		-- past the rim (outer ring ends at 39; 42 is clear) on the
+		-- target's side, so the chase never dies in the middle.
+		if (root.Position - lastChasePos).Magnitude < 0.5 then
+			noProgressTime += 0.5
+			if noProgressTime >= 3 then
+				local flat = Vector3.new(targetPos.X, 0, targetPos.Z)
+				local dir = if flat.Magnitude > 1 then flat.Unit else Vector3.new(1, 0, 0)
+				local outPos = dir * (Config.CRATER_RADIUS + 14)
+				guardian:PivotTo(CFrame.new(Vector3.new(outPos.X, 3.2, outPos.Z)))
+				print("[Guardian] climbed out of the crater (stuck " .. tostring(noProgressTime) .. "s) — chasing from the rim")
+				noProgressTime = 0
+				lastChasePos = root.Position
 			end
 		else
-			stuckTime = 0
+			noProgressTime = 0
+			lastChasePos = root.Position
 		end
-		lastPos = root.Position
 		if time() - entry.bornAt > Config.GUARDIAN_GIVEUP_TIME then
 			GuardianService.despawnGuardian(guardian, "timeout")
 			return
@@ -298,8 +351,8 @@ end
 -- instantly, the Brainrot dropped straight back into the crater, and
 -- pressing E read as "does nothing". A rim spawn is always >= 24 studs
 -- away, so the player gets a real head start to run home — and the
--- guardian is slower than the player (15.5 max vs walk 16), so running
--- always escapes it.
+-- escape is the base/dome (or the 25s timeout): even the fastest guardian (Cosmic 16.5, 0.5 faster than
+-- walk 16) gains only 0.5 studs/s from 24 studs back, so it needs 48s to catch a straight-line runner.
 local function guardianSpawnPos(targetPos: Vector3): Vector3
 	local flat = Vector3.new(targetPos.X, 0, targetPos.Z)
 	local dir: Vector3

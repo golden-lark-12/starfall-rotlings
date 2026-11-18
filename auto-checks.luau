@@ -4420,8 +4420,10 @@ end
 -- ("Index 14/20" in the HUD), Cosmic Corn Dog last, celebration per
 -- completed rarity tier. Verified against the code after items 1-8 —
 -- nothing here needed a change, so this check locks the mechanics in:
--- guardian speed by rarity (7 -> 15.5, slower than the player's walk
--- 16, so running always escapes), catch radius 5, give-up 25s, rim
+-- guardian speed by rarity (8 -> 16.5, fix round 6 item 4: +1 each —
+-- Cosmic 16.5 is 0.5 faster than walk 16, but the escape is the
+-- base/dome or the 25s timeout, and a 24-stud head start still outruns
+-- it), catch radius 5, give-up 25s, rim
 -- spawn (fix 1, so the catch is not instant), safe-base give-up, the
 -- AWAKE banner + edge flash; raiders do crater grabs on half their
 -- raids; 20 defs with exactly one Cosmic (Cosmic Corn Dog, weight 1,
@@ -4438,8 +4440,8 @@ do
 		check("ca", false, "could not verify the competition — Config.luau, GuardianService.luau, RaiderService.luau, RotlingCatalog.luau, RarityConfig.luau, IndexService.luau or HUDController.client.luau missing")
 	else
 		local problems: { string } = {}
-		if not configSrc:find("GUARDIAN_SPEED = { %[1%] = 7, %[2%] = 9, %[3%] = 11, %[4%] = 13, %[5%] = 14%.5, %[6%] = 15%.5 }") then
-			table.insert(problems, "guardian speed is not 7 -> 15.5 by rarity")
+		if not configSrc:find("GUARDIAN_SPEED = { %[1%] = 8, %[2%] = 10, %[3%] = 12, %[4%] = 14, %[5%] = 15%.5, %[6%] = 16%.5 }") then
+			table.insert(problems, "guardian speed is not 8 -> 16.5 by rarity")
 		end
 		if not configSrc:find("GUARDIAN_CATCH_RADIUS = 5") then
 			table.insert(problems, "guardian catch radius is not 5")
@@ -4483,7 +4485,7 @@ do
 		if #problems > 0 then
 			check("ca", false, "the competition is broken — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, GuardianService.luau, RaiderService.luau, RotlingCatalog.luau, RarityConfig.luau, IndexService.luau, HUDController.client.luau")
 		else
-			check("ca", true, "competition intact: guardian 7->15.5 by rarity (slower than walk 16), catch 5, give-up 25s, rim spawn, AWAKE banner + edge flash, safe-base give-up, drop on catch; raiders crater-grab half their raids; 20 defs, one Cosmic (Corn Dog, weight 1); HUD X/20; tier + all-20 celebrations")
+			check("ca", true, "competition intact: guardian 8->16.5 by rarity (Cosmic 0.5 faster than walk 16; escape is base/dome or the 25s timeout), catch 5, give-up 25s, rim spawn, AWAKE banner + edge flash, safe-base give-up, drop on catch; raiders crater-grab half their raids; 20 defs, one Cosmic (Corn Dog, weight 1); HUD X/20; tier + all-20 celebrations")
 		end
 	end
 end
@@ -4781,6 +4783,48 @@ do
 			check("cg", false, "the thief fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, RaiderService.luau, Config.luau")
 		else
 			check("cg", true, "the thief actually steals: carryModel uses CarryService (no nil-global error), steal walk goes around the crater at the victim's angle, every abort fires a visible 'gave up' banner (rival + raider), steal trail logs through to placed-and-earning, lock holds 120s")
+		end
+	end
+end
+
+-- -- (ch) the guardian chases all the way out: pathfinding + climb-out
+-- + faster speeds (fix round 6, item 4)
+-- The old chase used straight-line MoveTo from a spawn INSIDE the
+-- crater (radius 24) while the player runs out — the straight line
+-- pushed the guardian against the tiered rim (2.5 / 4 / 5.5 studs)
+-- until the 25s timeout, so it "stopped halfway" and never left the
+-- middle. The chase now pathfinds to the target's live position every
+-- 0.5s (AgentRadius 3 / Height 5.5, sized for the rock ball, jumping
+-- on Jump waypoints), and if it makes no progress for 3s it climbs
+-- out onto open ground past the rim (radius 42) on the target's side.
+-- Speeds are +1 per tier (8 -> 16.5); the escape stays the base/dome
+-- or the 25s timeout, and despawns log who was chased and for how long.
+do
+	local guardianSrc = read("src/server/GuardianService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not guardianSrc or not configSrc then
+		check("ch", false, "could not verify the guardian chase fix — GuardianService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if not guardianSrc:find("PathfindingService") or not guardianSrc:find("ComputeAsync") then
+			table.insert(problems, "the chase does not pathfind — straight-line MoveTo still pushes it into the rim")
+		end
+		if not guardianSrc:find("AgentRadius = 3") then
+			table.insert(problems, "the path is not sized for the guardian's 5.5-stud ball — it can route through gaps it cannot fit")
+		end
+		if not guardianSrc:find("climbed out of the crater") then
+			table.insert(problems, "no stuck climb-out — a guardian that cannot move still dies in the middle")
+		end
+		if not guardianSrc:find("chased .+ for ") then
+			table.insert(problems, "despawn does not log who was chased and for how long — the chase trail has no ending")
+		end
+		if not configSrc:find("%[1%] = 8") or not configSrc:find("%[6%] = 16%.5") then
+			table.insert(problems, "guardian speeds are not +1 per tier (8 -> 16.5)")
+		end
+		if #problems > 0 then
+			check("ch", false, "the guardian chase fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: GuardianService.luau, Config.luau")
+		else
+			check("ch", true, "the guardian chases all the way out: pathfinds to the live target every 0.5s (sized for its ball, jumps on Jump waypoints), climbs out past the rim after 3s with no progress, speeds 8 -> 16.5, despawns log target + chase duration")
 		end
 	end
 end
