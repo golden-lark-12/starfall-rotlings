@@ -246,7 +246,10 @@ local function playRoar(at: Vector3)
 	local sound = Instance.new("Sound")
 	sound.SoundId = ROAR_SOUND
 	sound.Volume = 1
-	sound.PlaybackSpeed = 0.15
+	-- (fix round 7, item 4) 0.15 was an extremely low drone phone
+	-- speakers cannot reproduce — the guardian roared silently.
+	-- 0.4 is still deep, but audible.
+	sound.PlaybackSpeed = 0.4
 	sound.Parent = workspace
 	sound:Play()
 	task.delay(2.5, function()

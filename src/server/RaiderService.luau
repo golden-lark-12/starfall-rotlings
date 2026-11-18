@@ -15,6 +15,7 @@ local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local RarityConfig = require(ReplicatedStorage.Shared.RarityConfig)
 local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
+local FeedbackService = require(script.Parent.FeedbackService)
 local State = require(script.Parent.State)
 local WorldBuilder = require(script.Parent.WorldBuilder)
 
@@ -384,6 +385,9 @@ local function runRaid(model: Model)
 			local def = RotlingCatalog.getDef(stolen:GetAttribute("DefId") :: string)
 			local name = if def then def.name else "a Brainrot"
 			Remotes.bannerEvent():FireClient(owner, "🚨 THIEF AT YOUR BASE! " .. raider.name .. " is stealing your " .. name .. "! Bonk it!", 5)
+			-- Steal alarm (fix round 7, item 4): the warning banner
+			-- was silent — a low alarm so the player HEARS it.
+			FeedbackService.playSound(owner, 0.7, 1)
 		end
 	end
 	-- A storm mid-carry means cover first (it keeps the loot).
@@ -719,6 +723,9 @@ function RaiderService.spawnRaider(): Model?
 		local owner = Players:GetPlayerByUserId(ownerId)
 		if owner then
 			Remotes.bannerEvent():FireClient(owner, "🚨 " .. (model:GetAttribute("RaiderName") :: string) .. " is sneaking toward your base! Guard your Brainrots — bonk it or slap it!", 5)
+			-- Steal alarm (fix round 7, item 4): the raid warning
+			-- was silent — a low alarm so the player HEARS it coming.
+			FeedbackService.playSound(owner, 0.7, 1)
 		end
 	end
 	-- Touching it bonks it (with a short debounce per raider).

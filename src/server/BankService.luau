@@ -13,6 +13,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Formatting = require(ReplicatedStorage.Shared.Formatting)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local DataService = require(script.Parent.DataService)
+local FeedbackService = require(script.Parent.FeedbackService)
 
 local BankService = {}
 
@@ -29,6 +30,9 @@ function BankService.collectBank(player: Player): (boolean, string)
 	profile.banked = 0
 	profile.coins += amount
 	DataService.saveProfile(player)
+	-- Cash ding (fix round 7, item 4): collecting is the tycoon's
+	-- heartbeat and it was silent — a bright ding when the money lands.
+	FeedbackService.playSound(player, 1.6, 0.8)
 	return true, "Collected " .. Formatting.formatMoney(amount) .. " from your base!"
 end
 

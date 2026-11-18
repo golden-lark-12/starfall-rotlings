@@ -135,7 +135,10 @@ local function playAlarm()
 	local sound = Instance.new("Sound")
 	sound.SoundId = ALARM_SOUND
 	sound.Volume = 0.8
-	sound.PlaybackSpeed = 0.6
+	-- (fix round 7, item 4) 0.6 was a low tone phone speakers barely
+	-- reproduce — the storm siren read as silence. 0.8 is still low
+	-- and alarming, but audible.
+	sound.PlaybackSpeed = 0.8
 	sound.Parent = workspace
 	sound:Play()
 	task.delay(2, function()
@@ -148,7 +151,9 @@ local function playThunder()
 	local sound = Instance.new("Sound")
 	sound.SoundId = ALARM_SOUND
 	sound.Volume = 0.9
-	sound.PlaybackSpeed = 0.25
+	-- (fix round 7, item 4) 0.25 was below what phone speakers
+	-- reproduce — thunder was silent. 0.4 is still a deep boom.
+	sound.PlaybackSpeed = 0.4
 	sound.Parent = workspace
 	sound:Play()
 	task.delay(2, function()
@@ -166,8 +171,11 @@ local function startRumble()
 	local sound = Instance.new("Sound")
 	sound.Name = "StormRumble"
 	sound.SoundId = ALARM_SOUND
-	sound.Volume = 0.4
-	sound.PlaybackSpeed = 0.2
+	-- (fix round 7, item 4) 0.2 pitch / 0.4 volume was inaudible on
+	-- phone speakers — the whole storm droned silently. 0.35 / 0.6
+	-- is still low, but heard.
+	sound.Volume = 0.6
+	sound.PlaybackSpeed = 0.35
 	sound.Looped = true
 	sound.Parent = workspace
 	sound:Play()

@@ -35,7 +35,9 @@ local function playPickupSound(player: Player)
 	end
 	local sound = Instance.new("Sound")
 	sound.SoundId = PICKUP_SOUND
-	sound.Volume = 0.6
+	-- (fix round 7, item 4) 0.6 was a short quiet blip — the grab
+	-- pop was easy to miss. 0.8 so the grab is heard.
+	sound.Volume = 0.8
 	sound.PlaybackSpeed = 1.2
 	sound.Parent = root
 	sound:Play()

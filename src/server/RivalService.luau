@@ -22,6 +22,7 @@ local RarityConfig = require(ReplicatedStorage.Shared.RarityConfig)
 local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
 local RotlingFactory = require(script.Parent.RotlingFactory)
+local FeedbackService = require(script.Parent.FeedbackService)
 local State = require(script.Parent.State)
 local WorldBuilder = require(script.Parent.WorldBuilder)
 
@@ -405,6 +406,9 @@ local function tryStartSteal(rival: State.Rival, model: Model): boolean
 	rival.targetBase = victimBase
 	setThiefSign(model, true)
 	Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " is sneaking to your base! Lock it (L)!", 4)
+	-- Steal alarm (fix round 7, item 4): the warning banner was
+	-- silent — a low alarm so the player HEARS the thief coming.
+	FeedbackService.playSound(victim, 0.7, 1)
 	print("[Rival] " .. rival.name .. " stealing from " .. victim.Name .. " (base " .. tostring(victimBase) .. ")")
 	return true
 end

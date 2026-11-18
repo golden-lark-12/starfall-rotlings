@@ -5047,6 +5047,67 @@ do
 	end
 end
 
+-- -- (cm) the game makes sound (fix round 7, item 4)
+-- Malek: "no sound?" The game DID have sounds — but every one is
+-- the same built-in ping, and the big ones were pitched so low
+-- (roar 0.15, rumble 0.2, thunder 0.25, alarm 0.6) that phone
+-- speakers, which have almost no bass, barely reproduce them — so
+-- the storm, the guardian and the thunder read as silence. The
+-- audible ones (grab 1.2, place 1.8) were 0.5s blips at volume 0.6.
+-- And three core moments had no sound at all: collecting cash, the
+-- steal alarm, and (until celebrate) the egg hatch. The fix: the low
+-- pitches are raised into the range phone speakers reproduce (roar
+-- 0.4, rumble 0.35, thunder 0.4, alarm 0.8), the rumble is louder,
+-- the grab/place blips are louder, and collect + both steal alarms
+-- now play. All sounds stay the one built-in ping — no new assets.
+do
+	local guardianSrc = read("src/server/GuardianService.luau")
+	local starfallSrc = read("src/server/StarfallService.luau")
+	local bankSrc = read("src/server/BankService.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	local raiderSrc = read("src/server/RaiderService.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	if not guardianSrc or not starfallSrc or not bankSrc or not rivalSrc or not raiderSrc or not carrySrc or not factorySrc or not eggSrc then
+		check("cm", false, "could not verify the sound fix — GuardianService.luau, StarfallService.luau, BankService.luau, RivalService.luau, RaiderService.luau, CarryService.luau, RotlingFactory.luau or MeteorEggService.luau missing")
+	else
+		local problems: { string } = {}
+		if not guardianSrc:find("PlaybackSpeed = 0%.4") then
+			table.insert(problems, "the guardian roar is still pitched at 0.15 — inaudible on phone speakers")
+		end
+		if not starfallSrc:find("sound%.PlaybackSpeed = 0%.8") then
+			table.insert(problems, "the storm alarm is still pitched at 0.6 — barely audible on phone speakers")
+		end
+		if not starfallSrc:find("sound%.PlaybackSpeed = 0%.35") then
+			table.insert(problems, "the storm rumble is still pitched at 0.2 — inaudible on phone speakers")
+		end
+		if not bankSrc:find("FeedbackService%.playSound%(player, 1%.6, 0%.8%)") then
+			table.insert(problems, "collecting cash is still silent — no ding in collectBank")
+		end
+		if not rivalSrc:find("FeedbackService%.playSound%(victim, 0%.7, 1%)") then
+			table.insert(problems, "the rival steal warning is still silent — no alarm in tryStartSteal")
+		end
+		if not raiderSrc:find("FeedbackService%.playSound%(owner, 0%.7, 1%)") then
+			table.insert(problems, "the raider steal warnings are still silent — no alarm at spawn or at the grab")
+		end
+		if not carrySrc:find("sound%.Volume = 0%.8") then
+			table.insert(problems, "the grab pop is still volume 0.6 — a short quiet blip")
+		end
+		if not factorySrc:find("ding%.Volume = 0%.8") then
+			table.insert(problems, "the place ding is still volume 0.6 — a short quiet blip")
+		end
+		if not eggSrc:find("FeedbackService%.celebrate%(owner%)") then
+			table.insert(problems, "the egg hatch has no celebration sound")
+		end
+		if #problems > 0 then
+			check("cm", false, "the sound fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: GuardianService.luau, StarfallService.luau, BankService.luau, RivalService.luau, RaiderService.luau, CarryService.luau, RotlingFactory.luau, MeteorEggService.luau")
+		else
+			check("cm", true, "the game makes sound: roar 0.4, storm alarm 0.8 (3x per warning), rumble 0.35/0.6, thunder 0.4, grab pop + place ding at 0.8, collect cash ding, steal alarms on rival + raider warnings, hatch celebration — all the one built-in ping, no new assets")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

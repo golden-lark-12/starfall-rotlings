@@ -254,7 +254,9 @@ function RotlingFactory.placePop(model: Model)
 	-- Coin ding: the built-in ping, pitched up bright.
 	local ding = Instance.new("Sound")
 	ding.SoundId = "rbxasset://sounds/electronicpingshort.wav"
-	ding.Volume = 0.6
+	-- (fix round 7, item 4) 0.6 was a short quiet blip — the place
+	-- ding was easy to miss. 0.8 so the place is heard.
+	ding.Volume = 0.8
 	ding.PlaybackSpeed = 1.8
 	ding.Parent = body
 	ding:Play()
