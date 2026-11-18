@@ -335,8 +335,11 @@ local function runRival(rival: State.Rival)
 			end
 		elseif rival.phase == "toCrater" then
 			-- Walk to a spot on the belt, then grab the nearest free
-			-- Rotling within reach.
-			local spot = Vector3.new((math.random() * 2 - 1) * 20, 0, (math.random() * 2 - 1) * 2)
+			-- Rotling within reach. The spot sits ON the crater floor
+			-- (fix round 2, fix 4): the old y=0 aimed below the floor,
+			-- so the rival pushed against the rim instead of walking
+			-- in to the belt.
+			local spot = Vector3.new((math.random() * 2 - 1) * 20, Config.CRATER_FLOOR_Y, (math.random() * 2 - 1) * 2)
 			if walkTo(model, spot, 30) then
 				local best: Model? = nil
 				local bestDist = Config.RIVAL_GRAB_RADIUS

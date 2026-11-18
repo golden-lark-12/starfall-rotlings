@@ -15,6 +15,7 @@ local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
 local State = require(script.Parent.State)
+local WorldBuilder = require(script.Parent.WorldBuilder)
 
 local RaiderService = {}
 
@@ -425,7 +426,17 @@ function RaiderService.spawnRaider(): Model?
 		table.insert(pads, padIndex)
 	end
 	local padIndex = pads[math.random(1, #pads)]
-	local angle = math.random() * math.pi * 2
+	-- Spawn on the TARGET base's side (fix round 2, fix 4): the old
+	-- spawn used a random angle, so half the time the raider's
+	-- straight-line path to the base crossed the crater — it hit the
+	-- rim wall, stuck-jumped forever, and despawned without ever
+	-- arriving, so raiders read as "doing nothing". Now the raider
+	-- spawns at the target base's angle (± a spread) at radius 45,
+	-- outside the rim, and walks straight outward to the base without
+	-- crossing the crater.
+	local baseCf = WorldBuilder.baseCFrame(baseId)
+	local baseAngle = if baseCf then math.atan2(baseCf.Position.Z, baseCf.Position.X) else math.random() * math.pi * 2
+	local angle = baseAngle + (math.random() * 2 - 1) * 0.5
 	-- Spawn outside the crater rim, above the ground (fix 2): the old
 	-- spawn at radius CRATER_RADIUS + 6 (34) and Y=0 sat INSIDE the
 	-- rim mound (the radius-35 rim step tops at Y=4), so the raider

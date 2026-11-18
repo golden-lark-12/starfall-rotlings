@@ -3582,6 +3582,54 @@ do
 	end
 end
 
+-- -- (bm) bots reach their targets: raiders spawn on the base's side, rivals aim at the crater floor (fix round 2, fix 4) --
+-- The playtest showed bots "doing nothing": raiders spawned at a
+-- random angle, so half the time their straight line to the target base
+-- crossed the crater — they hit the rim wall, stuck-jumped forever and
+-- despawned without arriving. Rivals aimed at y=0, below the crater
+-- floor, so they pushed against the rim instead of walking in to the
+-- belt. Now raiders spawn at the target base's angle (outside the rim)
+-- and rivals aim at the crater floor, so both can actually reach the
+-- belt and the bases. (The crater itself is opened up in fix 7.)
+do
+	local raiderSrc = read("src/server/RaiderService.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	if not raiderSrc or not rivalSrc then
+		check("bm", false, "could not verify the bots — RaiderService.luau or RivalService.luau missing")
+	else
+		local problems: { string } = {}
+		if not raiderSrc:find("baseCFrame%(baseId%)") then
+			table.insert(problems, "raider spawn does not read the target base's position (WorldBuilder.baseCFrame)")
+		end
+		if not raiderSrc:find("math%.atan2%(baseCf%.Position%.Z, baseCf%.Position%.X%)") then
+			table.insert(problems, "raider spawn does not use the target base's angle (math.atan2)")
+		end
+		if not raiderSrc:find("WorldBuilder = require%(script%.Parent%.WorldBuilder%)") then
+			table.insert(problems, "RaiderService does not require WorldBuilder")
+		end
+		if not rivalSrc:find("Config%.CRATER_FLOOR_Y") then
+			table.insert(problems, "rival crater spot does not aim at the crater floor (Config.CRATER_FLOOR_Y)")
+		end
+		if not rivalSrc:find("humanoid%.Jump = true") then
+			table.insert(problems, "rival walkTo has no stuck-jump to clear a rim step")
+		end
+		if not raiderSrc:find("humanoid%.Jump = true") then
+			table.insert(problems, "raider walkTo has no stuck-jump to clear a rim step")
+		end
+		if not raiderSrc:find("bonkRaider") then
+			table.insert(problems, "no bonk/slap path that drops a raider's loot")
+		end
+		if not rivalSrc:find("setThiefSign") then
+			table.insert(problems, "no THIEF sign when a rival steals")
+		end
+		if #problems > 0 then
+			check("bm", false, "the bot fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RaiderService.luau, RivalService.luau")
+		else
+			check("bm", true, "bots can reach their targets: raiders spawn on the target base's side (outside the rim), rivals aim at the crater floor, both have stuck-jumps, bonk drops loot, stealing rivals show THIEF")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
