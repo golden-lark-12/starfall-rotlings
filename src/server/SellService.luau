@@ -58,6 +58,12 @@ function SellService.sellCarried(player: Player): (boolean, string)
 	profile.coins += value
 	MissionService.addProgress(player, "earn", value)
 	DataService.saveProfile(player)
+	-- Refresh the HUD NOW (not on the next 1s tick) so the payout is
+	-- visible the moment the Brainrot leaves your hands. Deferred
+	-- require: IncomeService does not require this module back.
+	local IncomeService = require(script.Parent.IncomeService)
+	IncomeService.broadcastHud()
+	print("[Sell] " .. player.Name .. " sold carried " .. def.name .. " for " .. tostring(value))
 	FeedbackService.playSound(player, 1.4, 0.7)
 	local character = player.Character
 	if character then
@@ -119,6 +125,11 @@ function SellService.sellPlaced(player: Player): (boolean, string)
 	profile.coins += value
 	MissionService.addProgress(player, "earn", value)
 	DataService.saveProfile(player)
+	-- Refresh the HUD NOW so the payout is visible the moment the
+	-- Brainrot leaves the base. Deferred require (see sellCarried).
+	local IncomeService = require(script.Parent.IncomeService)
+	IncomeService.broadcastHud()
+	print("[Sell] " .. player.Name .. " sold placed " .. (if def then def.name else "Brainrot") .. " for " .. tostring(value))
 	FeedbackService.playSound(player, 1.4, 0.7)
 	local character = player.Character
 	if character then
