@@ -4486,7 +4486,7 @@ do
 		if #problems > 0 then
 			check("ca", false, "the competition is broken — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, GuardianService.luau, RaiderService.luau, RotlingCatalog.luau, RarityConfig.luau, IndexService.luau, HUDController.client.luau")
 		else
-			check("ca", true, "competition intact: guardian 8->16.5 by rarity (Cosmic 0.5 faster than walk 16; escape is base/dome or the 25s timeout), catch 5, give-up 25s, rim spawn, AWAKE banner + edge flash, safe-base give-up, drop on catch; raiders crater-grab half their raids; 20 defs, one Cosmic (Corn Dog, weight 1); HUD X/20; tier + all-20 celebrations")
+			check("ca", true, "competition intact: guardian 10->18.5 by rarity (Cosmic 2.5 faster than walk 16; escape is base/dome or the 25s timeout), catch 5, give-up 25s, rim spawn, AWAKE banner + edge flash, safe-base give-up, drop on catch; raiders crater-grab half their raids; 20 defs, one Cosmic (Corn Dog, weight 1); HUD X/20; tier + all-20 celebrations")
 		end
 	end
 end
@@ -4934,6 +4934,63 @@ do
 			check("cj", false, "the egg hatch scaling is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau, Config.luau, State.luau")
 		else
 			check("cj", true, "eggs hatch slower the rarer they are: hatch rolled at place time and stored on the egg, wait scales Common 60s -> Cosmic 300s, banner shows the actual wait, roll declared before its caller")
+		end
+	end
+end
+
+-- -- (ck) thieves actually steal: ring-routed walks + a steal clock
+-- (fix round 7, item 2)
+-- The round-6 thief fix (nil-global + rim-crossing leg) still left
+-- zero action in playtest 7 — the third round of "fixed" thieves.
+-- Two causes remain: (a) the steal walk's leg 1 is a straight line
+-- from the rival's own base (radius 110) to the "around" point at
+-- radius 45 on the victim's angle — for a far-side victim that chord
+-- passes near the origin, straight through the tiered rim, and the
+-- stuck-hop cannot reliably clear 2.5/4/5.5-stud rings, so the walk
+-- timed out at 40s and the steal aborted. Same for the crater
+-- approach (the gap is at +Z, so a rival on the -Z side walked
+-- straight through the crater). All rival walks now route along a
+-- ring of open ground at radius 45 (rim outer ring ends at 39):
+-- exit through the entrance gap from inside, drop radially to the
+-- ring from outside, arc to the target's angle, then straight in.
+-- (b) steals were too rare: 0.35 per idle roll on a 60-90s cycle is
+-- about one attempt per rival every 2-3 minutes, and only with a
+-- victim. The chance is now 0.5, rivals walk at 16, and a steal
+-- clock forces the idlest rival to attempt a steal every 75s when a
+-- victim exists. The clock iterates with pairs (State.rivals is
+-- keyed by model — ipairs would find nothing).
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not rivalSrc or not configSrc then
+		check("ck", false, "could not verify the thief fix — RivalService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if not rivalSrc:find("local function walkAround") then
+			table.insert(problems, "no walkAround ring-route helper — rival walks still cut straight through the crater rim")
+		end
+		if not rivalSrc:find("walkAround%(model, gap") or not rivalSrc:find("walkAround%(model, around") or not rivalSrc:find("walkAround%(model, padCf%.Position") then
+			table.insert(problems, "not all rival walks use the ring route — toCrater, steal and toBase must all call walkAround")
+		end
+		if not rivalSrc:find("steal clock") or not rivalSrc:find("task%.wait%(75%)") then
+			table.insert(problems, "no 75s steal clock — steals are still left to the idle roll alone")
+		end
+		if not rivalSrc:find("pairs%(State%.rivals%)") then
+			table.insert(problems, "the steal clock does not iterate State.rivals with pairs — ipairs would find no rival (keyed by model)")
+		end
+		if not rivalSrc:find("local function tryStartSteal") then
+			table.insert(problems, "no shared tryStartSteal — the idle roll and the steal clock start steals differently")
+		end
+		if not configSrc:find("RIVAL_STEAL_CHANCE = 0%.5") then
+			table.insert(problems, "steal chance is not 0.5")
+		end
+		if not configSrc:find("RIVAL_WALK_SPEED = 16") then
+			table.insert(problems, "rival walk speed is not 16")
+		end
+		if #problems > 0 then
+			check("ck", false, "the thief fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, Config.luau")
+		else
+			check("ck", true, "thieves actually steal: all rival walks route along the radius-45 ring (gap exit from inside, arc to the target's angle), steal chance 0.5, rivals walk at 16, a 75s steal clock forces the idlest rival to attempt a steal when a victim exists (pairs over model-keyed State.rivals), one shared tryStartSteal for the roll and the clock")
 		end
 	end
 end

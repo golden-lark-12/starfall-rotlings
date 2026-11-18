@@ -167,9 +167,9 @@ Config.GUARDIAN_GIVEUP_TIME = 25 -- seconds: a chase that drags on ends on its o
 -- on the leaderboard and compete for the storm bounty.
 Config.RIVAL_COUNT = 4
 Config.RIVAL_NAMES = { "Ziggy", "Nova", "Pip", "Comet" }
-Config.RIVAL_WALK_SPEED = 13
+Config.RIVAL_WALK_SPEED = 16 -- rival walk speed (fix round 7, item 2: 13 -> 16 — thieves must move visibly, not dawdle)
 Config.RIVAL_GRAB_RADIUS = 12 -- a rival grabs the nearest free Rotling this close
-Config.RIVAL_STEAL_CHANCE = 0.35 -- per rival trip, chance it targets a player's base instead
+Config.RIVAL_STEAL_CHANCE = 0.5 -- per rival trip, chance it targets a player's base instead (fix round 7, item 2: 0.35 -> 0.5 — with a 60-90s cycle, 0.35 meant about one steal attempt per rival every 2-3 minutes; the 75s steal clock now guarantees a beat on top of the roll)
 Config.RIVAL_CHASE_RADIUS = 30 -- a rival chases an egg carrier this close
 Config.RIVAL_SLAP_COOLDOWN = 3 -- seconds between a rival's slap-backs
 

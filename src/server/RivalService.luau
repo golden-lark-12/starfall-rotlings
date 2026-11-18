@@ -206,6 +206,78 @@ local function setThiefSign(model: Model, on: boolean)
 	end
 end
 
+-- Walk to a target WITHOUT crossing the crater: route along a ring
+-- of open ground at radius 45 (the rim's outer ring ends at 39),
+-- then straight in. (fix round 7, item 2) The straight-line walks
+-- are why rivals read as dead: a rival starts at its own base
+-- (radius 110) and a far-side victim's "around" point is at radius
+-- 45 on the opposite side, so the chord passes near the origin —
+-- straight through the tiered rim (2.5 / 4 / 5.5 studs). The
+-- stuck-hop cannot reliably clear those rings, so the walk timed out
+-- at 40s and the steal aborted. Same for the crater approach: the
+-- gap is at +Z, so a rival on the -Z side walked straight through
+-- the crater to reach it. The ring route never crosses the rim: from
+-- inside the crater, exit through the entrance gap (+Z, the one open
+-- side); from outside, drop radially to the ring at your own angle;
+-- arc along the ring to the target's angle (shorter way); then walk
+-- straight to the target. Every rival walk uses this — toCrater,
+-- steal, and toBase — so a rival can never stall on the rim again.
+local function walkAround(model: Model, target: Vector3, timeout: number, shouldCancel: (() -> boolean)?): boolean
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return false
+	end
+	local start = root.Position
+	local startR = Vector3.new(start.X, 0, start.Z).Magnitude
+	if startR < 42 then
+		-- Inside the rim: leave through the entrance gap (+Z).
+		if not walkTo(model, Vector3.new(0, Config.CRATER_FLOOR_Y, 45), timeout, shouldCancel) then
+			return false
+		end
+	else
+		-- Outside the rim: drop radially to the ring at our angle.
+		local startAngle = math.atan2(start.Z, start.X)
+		local ringPoint = Vector3.new(math.cos(startAngle) * 45, 0, math.sin(startAngle) * 45)
+		if (Vector3.new(start.X, 0, start.Z) - ringPoint).Magnitude > 4 then
+			if not walkTo(model, ringPoint, timeout, shouldCancel) then
+				return false
+			end
+		end
+	end
+	-- Arc along the ring to the target's angle, 30° at a time, the
+	-- shorter way around. Re-read the angle after the first leg (the
+	-- gap exit lands at +Z, 90°).
+	local cur = model:FindFirstChild("HumanoidRootPart")
+	if not cur then
+		return false
+	end
+	local curPos = (cur :: BasePart).Position
+	local curAngle = math.atan2(curPos.Z, curPos.X)
+	local targetFlat = Vector3.new(target.X, 0, target.Z)
+	local targetAngle = math.atan2(targetFlat.Z, targetFlat.X)
+	local diff = targetAngle - curAngle
+	while diff > math.pi do
+		diff -= 2 * math.pi
+	end
+	while diff < -math.pi do
+		diff += 2 * math.pi
+	end
+	local step = math.rad(30) * (if diff >= 0 then 1 else -1)
+	local remaining = math.abs(diff)
+	while remaining > 0.01 do
+		local move = math.min(math.rad(30), remaining)
+		curAngle += step * (move / math.rad(30))
+		local waypoint = Vector3.new(math.cos(curAngle) * 45, 0, math.sin(curAngle) * 45)
+		if not walkTo(model, waypoint, timeout, shouldCancel) then
+			return false
+		end
+		remaining -= move
+	end
+	-- Straight in from the ring to the target (never crosses the rim:
+	-- the target is outside the ring, or the gap side is open).
+	return walkTo(model, target, timeout, shouldCancel)
+end
+
 -- (fix round 6, item 3) The sneak alert promised a thief at the
 -- victim's base. When the steal aborts for any reason, the victim
 -- must see the resolution on screen — a silent abort reads as a
@@ -319,6 +391,24 @@ local function pickVictim(): (Player?, number?)
 	return victim, BaseService.getPlayerBase(victim.UserId)
 end
 
+-- Try to start a steal: pick a victim with Rotlings on an unlocked
+-- base, raise the THIEF sign, warn the victim, and switch the rival
+-- to the steal phase. Used by the idle roll AND the steal clock, so
+-- both paths start a steal the same way. (fix round 7, item 2)
+local function tryStartSteal(rival: State.Rival, model: Model): boolean
+	local victim, victimBase = pickVictim()
+	if not victim or not victimBase then
+		return false
+	end
+	rival.phase = "steal"
+	rival.targetUserId = victim.UserId
+	rival.targetBase = victimBase
+	setThiefSign(model, true)
+	Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " is sneaking to your base! Lock it (L)!", 4)
+	print("[Rival] " .. rival.name .. " stealing from " .. victim.Name .. " (base " .. tostring(victimBase) .. ")")
+	return true
+end
+
 -- One rival's life: a state machine that walks, grabs, carries home,
 -- earns, and occasionally steals or chases.
 -- One tick of a rival's behaviour (fix round 4, item 5): extracted
@@ -366,18 +456,11 @@ local function stepRival(rival: State.Rival, model: Model)
 		if rival.carried then
 			rival.phase = "toBase"
 		elseif math.random() < Config.RIVAL_STEAL_CHANCE then
-			local victim, victimBase = pickVictim()
-			if victim and victimBase then
-				rival.phase = "steal"
-				rival.targetUserId = victim.UserId
-				rival.targetBase = victimBase
-				setThiefSign(model, true)
-				Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " is sneaking to your base! Lock it (L)!", 4)
-				-- [Rival] log (fix round 4, item 5): the alert fires
-				-- but the thief then did nothing, so the steal must
-				-- prove it started — victim, base, and the walk that
-				-- follows.
-				print("[Rival] " .. rival.name .. " stealing from " .. victim.Name .. " (base " .. tostring(victimBase) .. ")")
+			-- tryStartSteal picks the victim, raises the THIEF sign,
+			-- warns the victim and logs the steal start — the same
+			-- call the steal clock uses (fix round 7, item 2), so a
+			-- steal started by either path is identical.
+			tryStartSteal(rival, model)
 			else
 				rival.phase = "toCrater"
 			end
@@ -395,7 +478,7 @@ local function stepRival(rival: State.Rival, model: Model)
 		-- crater raider uses (walk straight in, no rim climb).
 		local spot = Vector3.new((math.random() * 2 - 1) * 20, Config.CRATER_FLOOR_Y, (math.random() * 2 - 1) * 2)
 		local gap = Vector3.new(0, Config.CRATER_FLOOR_Y, 45)
-		if walkTo(model, gap, 30, stormRunning) and walkTo(model, spot, 30, stormRunning) then
+		if walkAround(model, gap, 30, stormRunning) and walkTo(model, spot, 30, stormRunning) then
 			-- Rarest first: the best Brainrot within reach, not the
 			-- nearest Common. Highest rarity tier wins, cps breaks ties.
 			local best: Model? = nil
@@ -452,7 +535,7 @@ local function stepRival(rival: State.Rival, model: Model)
 			rival.phase = "idle"
 		else
 			local padCf = WorldBuilder.padCFrame(baseId, padIndex)
-			if padCf and walkTo(model, padCf.Position, 40, stormRunning) then
+			if padCf and walkAround(model, padCf.Position, 40, stormRunning) then
 				local carried = rival.carried
 				rival.carried = nil
 				if carried then
@@ -548,7 +631,7 @@ local function stepRival(rival: State.Rival, model: Model)
 				local arrived = false
 				if padCf and victimAngle then
 					local around = Vector3.new(math.cos(victimAngle) * 45, 0, math.sin(victimAngle) * 45)
-					arrived = walkTo(model, around, 40, stormRunning)
+					arrived = walkAround(model, around, 40, stormRunning)
 						and walkTo(model, padCf.Position, 40, stormRunning)
 				elseif padCf then
 					arrived = walkTo(model, padCf.Position, 60, stormRunning)
@@ -734,6 +817,36 @@ function RivalService.start()
 		spawnRival(i)
 	end
 	task.spawn(earningsLoop)
+	task.spawn(function()
+		-- Steal clock (fix round 7, item 2): the 0.35 idle roll plus a
+		-- 60-90s rival cycle made steals too rare to ever see — about
+		-- one attempt per rival every 2-3 minutes, only if the player
+		-- had placed Rotlings. Every 75s, force the idlest rival to
+		-- attempt a steal if any victim exists, so a steal is
+		-- guaranteed on a regular beat instead of left to the roll.
+		-- A steal still needs a victim with Rotlings on an unlocked
+		-- base; with no victim the clock just waits for the next beat.
+		while true do
+			task.wait(75)
+			local best: State.Rival? = nil
+			for _, rival in pairs(State.rivals) do
+				if rival.phase == "idle" and not rival.carried then
+					best = rival
+					break
+				end
+			end
+			if best then
+				local model = best.model
+				if model then
+					if tryStartSteal(best, model) then
+						print("[Rival] steal clock — forced a steal for " .. best.name)
+					else
+						print("[Rival] steal clock — no victim (no placed Brainrots on an unlocked base)")
+					end
+				end
+			end
+		end
+	end)
 	print("[RivalService] " .. tostring(Config.RIVAL_COUNT) .. " rivals live on bases 5-8.")
 end
 
