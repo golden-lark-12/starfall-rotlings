@@ -39,6 +39,16 @@ local running = false
 local stormActive = false -- true only while meteors fall; guards the lightning flash from racing restoreSky
 local rumbleSound: Sound? = nil -- the low storm rumble, looping while the storm runs
 
+-- Calm length (seconds between storms). Declared BEFORE getStatus:
+-- a local defined after its first use resolves to a nil global inside
+-- the earlier function, so getStatus called the calm length on nil and
+-- every caller (income, rivals, raiders, HUD, bounty, events, offline
+-- earnings) died with "StarfallService:49: attempt to call a nil value".
+-- That one nil call killed money, competition, HUD and bounty together.
+local function calmDuration(): number
+	return Config.STORM_PERIOD - Config.STORM_WARN - Config.STORM_DURATION
+end
+
 function StarfallService.getStatus()
 	-- "Meteor Danger" (cheap win 8): 0 when the next storm is far away,
 	-- filling to 1 as it approaches, full during warn and storm.
@@ -58,10 +68,6 @@ function StarfallService.getStatus()
 		secondsLeft = math.max(0, math.ceil(phaseEndsAt - time())),
 		danger = danger,
 	}
-end
-
-local function calmDuration(): number
-	return Config.STORM_PERIOD - Config.STORM_WARN - Config.STORM_DURATION
 end
 
 local function setPhase(newPhase: string, duration: number)
