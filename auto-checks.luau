@@ -2516,6 +2516,47 @@ do
 	end
 end
 
+-- -- (aw) the title screen ------------------------------------------------------------
+-- Step 1: a real start screen on join, rendered live in the game — big
+-- title, tagline, rarity ladder from the catalog, 3-step loop, big PLAY
+-- button that dismisses it. No external images, no key art.
+do
+	local titleSrc = read("src/client/TitleScreenController.client.luau")
+	if not titleSrc then
+		check("aw", false, "could not verify the title screen — TitleScreenController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not titleSrc:find("STARFALL ROTLINGS") then
+			table.insert(problems, "no big STARFALL ROTLINGS title")
+		end
+		if not titleSrc:find("Grab them%. Grow them%. Guard your base%.") then
+			table.insert(problems, "no tagline on the title screen")
+		end
+		if not titleSrc:find("RarityConfig%.RARITIES") then
+			table.insert(problems, "the ladder is not built from RarityConfig")
+		end
+		if not titleSrc:find("RotlingCatalog%.DEFS") then
+			table.insert(problems, "the ladder shows no catalog Rotling per tier")
+		end
+		for _, verb in ipairs({ "GRAB", "CARRY", "EARN" }) do
+			if not titleSrc:find(verb) then
+				table.insert(problems, 'no "' .. verb .. '" step in the 3-step loop')
+			end
+		end
+		if not titleSrc:find("PlayButton") then
+			table.insert(problems, "no PLAY button")
+		end
+		if not titleSrc:find("Visible = false") then
+			table.insert(problems, "PLAY never dismisses the title screen")
+		end
+		if #problems > 0 then
+			check("aw", false, "the title screen is missing — " .. table.concat(problems, "; ") .. ". Parts: TitleScreenController.client.luau")
+		else
+			check("aw", true, "title screen: big title + tagline, rarity ladder from the catalog, GRAB/CARRY/EARN loop, PLAY dismisses it")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

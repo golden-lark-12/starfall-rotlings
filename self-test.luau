@@ -721,6 +721,41 @@ do
 	end
 end
 
+-- 21. Title screen: big title, ladder, 3-step loop, PLAY dismisses it.
+do
+	local titleSrc = read("src/client/TitleScreenController.client.luau")
+	if not titleSrc then
+		step("title-screen", false, "TitleScreenController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not titleSrc:find("STARFALL ROTLINGS") then
+			table.insert(problems, "no big title")
+		end
+		if not titleSrc:find("RarityConfig%.RARITIES") then
+			table.insert(problems, "ladder not built from RarityConfig")
+		end
+		if not titleSrc:find("RotlingCatalog%.DEFS") then
+			table.insert(problems, "no catalog Rotling per tier")
+		end
+		for _, verb in ipairs({ "GRAB", "CARRY", "EARN" }) do
+			if not titleSrc:find(verb) then
+				table.insert(problems, 'no "' .. verb .. '" step')
+			end
+		end
+		if not titleSrc:find("PlayButton") then
+			table.insert(problems, "no PLAY button")
+		end
+		if not titleSrc:find("Visible = false") then
+			table.insert(problems, "PLAY never dismisses the screen")
+		end
+		if #problems > 0 then
+			step("title-screen", false, table.concat(problems, "; "))
+		else
+			step("title-screen", true, "big title + tagline, rarity ladder from the catalog, GRAB/CARRY/EARN loop, PLAY dismisses it")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
