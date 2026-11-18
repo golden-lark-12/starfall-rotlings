@@ -36,6 +36,68 @@ warnBar.Parent = gui
 
 local warnLabel = GuiKit.makeLabel(warnBar, "Warning", "", UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), 34, Color3.fromRGB(255, 255, 255))
 
+-- Red edge flash (fix round 2, fix 3): during the 10s warning the
+-- screen EDGES flash red, so the warning reads even when the player is
+-- not looking at the top bar. Four thin red frames at the screen
+-- edges; they pulse during the warning and sit at a steady dim red
+-- during the storm, then hide.
+local edgeFrames: { Frame } = {}
+local function makeEdge(name: string, size: UDim2, position: UDim2)
+	local edge = Instance.new("Frame")
+	edge.Name = name
+	edge.Size = size
+	edge.Position = position
+	edge.BackgroundColor3 = Color3.fromRGB(255, 30, 30)
+	edge.BackgroundTransparency = 1
+	edge.BorderSizePixel = 0
+	edge.Parent = gui
+	table.insert(edgeFrames, edge)
+	return edge
+end
+makeEdge("EdgeTop", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 0))
+makeEdge("EdgeBottom", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 1, -18))
+makeEdge("EdgeLeft", UDim2.new(0, 18, 1, 0), UDim2.new(0, 0, 0, 0))
+makeEdge("EdgeRight", UDim2.new(0, 18, 1, 0), UDim2.new(1, -18, 0, 0))
+
+local edgeTweens: { Tween } = {}
+local function startEdgePulse()
+	if #edgeTweens > 0 then
+		return
+	end
+	for _, edge in ipairs(edgeFrames) do
+		edge.BackgroundTransparency = 0.45
+		local tween = TweenService:Create(edge, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+			BackgroundTransparency = 0.8,
+		})
+		tween:Play()
+		table.insert(edgeTweens, tween)
+	end
+end
+local function stopEdgePulse()
+	for _, tween in ipairs(edgeTweens) do
+		tween:Cancel()
+	end
+	table.clear(edgeTweens)
+	for _, edge in ipairs(edgeFrames) do
+		edge.BackgroundTransparency = 1
+	end
+end
+local function setEdgesSteady()
+	for _, tween in ipairs(edgeTweens) do
+		tween:Cancel()
+	end
+	table.clear(edgeTweens)
+	for _, edge in ipairs(edgeFrames) do
+		edge.BackgroundTransparency = 0.7
+	end
+end
+
+-- Big centre countdown (fix round 2, fix 3): "SPACE ROCKS IN 10…"
+-- in huge letters in the middle of the screen during the warning, so
+-- the countdown is unmissable. Hidden in calm and during the storm.
+local countdownLabel = GuiKit.makeLabel(gui, "StormCountdown", "", UDim2.new(0, 700, 0, 90), UDim2.new(0.5, -350, 0.35, 0), 64, Color3.fromRGB(255, 60, 50))
+countdownLabel.Visible = false
+
 -- Storm pulse (fix 1): while the storm runs, the bar throbs so the
 -- storm's effect is unmistakable in the same moment as the wall and
 -- the banner — it never reads as a static label. The pulse loops
@@ -63,6 +125,10 @@ Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 		stopPulse()
 		warnBar.Visible = true
 		warnLabel.Text = "⚠ METEOR STORM IN " .. tostring(data.stormSeconds) .. "s — GET HOME! ⚠"
+		-- Big centre countdown + flashing red edges (fix round 2, fix 3).
+		countdownLabel.Text = "SPACE ROCKS IN " .. tostring(data.stormSeconds) .. "…"
+		countdownLabel.Visible = true
+		startEdgePulse()
 	elseif data.stormPhase == "storm" then
 		warnBar.Visible = true
 		-- The storm's effect, in the banner itself: sheltering on
@@ -72,9 +138,13 @@ Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 		-- effect all land in the same moment (storm start).
 		warnLabel.Text = "⛈ SPACE ROCKS INCOMING — SHELTER ON YOUR BASE = x2 INCOME! ⛈"
 		startPulse()
+		countdownLabel.Visible = false
+		setEdgesSteady()
 	else
 		stopPulse()
 		warnBar.Visible = false
+		countdownLabel.Visible = false
+		stopEdgePulse()
 	end
 end)
 

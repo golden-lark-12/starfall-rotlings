@@ -3530,6 +3530,58 @@ do
 	end
 end
 
+-- -- (bl) storm warning is unmissable: red edges, big countdown, repeating siren (fix round 2, fix 3) --
+-- The playtest showed the storm "does nothing" — the warning was a
+-- single top bar and one short ping, easy to miss, and the storm itself
+-- never ran (setWind, fix 2). Now the 10s warning has flashing red
+-- screen edges, a big centre countdown ("SPACE ROCKS IN 10…"), a
+-- repeating siren, and a faint camera tremble; the storm itself has a
+-- red sky, glowing falling rocks, impact explosions with camera shake,
+-- a sweeping wall, and a bounty. This check proves the warning pieces
+-- exist and are driven by the warn phase.
+do
+	local warnSrc = read("src/client/StormWarningController.client.luau")
+	local starSrc = read("src/server/StarfallService.luau")
+	local camSrc = read("src/client/CameraFX.client.luau")
+	if not warnSrc or not starSrc or not camSrc then
+		check("bl", false, "could not verify the storm warning — StormWarningController.client.luau, StarfallService.luau or CameraFX.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not warnSrc:find("EdgeTop") or not warnSrc:find("EdgeBottom") or not warnSrc:find("EdgeLeft") or not warnSrc:find("EdgeRight") then
+			table.insert(problems, "no red edge frames (EdgeTop/Bottom/Left/Right) in StormWarningController")
+		end
+		if not warnSrc:find("startEdgePulse") then
+			table.insert(problems, "edge flash is not pulsed during the warning")
+		end
+		if not warnSrc:find("SPACE ROCKS IN ") then
+			table.insert(problems, "no big centre countdown ('SPACE ROCKS IN …') in StormWarningController")
+		end
+		if not warnSrc:find("countdownLabel%.Visible = true") then
+			table.insert(problems, "countdown label is never shown")
+		end
+		if not starSrc:find("phase == \"warn\" then%s*\n%s*playAlarm") then
+			table.insert(problems, "siren does not repeat during the warning (StarfallService)")
+		end
+		if not starSrc:find("WorldBuilder%.setWind%(true%)") then
+			table.insert(problems, "storm does not call setWind(true) — the storm cannot start")
+		end
+		if not starSrc:find("spawnStormFront") then
+			table.insert(problems, "no sweeping storm-front wall in StarfallService")
+		end
+		if not starSrc:find("awardStormBounty") then
+			table.insert(problems, "no storm bounty award in StarfallService")
+		end
+		if not camSrc:find("stormPhase == \"warn\"") then
+			table.insert(problems, "CameraFX does not tremble during the warning")
+		end
+		if #problems > 0 then
+			check("bl", false, "the storm warning is incomplete — " .. table.concat(problems, "; ") .. ". Parts: StormWarningController.client.luau, StarfallService.luau, CameraFX.client.luau")
+		else
+			check("bl", true, "storm warning is unmissable: red edges flash + big centre countdown 'SPACE ROCKS IN 10…' + repeating siren + faint camera tremble during the 10s warning; storm has red sky, falling rocks, wall, shake and bounty")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

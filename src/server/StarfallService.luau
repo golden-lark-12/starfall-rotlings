@@ -513,6 +513,19 @@ function StarfallService.start()
 				setPhase("warn", Config.STORM_WARN)
 				dimSky()
 				playAlarm()
+				-- Siren repeats through the 10s warning (fix round 2,
+				-- fix 3): one short ping at the start is easy to miss;
+				-- three pings across the warning make the countdown
+				-- unmissable. Guarded by the phase so a stale thread
+				-- can never sound after the warning ends.
+				task.spawn(function()
+					for i = 2, 3 do
+						task.wait(Config.STORM_WARN / 3)
+						if phase == "warn" then
+							playAlarm()
+						end
+					end
+				end)
 				Remotes.bannerEvent():FireAllClients("METEOR STORM IN 10 SECONDS! " .. Config.STORM_HAZARD_LABEL .. " — get home or dodge the red circles!", 10)
 				waitPhase()
 				-- Storm: meteors rain across the WHOLE map, lightning flashes, the
