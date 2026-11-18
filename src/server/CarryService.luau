@@ -84,6 +84,45 @@ function CarryService.refreshFreePrompts()
 	end
 end
 
+-- The carry fan (fix round 8, item 5): three carried Brainrots used
+-- to share one weld C0 (0, CARRY_Y, CARRY_Z) and overlap into a
+-- single blob. Each slot gets its own X offset so every carried
+-- Brainrot is visible; the outer ones sit slightly closer to the
+-- player so the fan arcs around the chest instead of clipping the
+-- arms. Slot 1 of 1 sits dead centre (the old position); slot 2 of
+-- 3 sits 4.2 studs left, slot 3 sits 4.2 right.
+local FAN_SPREAD = 4.2
+local FAN_ARC = 0.5
+local function carrySlotOffset(index: number, total: number): CFrame
+	local centre = (index - (total + 1) / 2)
+	local x = centre * FAN_SPREAD
+	local z = Config.CARRY_Z + math.abs(centre) * FAN_ARC
+	return CFrame.new(x, Config.CARRY_Y, z)
+end
+
+-- Re-seat every carried Brainrot on its fan slot: called after every
+-- carry-list change (grab, pickup, steal, place, drop), so the fan
+-- is always correct — a new grab fans out, a place closes the gap
+-- instead of leaving a hole.
+function CarryService.reseatCarried(player: Player)
+	local carried = State.carried[player.UserId]
+	if not carried then
+		return
+	end
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return
+	end
+	for i, model in ipairs(carried) do
+		local body = model.PrimaryPart
+		local weld = body and body:FindFirstChild("CarryWeld")
+		if weld and weld:IsA("Weld") then
+			weld.C0 = carrySlotOffset(i, #carried)
+		end
+	end
+end
+
 local function weldToPlayer(model: Model, player: Player): boolean
 	local character = player.Character
 	if not character then
@@ -138,6 +177,9 @@ function CarryService.carryRotling(player: Player, model: Model)
 	table.insert(carried, model)
 	model:SetAttribute("OwnerUserId", player.UserId)
 	CarryService.setPromptState(model)
+	-- Fan out: a new grab takes its own slot instead of piling onto
+	-- the centre (fix round 8, item 5).
+	CarryService.reseatCarried(player)
 	-- Filling your arms turns every free grab prompt off.
 	CarryService.refreshFreePrompts()
 	-- THE CHASE (rev 77): carrying a Brainrot is dangerous — flag
@@ -160,6 +202,9 @@ function CarryService.removeCarried(player: Player, model: Model)
 		table.remove(carried, index)
 		index = table.find(carried, model)
 	end
+	-- Closing the gap: the remaining Brainrots re-fan onto their new
+	-- slots instead of leaving a hole (fix round 8, item 5).
+	CarryService.reseatCarried(player)
 	-- Freeing a slot turns the free grab prompts back on.
 	CarryService.refreshFreePrompts()
 	-- No longer carrying anything: the chase ends (rev 77).

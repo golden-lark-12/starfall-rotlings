@@ -1324,6 +1324,32 @@ do
 	end
 end
 
+-- Fix round 8, item 5 — multi-carry fan: each carried Brainrot gets
+-- its own slot (4.2 studs apart, arced), re-seated after every
+-- grab/place/drop.
+do
+	local carrySrc = read("src/server/CarryService.luau")
+	if not carrySrc then
+		step("multi-carry", false, "CarryService.luau missing")
+	else
+		local problems: { string } = {}
+		if not carrySrc:find("local function carrySlotOffset%(index: number, total: number%)") then
+			table.insert(problems, "no carrySlotOffset (no per-slot fan offset)")
+		end
+		if not carrySrc:find("function CarryService%.reseatCarried%(player: Player%)") then
+			table.insert(problems, "no reseatCarried (the fan is never re-seated)")
+		end
+		if not carrySrc:find("weld%.C0 = carrySlotOffset%(i, #carried%)") then
+			table.insert(problems, "reseatCarried does not set each weld to its slot offset")
+		end
+		if #problems > 0 then
+			step("multi-carry", false, table.concat(problems, "; "))
+		else
+			step("multi-carry", true, "each carried Brainrot fans to its own slot (4.2 studs apart, arced), re-seated after every grab/place/drop")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
