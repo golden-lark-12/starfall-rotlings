@@ -248,14 +248,32 @@ function SpawnService.start()
 		{ defId = "bloop", mutation = "Rainbow" },
 		{ defId = "narwhal", mutation = nil },
 	}
-	for _, entry in ipairs(opening) do
-		spawnForced(entry.defId, entry.mutation)
-	end
-	for _ = 1, Config.CRATER_INITIAL - #opening do
-		SpawnService.spawnOne()
-	end
+	-- GRADUAL, not all at once: 2 waiting when the first player
+	-- arrives, then one more every 3s until the opening mix is out.
+	-- A crater that starts with 8 stacked Rotlings reads as a pile;
+	-- a few at a time, spread out, reads as a living conveyor.
+	local openingDone = false
+	task.spawn(function()
+		for i, entry in ipairs(opening) do
+			if i > 2 then
+				task.wait(3)
+			end
+			spawnForced(entry.defId, entry.mutation)
+		end
+		for _ = 1, Config.CRATER_INITIAL - #opening do
+			task.wait(3)
+			SpawnService.spawnOne()
+		end
+		openingDone = true
+	end)
 	task.spawn(animateFree)
 	task.spawn(function()
+		-- Do not top up while the opening is still staggering, or the
+		-- crater fills to the minimum before the gradual opening has
+		-- had time to spread out.
+		while not openingDone do
+			task.wait(1)
+		end
 		while true do
 			task.wait(Config.SPAWN_INTERVAL)
 			-- The conveyor never drops below CRATER_MIN_FREE: top it
