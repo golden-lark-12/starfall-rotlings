@@ -3723,6 +3723,52 @@ do
 	end
 end
 
+-- -- (bp) crater is a real bowl: floor exposed, belt + Rotlings reachable (fix round 2, fix 7) --
+-- The playtest showed Brainrots "trapped inside" the crater, with
+-- players only able to stand on top: the rim was three SOLID cylinders
+-- (radii 31/35/39) that completely buried the crater floor (radius
+-- 28) and the belt, so the Rotlings spawned inside solid geometry.
+-- Now each rim tier is a RING of blocks around the floor — same
+-- heights and colours, same stepped look, but the centre is OPEN, so
+-- the floor, the belt and the Rotlings are fully exposed and walkable,
+-- with an entrance gap on the spawn-path side (+Z).
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not worldSrc or not configSrc then
+		check("bp", false, "could not verify the crater — WorldBuilder.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if worldSrc:find('part%("CraterRim", Enum%.PartType%.Cylinder') then
+			table.insert(problems, "the rim is still built from solid cylinders (CraterRim Cylinder) that bury the floor")
+		end
+		if not worldSrc:find("buildRimRing%(28, 31, 2%.5") then
+			table.insert(problems, "inner rim ring (28-31, height 2.5) not found")
+		end
+		if not worldSrc:find("buildRimRing%(31, 35, 4") then
+			table.insert(problems, "middle rim ring (31-35, height 4) not found")
+		end
+		if not worldSrc:find("buildRimRing%(35, 39, 5%.5") then
+			table.insert(problems, "outer rim ring (35-39, height 5.5) not found")
+		end
+		if not worldSrc:find("if i ~= 4 then") then
+			table.insert(problems, "no entrance gap in the rim rings (segment i=4, +Z, spawn-path side)")
+		end
+		if not worldSrc:find("CFrame%.lookAt%(pos, Vector3%.new%(0, height / 2, 0%)%)") then
+			table.insert(problems, "rim blocks are not oriented tangent to the ring (CFrame.lookAt centre)")
+		end
+		local floorY = configSrc:match("CRATER_FLOOR_Y = ([%d%.]+)")
+		if floorY ~= "0.4" then
+			table.insert(problems, "CRATER_FLOOR_Y is not 0.4 (Rotlings must spawn on the exposed floor)")
+		end
+		if #problems > 0 then
+			check("bp", false, "the crater fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau (buildCrater), Config.luau (CRATER_FLOOR_Y)")
+		else
+			check("bp", true, "crater is a real bowl: three open rings (28-31, 31-35, 35-39) leave the floor exposed, belt + Rotlings stand on it and are reachable, entrance gap on the spawn-path side")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

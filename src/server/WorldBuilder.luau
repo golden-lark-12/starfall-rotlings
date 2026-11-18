@@ -597,17 +597,43 @@ local function buildCrater()
 	beamLight.Brightness = 0.5
 	beamLight.Range = 30
 	beamLight.Parent = beam
-	-- Rim steps: three concentric rings of stacked steps, wide and open
-	-- (no gate), so players walk in and out freely.
-	for i, step in ipairs({
-		{ outer = 62, height = 2.5, y = 1.25, color = Color3.fromRGB(60, 45, 85) },
-		{ outer = 70, height = 4, y = 2, color = Color3.fromRGB(75, 55, 105) },
-		{ outer = 78, height = 5.5, y = 2.75, color = Color3.fromRGB(90, 68, 125) },
-	}) do
-		local rim = part("CraterRim", Enum.PartType.Cylinder, Vector3.new(step.height, step.outer, step.outer), step.color, CFrame.new(0, step.y, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate)
-		rim.CanCollide = true
-		rim.CastShadow = false
+	-- Rim: three concentric RINGS of stacked steps, wide and open, so
+	-- players walk in and out freely — and the crater floor, the belt
+	-- and the Rotlings are fully exposed. The old rim was three SOLID
+	-- cylinders (radii 31/35/39, tops 2.5/4/5.5) that completely
+	-- buried the floor (radius 28, top 0.7) and the belt: the Rotlings
+	-- spawned inside solid geometry, only their tops poking out, and
+	-- players (and bots) could only stand on the mound top. A ring is
+	-- 16 blocks around the floor — same heights, same colours, same
+	-- stepped look from outside, but the centre is OPEN, so the floor
+	-- is the walking surface and the Rotlings stand on it, reachable.
+	-- A gap on the spawn-path side (+Z) is the entrance: players walk
+	-- straight in off the path instead of jumping the rim.
+	local function buildRimRing(innerR: number, outerR: number, height: number, color: Color3)
+		local midR = (innerR + outerR) / 2
+		local thickness = outerR - innerR
+		local segments = 16
+		for i = 0, segments - 1 do
+			-- Entrance gap: skip the segment facing the spawn path
+			-- (+Z). +Z is theta = pi/2, which is segment i = 4
+			-- (4/16 * 2pi = pi/2). The gap lines up across all three
+			-- rings, so it is one straight entrance corridor.
+			if i ~= 4 then
+				local theta = (i / segments) * math.pi * 2
+				local arc = 2 * math.pi * midR / segments
+				local pos = Vector3.new(math.cos(theta) * midR, height / 2, math.sin(theta) * midR)
+				-- lookAt the centre: the block's X axis runs along
+				-- the tangent, its Z axis radially outward.
+				local cf = CFrame.lookAt(pos, Vector3.new(0, height / 2, 0))
+				local seg = part("CraterRim", Enum.PartType.Block, Vector3.new(arc * 1.08, height, thickness), color, cf, Enum.Material.Slate)
+				seg.CanCollide = true
+				seg.CastShadow = false
+			end
+		end
 	end
+	buildRimRing(28, 31, 2.5, Color3.fromRGB(60, 45, 85))
+	buildRimRing(31, 35, 4, Color3.fromRGB(75, 55, 105))
+	buildRimRing(35, 39, 5.5, Color3.fromRGB(90, 68, 125))
 end
 
 local function buildSpawnArea()
