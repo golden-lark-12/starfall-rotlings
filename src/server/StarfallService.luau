@@ -26,6 +26,7 @@ local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 local CarryService = require(script.Parent.CarryService)
 local RotlingFactory = require(script.Parent.RotlingFactory)
 local SpawnService = require(script.Parent.SpawnService)
+local State = require(script.Parent.State)
 local WorldBuilder = require(script.Parent.WorldBuilder)
 
 local StarfallService = {}
@@ -279,6 +280,52 @@ local function onMeteorLanded(target: Vector3, isHero: boolean)
 				end
 			end
 		end
+	end
+	-- Bots are hit too (fix round 5, item 4): a rival or raider caught
+	-- outside a base is knocked out — it drops what it carries. A
+	-- rival dies and respawns after 15s (its Died handler, coins
+	-- kept); a raider just despawns (its loot scatters back to the
+	-- crater). Bots on a base (in their Safe Dome) are safe, same as
+	-- players. Collect first, then knock out, so the Died handler
+	-- removing a rival from State.rivals never mutates the table
+	-- mid-iteration.
+	local hitRivals: { State.Rival } = {}
+	for rivalModel, rival in pairs(State.rivals) do
+		local root = rivalModel:FindFirstChild("HumanoidRootPart")
+		local humanoid = rivalModel:FindFirstChildOfClass("Humanoid")
+		if root and humanoid and humanoid.Health > 0 and not onBase(root.Position) then
+			local flat = Vector3.new(root.Position.X - target.X, 0, root.Position.Z - target.Z)
+			if flat.Magnitude <= Config.STORM_HIT_RADIUS then
+				table.insert(hitRivals, rival)
+			end
+		end
+	end
+	for _, rival in ipairs(hitRivals) do
+		local RivalService = require(script.Parent.RivalService)
+		RivalService.dropCarried(rival)
+		local humanoid = rival.model:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid:TakeDamage(Config.STORM_DAMAGE)
+		end
+		print("[Starfall] METEOR knocked out rival " .. rival.name .. "!")
+		for _, player in ipairs(Players:GetPlayers()) do
+			Remotes.bannerEvent():FireClient(player, "🌠 METEOR knocked out " .. rival.name .. "!", 3)
+		end
+	end
+	local hitRaiders: { Model } = {}
+	for raiderModel, _ in pairs(State.raiders) do
+		local root = raiderModel:FindFirstChild("HumanoidRootPart")
+		if root and not onBase(root.Position) then
+			local flat = Vector3.new(root.Position.X - target.X, 0, root.Position.Z - target.Z)
+			if flat.Magnitude <= Config.STORM_HIT_RADIUS then
+				table.insert(hitRaiders, raiderModel)
+			end
+		end
+	end
+	for _, raiderModel in ipairs(hitRaiders) do
+		local RaiderService = require(script.Parent.RaiderService)
+		RaiderService.despawnRaider(raiderModel)
+		print("[Starfall] METEOR knocked out a raider!")
 	end
 end
 

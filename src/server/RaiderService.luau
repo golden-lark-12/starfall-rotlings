@@ -12,6 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
+local RarityConfig = require(ReplicatedStorage.Shared.RarityConfig)
 local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
 local State = require(script.Parent.State)
@@ -513,7 +514,27 @@ function RaiderService.spawnCraterRaider(): Model?
 	if #free == 0 then
 		return nil
 	end
-	local target = free[math.random(1, #free)]
+	-- Rarest first (fix round 5, item 4): a raider that grabs a
+	-- Common off the belt is invisible; a raider that runs off with
+	-- the rarest Brainrot on the belt is a chase worth watching (and
+	-- bonking). Highest rarity tier wins, cps breaks ties.
+	local target = free[1]
+	local bestTier = -1
+	local bestCps = -1
+	for _, model in ipairs(free) do
+		local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
+		if def then
+			local tier = RarityConfig.rarityTier(def.rarity)
+			local cps = RotlingCatalog.baseCps(def, model:GetAttribute("Mutation") :: string?)
+			if tier > bestTier or (tier == bestTier and cps > bestCps) then
+				bestTier = tier
+				bestCps = cps
+				target = model
+			end
+		end
+	end
+	local targetDef = RotlingCatalog.getDef(target:GetAttribute("DefId") :: string)
+	print("[Raider] crater raider targeting " .. (if targetDef then targetDef.name .. " (" .. targetDef.rarity .. ")" else "a Brainrot") .. " (rarest of " .. tostring(#free) .. " free)")
 	-- Entrance gap side (+Z): walk straight in, no rim climb.
 	local spawnPos = Vector3.new(0, 8, 45)
 	local model = buildRaider(spawnPos)

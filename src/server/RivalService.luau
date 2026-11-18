@@ -18,6 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
+local RarityConfig = require(ReplicatedStorage.Shared.RarityConfig)
 local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
 local RotlingFactory = require(script.Parent.RotlingFactory)
@@ -137,7 +138,14 @@ local function buildRival(name: string, color: Color3, position: Vector3): Model
 	return model
 end
 
-local function walkTo(model: Model, target: Vector3, timeout: number): boolean
+-- True while a storm is running: a rival mid-walk aborts and runs for
+-- its Safe Dome instead of finishing the trip in the meteor rain.
+local function stormRunning(): boolean
+	local StarfallService = require(script.Parent.StarfallService)
+	return StarfallService.getStatus().phase == "storm"
+end
+
+local function walkTo(model: Model, target: Vector3, timeout: number, shouldCancel: (() -> boolean)?): boolean
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	local root = model:FindFirstChild("HumanoidRootPart")
 	if not humanoid or not root then
@@ -156,6 +164,12 @@ local function walkTo(model: Model, target: Vector3, timeout: number): boolean
 		task.wait(0.5)
 		waited += 0.5
 		if not model.Parent then
+			break
+		end
+		-- Storm: stop the trip now — the next stepRival tick runs
+		-- for the Safe Dome. The shelter walk itself passes no
+		-- shouldCancel, so it is never aborted by its own storm.
+		if shouldCancel and shouldCancel() then
 			break
 		end
 		if (root.Position - target).Magnitude < 4 then
@@ -349,14 +363,22 @@ local function stepRival(rival: State.Rival, model: Model)
 			rival.phase = "toCrater"
 		end
 	elseif rival.phase == "toCrater" then
-		-- Walk to a spot on the belt, then grab the nearest free
-		-- Rotling within reach. The spot sits ON the crater floor
-		-- (fix round 2, fix 4): the old y=0 aimed below the floor,
-		-- so the rival pushed against the rim instead of walking
-		-- in to the belt.
+		-- Walk in through the entrance gap (+Z side), then to a spot
+		-- on the belt, then grab the RAREST free Rotling within
+		-- reach. The old straight-line walk crossed the crater rim
+		-- from whatever side the rival's base is on, so rivals pushed
+		-- against the rim wall until the 30s timeout and never reached
+		-- the belt — the leaderboard read $0 because no rival ever
+		-- grabbed or placed. The gap route is the same path the
+		-- crater raider uses (walk straight in, no rim climb).
 		local spot = Vector3.new((math.random() * 2 - 1) * 20, Config.CRATER_FLOOR_Y, (math.random() * 2 - 1) * 2)
-		if walkTo(model, spot, 30) then
+		local gap = Vector3.new(0, Config.CRATER_FLOOR_Y, 45)
+		if walkTo(model, gap, 30, stormRunning) and walkTo(model, spot, 30, stormRunning) then
+			-- Rarest first: the best Brainrot within reach, not the
+			-- nearest Common. Highest rarity tier wins, cps breaks ties.
 			local best: Model? = nil
+			local bestTier = -1
+			local bestCps = -1
 			local bestDist = Config.RIVAL_GRAB_RADIUS
 			for _, descendant in ipairs(workspace:GetDescendants()) do
 				if descendant:IsA("Model") and descendant:GetAttribute("State") == "free" then
@@ -364,20 +386,39 @@ local function stepRival(rival: State.Rival, model: Model)
 					if body then
 						local dist = (body.Position - spot).Magnitude
 						if dist < bestDist then
-							bestDist = dist
-							best = descendant
+							local def = RotlingCatalog.getDef(descendant:GetAttribute("DefId") :: string)
+							if def then
+								local tier = RarityConfig.rarityTier(def.rarity)
+								local cps = RotlingCatalog.baseCps(def, descendant:GetAttribute("Mutation") :: string?)
+								if tier > bestTier or (tier == bestTier and cps > bestCps) then
+									bestTier = tier
+									bestCps = cps
+									best = descendant
+								end
+							end
 						end
 					end
 				end
 			end
 			if best then
+				local def = RotlingCatalog.getDef(best:GetAttribute("DefId") :: string)
 				carryModel(rival, best)
+				-- The grab is visible: every player sees which rival
+				-- took what, so the competition reads on screen.
+				local rarity = if def then def.rarity else "Brainrot"
+				local grabName = if def then def.name else "a Brainrot"
+				for _, player in ipairs(Players:GetPlayers()) do
+					Remotes.bannerEvent():FireClient(player, "🏆 " .. rival.name .. " grabbed a " .. string.upper(rarity) .. " " .. grabName .. "!", 3)
+				end
+				print("[Rival] " .. rival.name .. " grabbed " .. grabName .. " (" .. rarity .. ") from the crater — carrying it home")
 				rival.phase = "toBase"
 			else
+				print("[Rival] " .. rival.name .. " reached the belt but found no free Brainrot within " .. tostring(Config.RIVAL_GRAB_RADIUS))
 				task.wait(1)
 				rival.phase = "idle"
 			end
 		else
+			print("[Rival] " .. rival.name .. " could not reach the belt — going idle")
 			rival.phase = "idle"
 		end
 	elseif rival.phase == "toBase" then
@@ -389,7 +430,7 @@ local function stepRival(rival: State.Rival, model: Model)
 			rival.phase = "idle"
 		else
 			local padCf = WorldBuilder.padCFrame(baseId, padIndex)
-			if padCf and walkTo(model, padCf.Position, 40) then
+			if padCf and walkTo(model, padCf.Position, 40, stormRunning) then
 				local carried = rival.carried
 				rival.carried = nil
 				if carried then
@@ -461,7 +502,7 @@ local function stepRival(rival: State.Rival, model: Model)
 				-- victim's pad crosses the whole map, and 40s was
 				-- cutting it short — the rival gave up mid-walk and
 				-- the steal never happened.
-				if padCf and walkTo(model, padCf.Position, 60) then
+				if padCf and walkTo(model, padCf.Position, 60, stormRunning) then
 					if BaseService.isLocked(victimBase) then
 						setThiefSign(model, false)
 						rival.phase = "toBase"
@@ -560,6 +601,62 @@ local function earningsLoop()
 	end
 end
 
+-- Coins survive a knock-out: a rival that dies to a meteor keeps its
+-- earnings and resumes from them when it respawns.
+local savedCoins: { [number]: number } = {}
+
+-- Spawn (or respawn) one rival: a fresh model + record on its base.
+-- The base itself (owner, pads, placed Rotlings, lock) is set up once
+-- in start() and is NOT reset here, so a respawned rival keeps its
+-- placed Rotlings and its coins.
+local function spawnRival(index: number)
+	local baseId = 4 + index
+	local name = Config.RIVAL_NAMES[index]
+	local color = RIVAL_COLORS[index]
+	local cf = WorldBuilder.baseCFrame(baseId)
+	local spawnPos = if cf then cf.Position + Vector3.new(0, 0, 0) else Vector3.new(0, 0, 0)
+	local model = buildRival(name, color, spawnPos)
+	model.Parent = workspace
+	local rival: State.Rival = {
+		model = model,
+		name = name,
+		baseId = baseId,
+		phase = "idle",
+		carried = nil,
+		coins = savedCoins[index] or 0,
+		slapReadyAt = 0,
+		targetUserId = nil,
+		targetBase = nil,
+		bornAt = time(),
+	}
+	State.rivals[model] = rival
+	-- Knocked out: a meteor (or anything else) that kills the rival
+	-- drops what it carries, banks its coins, and brings it back
+	-- after 15s — a dead rival that never returns is a rival the
+	-- player never competes with again.
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.Died:Connect(function()
+			if State.rivals[model] == nil then
+				return
+			end
+			RivalService.dropCarried(rival)
+			savedCoins[index] = rival.coins
+			State.rivals[model] = nil
+			print("[Rival] " .. rival.name .. " was knocked out! Respawning in 15s (coins kept: " .. tostring(math.floor(rival.coins)) .. ")")
+			task.delay(2, function()
+				if model.Parent then
+					model:Destroy()
+				end
+			end)
+			task.delay(15, function()
+				spawnRival(index)
+			end)
+		end)
+	end
+	task.spawn(runRival, rival)
+end
+
 function RivalService.start()
 	if running then
 		return
@@ -578,24 +675,7 @@ function RivalService.start()
 		State.unlockedPads[baseId] = Config.PADS_OPEN
 		WorldBuilder.setBaseSign(baseId, name .. "'s Base")
 		WorldBuilder.setBaseCoins(baseId, 0)
-		local cf = WorldBuilder.baseCFrame(baseId)
-		local spawnPos = if cf then cf.Position + Vector3.new(0, 0, 0) else Vector3.new(0, 0, 0)
-		local model = buildRival(name, color, spawnPos)
-		model.Parent = workspace
-		local rival: State.Rival = {
-			model = model,
-			name = name,
-			baseId = baseId,
-			phase = "idle",
-			carried = nil,
-			coins = 0,
-			slapReadyAt = 0,
-			targetUserId = nil,
-			targetBase = nil,
-			bornAt = time(),
-		}
-		State.rivals[model] = rival
-		task.spawn(runRival, rival)
+		spawnRival(i)
 	end
 	task.spawn(earningsLoop)
 	print("[RivalService] " .. tostring(Config.RIVAL_COUNT) .. " rivals live on bases 5-8.")

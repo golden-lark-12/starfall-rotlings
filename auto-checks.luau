@@ -4194,7 +4194,10 @@ do
 		if not rivalSrc:find('%[Rival%] " %.%. rival%.name %.%. " stole') then
 			table.insert(problems, "no [Rival] log on a successful steal")
 		end
-		if not rivalSrc:find("walkTo%(model, padCf%.Position, 60%)") then
+		-- 60s timeout (fix round 4, item 5; fix round 5 adds the
+		-- storm-cancel arg, so the pattern matches the 60 with or
+		-- without the trailing argument).
+		if not rivalSrc:find("walkTo%(model, padCf%.Position, 60") then
 			table.insert(problems, "steal walk timeout is still 40s, not 60s")
 		end
 		if not rivalSrc:find("isLocked%(victimBase%)") then
@@ -4541,6 +4544,61 @@ do
 			check("cb", false, "the grab-prompt fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: CarryService.luau, RivalService.luau, RaiderService.luau, SpawnService.luau, MeteorEggService.luau")
 		else
 			check("cb", true, "grab prompt never lies: bot carry paths disable the prompt, tryGrab's carried return logs + banners, free prompts only on while a carry slot is free (base capacity 1), spawns seat the prompt, egg validates before mutating and its prompt goes off once carried")
+		end
+	end
+end
+
+-- -- (cc) bots actually compete (fix round 5, item 4) --
+-- Playtest 5: the leaderboard read Ziggy $0, Nova $0 — rivals earned
+-- NOTHING, and raiders were invisible. The rival's straight-line walk
+-- to the belt crossed the crater rim from whatever side its base is
+-- on, so it pushed against the rim until the 30s timeout and never
+-- reached the belt. The fix: rivals walk in through the entrance gap
+-- (+Z, the raider's path), grab the RAREST free Rotling within reach
+-- (not the nearest Common) and announce it; crater raiders target the
+-- rarest free Rotling too. Storms: a rival mid-walk aborts and runs
+-- for its Safe Dome, and a meteor that lands on a bot outside a base
+-- knocks it out — a rival dies and respawns in 15s (coins kept), a
+-- raider despawns with its loot scattered back to the crater.
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	local raiderSrc = read("src/server/RaiderService.luau")
+	local starfallSrc = read("src/server/StarfallService.luau")
+	if not rivalSrc or not raiderSrc or not starfallSrc then
+		check("cc", false, "could not verify the bot competition fix — RivalService.luau, RaiderService.luau or StarfallService.luau missing")
+	else
+		local problems: { string } = {}
+		if not rivalSrc:find("entrance gap") then
+			table.insert(problems, "rival toCrater does not route through the entrance gap — it still crosses the rim")
+		end
+		if not rivalSrc:find("grabbed a ") then
+			table.insert(problems, "no rival grab alert — a rival grab is invisible")
+		end
+		if not rivalSrc:find("bestTier") then
+			table.insert(problems, "rival grab does not pick the rarest free Rotling")
+		end
+		if not rivalSrc:find("stormRunning") then
+			table.insert(problems, "rival walks do not abort on a storm — bots finish trips in the meteor rain instead of fleeing to the dome")
+		end
+		if not rivalSrc:find("spawnRival") then
+			table.insert(problems, "no spawnRival — a knocked-out rival never respawns")
+		end
+		if not rivalSrc:find("Respawning in 15s") then
+			table.insert(problems, "rival knock-out does not respawn in 15s")
+		end
+		if not raiderSrc:find("Rarest first") then
+			table.insert(problems, "crater raider does not target the rarest free Rotling")
+		end
+		if not starfallSrc:find("METEOR knocked out rival") then
+			table.insert(problems, "meteors do not knock out rivals")
+		end
+		if not starfallSrc:find("METEOR knocked out a raider") then
+			table.insert(problems, "meteors do not knock out raiders")
+		end
+		if #problems > 0 then
+			check("cc", false, "the bot competition fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, RaiderService.luau, StarfallService.luau")
+		else
+			check("cc", true, "bots compete: rivals enter via the gap, grab the rarest free Rotling and announce it; crater raiders target the rarest; walks abort on a storm (flee to the dome); meteors knock out bots outside a base (rival respawns in 15s, coins kept; raider despawns, loot scattered)")
 		end
 	end
 end
