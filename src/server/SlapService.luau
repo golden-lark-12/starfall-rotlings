@@ -26,8 +26,20 @@ local function knockback(root: Part, from: Vector3)
 	root.AssemblyLinearVelocity = away * Config.SLAP_KNOCKBACK + Vector3.new(0, 16, 0)
 end
 
-local function starsAt(position: Vector3)
-	Remotes.slapEffectEvent():FireAllClients(position)
+-- The slap's HIT effect: a shockwave ring + "BONK!" burst at the
+-- impact point, shown to every client. (fix round 7, item 3) The old
+-- effect was a yellow Neon ball + gold particles — a glowing sun
+-- that appeared at the click point even when the slap hit nothing,
+-- because the server fired the same event for hits and whiffs and
+-- the client could not tell them apart. Now the event carries a hit
+-- flag: a real hit shows the impact to everyone; a whiff shows only
+-- a faint swoosh to the slapper (slapMissAt), never a sun.
+local function slapHitAt(position: Vector3)
+	Remotes.slapEffectEvent():FireAllClients(position, true)
+end
+
+local function slapMissAt(player: Player, position: Vector3)
+	Remotes.slapEffectEvent():FireClient(player, position, false)
 end
 
 -- Slap a rival model: it drops its catch and flees.
@@ -40,7 +52,7 @@ function SlapService.slapRival(rival: State.Rival, byPlayer: Player?)
 		knockback(root, from.Position)
 	end
 	if root then
-		starsAt(root.Position)
+		slapHitAt(root.Position)
 	end
 	RivalService.dropCarried(rival)
 	rival.phase = "flee"
@@ -62,7 +74,7 @@ function SlapService.slapPlayer(victim: Player, byPlayer: Player)
 	local from = swinger and swinger:FindFirstChild("HumanoidRootPart")
 	if root and from then
 		knockback(root, from.Position)
-		starsAt(root.Position)
+		slapHitAt(root.Position)
 	end
 	CarryService.dropAllCarried(victim)
 	local MeteorEggService = require(script.Parent.MeteorEggService)
@@ -80,7 +92,7 @@ function SlapService.applySlapFromRival(rival: State.Rival, victim: Player)
 	local rivalRoot = rival.model:FindFirstChild("HumanoidRootPart")
 	if root and rivalRoot then
 		knockback(root, rivalRoot.Position)
-		starsAt(root.Position)
+		slapHitAt(root.Position)
 	end
 	CarryService.dropAllCarried(victim)
 	local MeteorEggService = require(script.Parent.MeteorEggService)
@@ -137,13 +149,19 @@ function SlapService.trySlap(player: Player)
 			if dist <= Config.SLAP_RANGE and dist > 0.5 and to.Unit:Dot(Vector3.new(forward.X, 0, forward.Z).Unit) > 0.3 then
 				local RaiderService = require(script.Parent.RaiderService)
 				RaiderService.bonkRaider(raiderModel, player)
+				-- bonkRaider scatters the loot and flees but fires no
+				-- effect itself — the impact shows here, at the
+				-- raider, so the bonk reads as a hit.
+				slapHitAt(raiderRoot.Position)
 				hitAnyone = true
 			end
 		end
 	end
 	if not hitAnyone then
-		-- A whiff still swings the bat (the client shows it).
-		Remotes.slapEffectEvent():FireClient(player, root.Position + forward * 4)
+		-- A whiff: only a faint swoosh for the slapper — never a
+		-- sun, never a "BONK!". The bat still swings (the client
+		-- shows it), but nothing appears at the click point.
+		slapMissAt(player, root.Position + forward * 4)
 	end
 end
 

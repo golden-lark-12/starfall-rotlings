@@ -2263,7 +2263,7 @@ do
 		if #problems > 0 then
 			check("ao", false, "the slap bat is broken — " .. table.concat(problems, "; ") .. ". Parts: SlapService.luau, SlapController.client.luau")
 		else
-			check("ao", true, "slap bat: F key + SLAP button, 2s cooldown, knockback + drop, stars + bonk, shield immunity, rivals slap back")
+			check("ao", true, "slap bat: F key + SLAP button, 2s cooldown, knockback + drop, shockwave + BONK! burst, shield immunity, rivals slap back")
 		end
 	end
 end
@@ -4991,6 +4991,58 @@ do
 			check("ck", false, "the thief fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, Config.luau")
 		else
 			check("ck", true, "thieves actually steal: all rival walks route along the radius-45 ring (gap exit from inside, arc to the target's angle), steal chance 0.5, rivals walk at 16, a 75s steal clock forces the idlest rival to attempt a steal when a victim exists (pairs over model-keyed State.rivals), one shared tryStartSteal for the roll and the clock")
+		end
+	end
+end
+
+-- -- (cl) the bonk reads as a hit, never as a sun (fix round 7, item 3)
+-- Malek: "when i clikc slap it shows a small glowing yellow sun?
+-- why" — and "it does look like a sun when im pressing it into
+-- anything - like anywhere in the map". The old effect was a yellow
+-- Neon ball + gold particles (a glowing sun) and the server fired
+-- the SAME event for hits and whiffs, so the client could not tell
+-- them apart — every whiff showed a sun at the swing point. Now the
+-- event carries a hit flag: a real hit fires slapHitAt to every
+-- client (shockwave ring + "BONK!" burst + low thud at the impact
+-- point, on the victim — rivals, players, and raiders, whose
+-- bonkRaider fired no effect at all before), and a whiff fires
+-- slapMissAt to the slapper only (a small faint swoosh, no sun, no
+-- "BONK!"). The yellow ball is gone.
+do
+	local slapSrc = read("src/server/SlapService.luau")
+	local slapClient = read("src/client/SlapController.client.luau")
+	if not slapSrc or not slapClient then
+		check("cl", false, "could not verify the bonk effect — SlapService.luau or SlapController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if slapSrc:find("starsAt") then
+			table.insert(problems, "the old starsAt sun effect is still fired somewhere")
+		end
+		if not slapSrc:find("local function slapHitAt") or not slapSrc:find("FireAllClients%(position, true%)") then
+			table.insert(problems, "no slapHitAt firing the hit effect to every client")
+		end
+		if not slapSrc:find("local function slapMissAt") or not slapSrc:find("FireClient%(player, position, false%)") then
+			table.insert(problems, "no slapMissAt firing the whiff effect to the slapper only")
+		end
+		if not slapSrc:find("slapHitAt%(raiderRoot%.Position%)") then
+			table.insert(problems, "a raider bonk still shows no effect (bonkRaider fires none itself)")
+		end
+		if slapClient:find("SlapStars") or slapClient:find("Enum%.PartType%.Ball") then
+			table.insert(problems, "the yellow sun ball is still in the client effect")
+		end
+		if not slapClient:find("BonkRing") or not slapClient:find('"BONK!"') then
+			table.insert(problems, "the hit effect is not a shockwave ring + BONK! burst")
+		end
+		if not slapClient:find("BonkSwoosh") then
+			table.insert(problems, "a whiff shows no faint swoosh (or still shows a sun)")
+		end
+		if not slapClient:find("hit: boolean%?") then
+			table.insert(problems, "the client effect does not take a hit flag — it cannot tell a hit from a whiff")
+		end
+		if #problems > 0 then
+			check("cl", false, "the bonk effect fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: SlapService.luau, SlapController.client.luau")
+		else
+			check("cl", true, "the bonk reads as a hit: hits fire a shockwave ring + BONK! burst + low thud to every client (rivals, players, raiders), whiffs show only a faint swoosh to the slapper, the yellow sun ball is gone")
 		end
 	end
 end

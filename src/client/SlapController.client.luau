@@ -84,37 +84,87 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	end
 end)
 
--- Stars + bonk where a slap lands (fired by the server to everyone).
-Remotes.slapEffectEvent().OnClientEvent:Connect(function(position: Vector3)
-	local star = Instance.new("Part")
-	star.Name = "SlapStars"
-	star.Shape = Enum.PartType.Ball
-	star.Size = Vector3.new(1.5, 1.5, 1.5)
-	star.Color = Color3.fromRGB(255, 220, 60)
-	star.Material = Enum.Material.Neon
-	star.Anchored = true
-	star.CanCollide = false
-	star.CanQuery = false
-	star.CFrame = CFrame.new(position + Vector3.new(0, 2, 0))
-	star.Parent = workspace
-	local emitter = Instance.new("ParticleEmitter")
-	emitter.Color = ColorSequence.new(Color3.fromRGB(255, 220, 60))
-	emitter.Size = NumberSequence.new(0.6)
-	emitter.Lifetime = NumberRange.new(0.5, 0.8)
-	emitter.Rate = 0
-	emitter.Speed = NumberRange.new(6, 10)
-	emitter.SpreadAngle = Vector2.new(360, 360)
-	emitter.Parent = star
-	emitter:Emit(14)
-	local sound = Instance.new("Sound")
-	sound.SoundId = "rbxasset://sounds/electronicpingshort.wav"
-	sound.Volume = 0.8
-	sound.PlaybackSpeed = 0.5
-	sound.Parent = star
-	sound:Play()
-	task.delay(1, function()
-		star:Destroy()
-	end)
+-- The slap's hit effect (fired by the server): a real HIT shows an
+-- impact, a whiff shows almost nothing. (fix round 7, item 3) The
+-- old effect was a yellow Neon ball + gold particles — a glowing sun
+-- that appeared at the click point even when the slap hit nothing,
+-- because the server fired the same event for hits and whiffs and
+-- the client could not tell them apart. Now the event carries a hit
+-- flag: a hit shows a white shockwave ring + a "BONK!" burst + a low
+-- thud at the impact point; a whiff shows only a small faint swoosh
+-- where the bat swung — no sun, no "BONK!".
+Remotes.slapEffectEvent().OnClientEvent:Connect(function(position: Vector3, hit: boolean?)
+	if hit then
+		local ring = Instance.new("Part")
+		ring.Name = "BonkRing"
+		ring.Shape = Enum.PartType.Cylinder
+		ring.Size = Vector3.new(0.15, 1.5, 1.5)
+		ring.CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90))
+		ring.Material = Enum.Material.Neon
+		ring.Color = Color3.fromRGB(255, 255, 255)
+		ring.Transparency = 0.15
+		ring.Anchored = true
+		ring.CanCollide = false
+		ring.CanQuery = false
+		ring.CanTouch = false
+		ring.Parent = workspace
+		local burst = Instance.new("BillboardGui")
+		burst.Name = "BonkBurst"
+		burst.Size = UDim2.fromOffset(140, 50)
+		burst.StudsOffset = Vector3.new(0, 2.5, 0)
+		burst.AlwaysOnTop = true
+		burst.Adornee = ring
+		burst.Parent = ring
+		local burstText = Instance.new("TextLabel")
+		burstText.Size = UDim2.fromScale(1, 1)
+		burstText.BackgroundTransparency = 1
+		burstText.Text = "BONK!"
+		burstText.Font = Enum.Font.GothamBlack
+		burstText.TextSize = 30
+		burstText.TextColor3 = Color3.fromRGB(255, 200, 40)
+		burstText.TextStrokeColor3 = Color3.fromRGB(60, 20, 0)
+		burstText.TextStrokeTransparency = 0
+		burstText.Parent = burst
+		local sound = Instance.new("Sound")
+		sound.SoundId = "rbxasset://sounds/electronicpingshort.wav"
+		sound.Volume = 0.8
+		sound.PlaybackSpeed = 0.35
+		sound.Parent = ring
+		sound:Play()
+		task.spawn(function()
+			for i = 1, 7 do
+				local t = i / 7
+				ring.Size = Vector3.new(0.15, 1.5 + t * 4.5, 1.5 + t * 4.5)
+				ring.Transparency = 0.15 + t * 0.85
+				burst.StudsOffset = Vector3.new(0, 2.5 + t * 2, 0)
+				burstText.TextTransparency = t
+				burstText.TextStrokeTransparency = t
+				task.wait(0.05)
+			end
+			ring:Destroy()
+		end)
+	else
+		local swoosh = Instance.new("Part")
+		swoosh.Name = "BonkSwoosh"
+		swoosh.Shape = Enum.PartType.Cylinder
+		swoosh.Size = Vector3.new(0.1, 1.2, 1.2)
+		swoosh.CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90))
+		swoosh.Material = Enum.Material.Neon
+		swoosh.Color = Color3.fromRGB(200, 200, 200)
+		swoosh.Transparency = 0.7
+		swoosh.Anchored = true
+		swoosh.CanCollide = false
+		swoosh.CanQuery = false
+		swoosh.CanTouch = false
+		swoosh.Parent = workspace
+		task.spawn(function()
+			for i = 1, 4 do
+				swoosh.Transparency = 0.7 + (i / 4) * 0.3
+				task.wait(0.05)
+			end
+			swoosh:Destroy()
+		end)
+	end
 end)
 
 local function onCharacter(character: Model)
