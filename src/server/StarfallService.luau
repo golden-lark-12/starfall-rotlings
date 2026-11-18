@@ -264,12 +264,15 @@ local function onMeteorLanded(target: Vector3, isHero: boolean)
 					CarryService.dropAllCarried(player)
 					local MeteorEggService = require(script.Parent.MeteorEggService)
 					MeteorEggService.dropEgg(player)
-					-- Hit feedback (fix 1): a meteor hit used to be
-					-- silent — damage + knockback + dropped carries
-					-- with no banner, no flash, no sound, so a player
-					-- caught outside their base felt nothing and
-					-- thought the storm did nothing. Say it out loud.
-					Remotes.bannerEvent():FireClient(player, "🌠 METEOR HIT! -" .. tostring(Config.STORM_DAMAGE) .. " HP — you dropped what you were carrying! Get to your base!", 4)
+					-- Hit feedback: a meteor hit used to be silent —
+					-- damage + knockback + dropped carries with no
+					-- banner, no flash, no sound, so a player caught
+					-- outside their base felt nothing and thought the
+					-- storm did nothing. Say it out loud. The hit is
+					-- LETHAL now (STORM_DAMAGE 100): the player is
+					-- knocked out, drops what they carry, and respawns
+					-- at their base.
+					Remotes.bannerEvent():FireClient(player, "🌠 METEOR HIT! You were knocked out — you dropped what you were carrying! Get to your base!", 4)
 				end
 			end
 		end
@@ -308,7 +311,7 @@ local function pickTarget(): Vector3
 	for _ = 1, 12 do
 		local roll = math.random()
 		local candidate: Vector3
-		if roll < 0.3 then
+		if roll < Config.STORM_NEAR_PLAYER_CHANCE then
 			-- Near a random player, anywhere on the map.
 			local players = Players:GetPlayers()
 			if #players == 0 then
@@ -325,7 +328,7 @@ local function pickTarget(): Vector3
 					candidate = Vector3.new(0, Config.CRATER_FLOOR_Y, 0)
 				end
 			end
-		elseif roll < 0.55 then
+		elseif roll < Config.STORM_NEAR_PLAYER_CHANCE + 0.2 then
 			-- Near a random base: just outside the safe ring.
 			local baseId = math.random(1, Config.BASE_COUNT)
 			local cf = WorldBuilder.baseCFrame(baseId)

@@ -48,7 +48,7 @@ Config.STORM_PERIOD = 90
 Config.STORM_WARN = 10 -- warning seconds before the meteors fall
 Config.STORM_DURATION = 8
 Config.STORM_METEOR_INTERVAL = 0.45
-Config.STORM_DAMAGE = 15 -- health lost per meteor hit while in the crater
+Config.STORM_DAMAGE = 100 -- LETHAL: a hit outside the dome knocks the player out (100 HP), drops what they carry, and they respawn at their base. The old 15 never killed anyone, so the storm never knocked anyone out.
 Config.STARSTRUCK_CHANCE = 0.4 -- a free Rotling near an impact survives as Starstruck
 -- Storm spread (item 6): impacts cover the WHOLE map, not just the
 -- crater centre. Meteors pick a zone — near a player anywhere, near a
@@ -60,7 +60,7 @@ Config.STARSTRUCK_CHANCE = 0.4 -- a free Rotling near an impact survives as Star
 Config.STORM_SPREAD_RADIUS = 150 -- impacts anywhere inside this radius of the origin
 Config.STORM_WARNING_TIME = 2 -- seconds the warning circle shows before impact
 Config.STORM_BASE_SAFE_RADIUS = 17 -- no impact target this close to a base centre
-Config.STORM_HIT_RADIUS = 6 -- a player this close to an impact is knocked back
+Config.STORM_HIT_RADIUS = 10 -- a player this close to an impact is knocked out (was 6: with a 15-stud near box only ~4% of near meteors ever hit, so the storm rarely did anything)
 Config.STORM_KNOCKBACK = 42 -- studs/sec of knockback velocity on a hit
 Config.STORM_HAZARD_LABEL = "DANGER: CRATER-WIDE FIREBALL RAIN" -- hazard label on the storm banner
 -- Storm front wall (step 2): a giant glowing meteor front that sweeps
@@ -81,7 +81,7 @@ Config.STORM_DOME_MULT = 2 -- income multiplier inside your own Safe Dome during
 -- 6-10 crash close enough to shake the camera; hero meteors always
 -- leave a rare Rotling at the impact point for 30 seconds.
 Config.STORM_NEAR_PLAYER_CHANCE = 0.5 -- half the rain meteors aim near a player
-Config.STORM_NEAR_PLAYER_RADIUS = 15 -- studs around the player a near meteor may land
+Config.STORM_NEAR_PLAYER_RADIUS = 8 -- studs around the player a near meteor may land (was 15: with a 10-stud hit radius a near meteor now lands close enough to matter — the 2s warning circle is the dodge window, not a random punishment)
 Config.STORM_RARE_LIFETIME = 30 -- seconds a storm-spawned rare Rotling stays grabbable
 
 -- Sprint: hold Shift (or the mobile Run button) to run. Base walk
