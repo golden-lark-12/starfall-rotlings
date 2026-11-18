@@ -345,6 +345,15 @@ local function chaseLoop(guardian: Model)
 	local lastRepathAt = 0
 	local lastChasePos = root.Position
 	local noProgressTime = 0
+	-- Chase telemetry (fix round 8, item 1): the guardian's speed is
+	-- a NUMBER, not a feeling — every 2s the loop logs the real
+	-- studs/s the guardian actually moved (not its WalkSpeed, which
+	-- is what it is TOLD to move at) plus the distance to the target.
+	-- That is the proof the speed fix works: a real speed above 16
+	-- means it gains on a walking player, and the distance should
+	-- shrink tick by tick. Malek reads it in F9.
+	local lastTelemetryAt = time()
+	local lastTelemetryPos = root.Position
 	while guardian.Parent and active[guardian] do
 		local target = entry.target
 		local targetRoot = target:FindFirstChild("HumanoidRootPart") or target.PrimaryPart
@@ -449,6 +458,19 @@ local function chaseLoop(guardian: Model)
 			noProgressTime = 0
 			lastChasePos = root.Position
 		end
+		-- Telemetry (fix round 8, item 1): real speed over the last
+		-- sample, so a slow guardian cannot hide behind its WalkSpeed
+		-- setting — if this number is under 16, the chase is broken
+		-- no matter what Config says.
+		local telemetryNow = time()
+		if telemetryNow - lastTelemetryAt >= 2 then
+			local moved = (root.Position - lastTelemetryPos).Magnitude
+			local realSpeed = moved / math.max(0.1, telemetryNow - lastTelemetryAt)
+			local distToTarget = (root.Position - targetRoot.Position).Magnitude
+			print("[Guardian] chase telemetry — real speed " .. string.format("%.1f", realSpeed) .. " studs/s (WalkSpeed " .. tostring(entry.speed) .. "), distance to target " .. string.format("%.1f", distToTarget) .. " studs")
+			lastTelemetryAt = telemetryNow
+			lastTelemetryPos = root.Position
+		end
 		if time() - entry.bornAt > Config.GUARDIAN_GIVEUP_TIME then
 			GuardianService.despawnGuardian(guardian, "timeout")
 			return
@@ -464,10 +486,13 @@ end
 -- guardian's root landed ~0 studs from the player's root — inside the
 -- 5-stud catch radius on the FIRST chase tick. Every grab was caught
 -- instantly, the Brainrot dropped straight back into the crater, and
--- pressing E read as "does nothing". A rim spawn is always >= 24 studs
--- away, so the player gets a real head start to run home — and the
--- escape is the base/dome (or the 25s timeout): even the fastest guardian (Cosmic 16.5, 0.5 faster than
--- walk 16) gains only 0.5 studs/s from 24 studs back, so it needs 48s to catch a straight-line runner.
+-- pressing E read as "does nothing". A rim spawn is always >= 14 studs
+-- away (Config.GUARDIAN_SPAWN_DISTANCE), so the player gets a real
+-- head start to run home — and the escape is the base/dome (or the
+-- 25s timeout): even the SLOWEST guardian (Common 19) gains 3
+-- studs/s on a walker at 16, so it closes 14 studs in ~5s and
+-- catches a straight-line runner; sprint (26) still outruns it
+-- while stamina lasts.
 local function guardianSpawnPos(targetPos: Vector3): Vector3
 	local flat = Vector3.new(targetPos.X, 0, targetPos.Z)
 	local dir: Vector3
@@ -476,7 +501,7 @@ local function guardianSpawnPos(targetPos: Vector3): Vector3
 	else
 		dir = Vector3.new(1, 0, 0) -- target at the centre: fixed rim point
 	end
-	local p = dir * 24
+	local p = dir * Config.GUARDIAN_SPAWN_DISTANCE
 	return Vector3.new(p.X, Config.CRATER_FLOOR_Y, p.Z)
 end
 
@@ -554,7 +579,7 @@ function GuardianService.onGrab(player: Player, grabbed: Model)
 	-- The guardian climbs out of the crater rim opposite the grabber
 	-- (guardianSpawnPos): never on top of the player, or the catch is
 	-- instant and the grab reads as broken.
-	local spawnPos = if root then guardianSpawnPos(root.Position) else Vector3.new(24, Config.CRATER_FLOOR_Y, 0)
+	local spawnPos = if root then guardianSpawnPos(root.Position) else Vector3.new(Config.GUARDIAN_SPAWN_DISTANCE, Config.CRATER_FLOOR_Y, 0)
 	spawnGuardian(character, player, rarity, spawnPos)
 end
 
@@ -563,7 +588,7 @@ function GuardianService.onRaiderGrab(raiderModel: Model, stolen: Model)
 	local def = RotlingCatalog.getDef(stolen:GetAttribute("DefId") :: string)
 	local rarity = if def then def.rarity else "Common"
 	local root = raiderModel:FindFirstChild("HumanoidRootPart")
-	local spawnPos = if root then guardianSpawnPos(root.Position) else Vector3.new(24, Config.CRATER_FLOOR_Y, 0)
+	local spawnPos = if root then guardianSpawnPos(root.Position) else Vector3.new(Config.GUARDIAN_SPAWN_DISTANCE, Config.CRATER_FLOOR_Y, 0)
 	spawnGuardian(raiderModel, nil, rarity, spawnPos)
 end
 

@@ -174,9 +174,22 @@ Config.RAIDER_WALK_SPEED = 14
 
 -- Crater Guardian (THE CHASE): a space rock monster that chases
 -- anyone who grabs a Brainrot from the crater. Speed by the grabbed
--- Brainrot's rarity tier: Common is slow, Legendary and up are nearly
--- as fast as the player (walk 16). Cosmic is the fastest guardian.
-Config.GUARDIAN_SPEED = { [1] = 10, [2] = 12, [3] = 14, [4] = 16, [5] = 17.5, [6] = 18.5 } -- per rarity tier (fix round 7, item 1: +2 each — the round-6 speeds (8 -> 16.5) never read as fast because the stop-start chase halved them; with a smooth chase these are the real speeds. Cosmic 18.5 is 2.5 faster than walk 16, so a head start + base/dome still escapes it — it gains 2.5/s from 24 studs back, needing ~10s to catch a straight-line runner, and the 25s timeout ends the chase first; sprint (26) still outruns it)
+-- Brainrot's rarity tier. THE NUMBERS HAVE TO BEAT THE PLAYER: a
+-- walking player moves 16 studs/s, sprinting is 26. The guardian is
+-- FASTER than a walk at EVERY tier (Common 19 up to Cosmic 24) — it
+-- gains on a walker and can actually catch one, and a sprinter
+-- still outruns it while stamina lasts. The old speeds (Common 10,
+-- Cosmic 18.5) were SLOWER than a walk, so the guardian could never
+-- catch anyone who just kept walking home — Malek proved it in
+-- playtest 9, three rounds in a row. It spawns 14 studs from the
+-- grabber (close enough to be a threat the moment it wakes, far
+-- enough that it is not an instant catch — the old 24-stud head
+-- start plus the slow speed meant it never arrived at all). If a
+-- future tweak ever drops a tier back under 16, the guardian is
+-- decorative again — the auto-check (df) proves every tier beats
+-- the walk speed.
+Config.GUARDIAN_SPEED = { [1] = 19, [2] = 20, [3] = 21, [4] = 22, [5] = 23, [6] = 24 } -- per rarity tier (fix round 8, item 1: every tier beats walk 16; sprint 26 still escapes while stamina lasts)
+Config.GUARDIAN_SPAWN_DISTANCE = 14 -- studs from the grabber, on the opposite rim
 Config.GUARDIAN_CATCH_RADIUS = 5 -- studs: this close and it catches you
 Config.GUARDIAN_GIVEUP_TIME = 25 -- seconds: a chase that drags on ends on its own
 

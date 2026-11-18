@@ -1230,6 +1230,45 @@ do
 	end
 end
 
+-- Fix round 8, item 1 — guardian speed: every tier beats a walk (16),
+-- spawn is 14 studs (not 24), and the chase loop logs real studs/s.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local guardianSrc = read("src/server/GuardianService.luau")
+	if not configSrc or not guardianSrc then
+		step("guardian-speed", false, "Config.luau or GuardianService.luau missing")
+	else
+		local problems: { string } = {}
+		local speedLine = configSrc:match("GUARDIAN_SPEED = ({.-})")
+		if speedLine then
+			local i = 0
+			for n in speedLine:gmatch("= (%d+%.?%d*)") do
+				i += 1
+				local v = tonumber(n)
+				if v and v <= 16 then
+					table.insert(problems, "tier " .. tostring(i) .. " speed " .. tostring(v) .. " <= walk 16")
+				end
+			end
+			if i ~= 6 then
+				table.insert(problems, "GUARDIAN_SPEED has " .. tostring(i) .. " tiers, not 6")
+			end
+		else
+			table.insert(problems, "no GUARDIAN_SPEED table in Config")
+		end
+		if not configSrc:find("GUARDIAN_SPAWN_DISTANCE = 14") then
+			table.insert(problems, "spawn distance is not 14")
+		end
+		if not guardianSrc:find("chase telemetry") then
+			table.insert(problems, "no chase telemetry (no proof the speed is real)")
+		end
+		if #problems > 0 then
+			step("guardian-speed", false, table.concat(problems, "; "))
+		else
+			step("guardian-speed", true, "every guardian tier beats walk 16 (19-24), spawns 14 studs away, chase logs real studs/s + distance every 2s")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
