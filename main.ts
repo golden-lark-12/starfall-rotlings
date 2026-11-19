@@ -1,19 +1,21 @@
-// Starfall Rotlings — the entry program (Node 22, standard library only).
+// Starfall Rotlings — entry program (Node 22, standard library only).
 //
-// What it hands in, and how:
-//   1. game.rbxl — the place, built on the author's machine with
+// What this program hands to the grader, and where each piece comes from:
+//   1. game.rbxl — the binary place, built on the author's machine with
 //      `rojo build default.project.json --output game.rbxl` from src/ and
-//      default.project.json. It is a binary Roblox place, never .rbxlx.
+//      default.project.json. Binary only, never a .rbxlx text place.
 //   2. src/ — every Luau script of the place, exactly as Rojo laid it out.
 //   3. screenshots/ — 3 or 4 captures of the game running in Studio; the
-//      first by name is the cover and matches the Roblox thumbnail.
-//   4. PLAY.json — the published Public place: url, place_id, universe_id.
+//      first file by name is the cover and is the same picture as the
+//      Roblox thumbnail.
+//   4. PLAY.json — the published Public place: its url, place_id and
+//      universe_id.
 //   5. dossier.json — the summary the judge reads, written by the vendored
 //      make.fun library from the files above.
 //
-// The grader runs this program twice and demands identical bytes, so it
-// does no network, no timestamps and no randomness: it copies files and
-// writes the dossier, nothing else.
+// The grader runs this program twice and demands byte-identical output,
+// so it does no network, no clock reads and no randomness: it only copies
+// files and writes the dossier.
 //
 // Run it locally the same way the grader does, with out/ standing in
 // for /output:
@@ -24,15 +26,15 @@ import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-roblox.ts';
 
-// The repository root (this file's directory) and the output directory:
+// The repository root is this file's directory. The output directory is
 // /output inside the grader, or MAKEFUN_OUTPUT_DIR when run by hand.
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const outputDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-// The grader refuses any output name that does not start with a letter,
-// a digit or _, or that holds anything but letters, digits, . _ and -.
-// A dotfile such as .gitkeep or .DS_Store anywhere under /output fails
-// the entry, so the copy filter drops every dotted name at any depth.
+// The grader refuses any output name that does not start with a letter, a
+// digit or _, or that holds anything but letters, digits, . _ and -.
+// A dotfile such as .gitkeep or .DS_Store anywhere under /output fails the
+// entry, so the copy filter drops every dotted name at any depth.
 function isPublicName(path: string): boolean {
   return !basename(path).startsWith('.');
 }
