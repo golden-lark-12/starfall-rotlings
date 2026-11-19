@@ -6621,6 +6621,51 @@ do
 	end
 end
 
+-- (dn) GUARDIAN LEAVES THE CRATER (fix round 9, item 2): the
+-- guardian read as crater-bound because its give-up fired at the
+-- base DOOR (17 studs from the centre) — it quit ~15 studs before
+-- the player was even on the platform. The give-up now uses the
+-- base INTERIOR only (WorldBuilder.isOnBaseInterior): the doorway
+-- and ramp are outside the safe zone, so the guardian keeps chasing
+-- a player standing in the door and only gives up once the player
+-- is actually on the platform. Nothing blocks the guardian — no
+-- dome, no wall — only the interior, the dropped carry, and the
+-- 25s timeout stop it. The proof is the chase itself: the loop
+-- logs LEFT THE CRATER the first time it passes radius 40, and the
+-- despawn summary prints its max radius.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local guardianSrc = read("src/server/GuardianService.luau")
+	if not worldSrc or not guardianSrc then
+		check("dn", false, "could not verify the crater range — WorldBuilder.luau or GuardianService.luau missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find("function WorldBuilder%.isOnBaseInterior") then
+			table.insert(problems, "no WorldBuilder.isOnBaseInterior helper")
+		end
+		if not worldSrc:find("localPos%.Z >= %-10%.5") then
+			table.insert(problems, "the interior check does not exclude the doorway (local z >= -10.5)")
+		end
+		if not guardianSrc:find("WorldBuilder%.isOnBaseInterior%(baseId, position%)") then
+			table.insert(problems, "the guardian give-up does not use isOnBaseInterior (still the radial door check?)")
+		end
+		if guardianSrc:find("STORM_BASE_SAFE_RADIUS") then
+			table.insert(problems, "the guardian still references STORM_BASE_SAFE_RADIUS for its give-up")
+		end
+		if not guardianSrc:find("LEFT THE CRATER") then
+			table.insert(problems, "the loop does not log leaving the crater")
+		end
+		if not guardianSrc:find("maxRadius") then
+			table.insert(problems, "the chase summary does not track max radius")
+		end
+		if #problems > 0 then
+			check("dn", false, "the crater range is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, GuardianService.luau")
+		else
+			check("dn", true, "guardian leaves the crater: give-up is interior-only (doorway excluded), LEFT THE CRATER log + max radius in the chase summary prove the range")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

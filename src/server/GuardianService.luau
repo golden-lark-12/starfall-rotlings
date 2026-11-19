@@ -65,19 +65,20 @@ local function speedForRarity(rarity: string): number
 	return Config.GUARDIAN_SPEED[tier] or Config.GUARDIAN_SPEED[1]
 end
 
--- Is this position on the target player's own base (a safe zone)?
--- Reuses the storm safe radius: a base platform is never a chase zone.
+-- Is this position on the target player's own base INTERIOR (a safe
+-- zone)? Interior only (fix round 9, item 2): the doorway/ramp is
+-- OUTSIDE the safe zone, so the guardian keeps chasing a player
+-- standing in the door — it only gives up once the player is actually
+-- on the platform. The old radial check (17 studs from the centre)
+-- gave up at the door, ~15 studs before the player was safe, which
+-- is why the guardian read as crater-bound: it quit before it ever
+-- reached the base.
 local function onOwnBase(player: Player, position: Vector3): boolean
 	local baseId = BaseService.getPlayerBase(player.UserId)
 	if not baseId then
 		return false
 	end
-	local cf = WorldBuilder.baseCFrame(baseId)
-	if not cf then
-		return false
-	end
-	local flat = Vector3.new(position.X - cf.Position.X, 0, position.Z - cf.Position.Z)
-	return flat.Magnitude <= Config.STORM_BASE_SAFE_RADIUS
+	return WorldBuilder.isOnBaseInterior(baseId, position)
 end
 
 local function makePart(name: string, shape: Enum.PartType, size: Vector3, color: Color3, material: Enum.Material?): Part

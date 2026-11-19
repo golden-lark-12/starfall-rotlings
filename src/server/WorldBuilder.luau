@@ -84,6 +84,28 @@ function WorldBuilder.baseCFrame(baseId: number): CFrame?
 	return baseCFrames[baseId]
 end
 
+-- Is a position on a base's INTERIOR (the platform top, inside the
+-- walls)? The doorway/ramp is NOT interior: standing in the doorway
+-- (local z -11..-15, on the ramp) is OUTSIDE the safe zone, so a
+-- storm still hurts there and the guardian still chases there (fix
+-- round 9, items 2 + 4 — Malek: "safe INSIDE the base, no damage
+-- there; the problem is only the door"). The platform is 26 wide
+-- (local x -13..13) and 22 deep (local z -11..11); its top is at
+-- local Y 1, so a standing player's root sits at local Y ~3.7-4,
+-- while a player on the ground outside has root local Y ~1.7-2 —
+-- the Y gate separates "on the platform" from "on the ground next
+-- to it", and the Z gate keeps the doorway out.
+function WorldBuilder.isOnBaseInterior(baseId: number, position: Vector3): boolean
+	local cf = baseCFrames[baseId]
+	if not cf then
+		return false
+	end
+	local localPos = cf:PointToObjectSpace(position)
+	return math.abs(localPos.X) <= 13
+		and localPos.Z >= -10.5 and localPos.Z <= 11
+		and localPos.Y >= 3.0
+end
+
 -- The incubator on a base: where a carried meteor egg is placed to
 -- hatch (MeteorEggService.placeEgg). One per base, at a back corner.
 function WorldBuilder.incubatorCFrame(baseId: number): CFrame?
