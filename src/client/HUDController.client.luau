@@ -228,18 +228,26 @@ local lockButton = GuiKit.makeButton(gui, "LockButton", "🔓 Lock Base (L)", UD
 local hintLabel = GuiKit.makeLabel(gui, "Hint", "Grab a Brainrot in the crater!", UDim2.new(0, 760, 0, 30), UDim2.new(0.5, 0, 1, -44), 22, GuiKit.COLORS.White)
 hintLabel.AnchorPoint = Vector2.new(0.5, 0)
 
--- Banner line, centre screen, fades on its own. Sits below the quest
--- pill (which ends at y=144).
-local bannerLabel = GuiKit.makeLabel(gui, "Banner", "", UDim2.new(0, 640, 0, 44), UDim2.new(0.5, 0, 0, 204), 30, GuiKit.COLORS.Gold)
+-- Banner line, centre screen, fades on its own. Sits below the storm
+-- warnBar (which ends at y=224). (fix round 9, item 10) the old
+-- 640px fixed-width banner at y=204 was cut off at the edges on
+-- narrow screens ("…se — bonk them!") and overlapped the warnBar —
+-- it is 90% of the screen wide now, scales + wraps its text, and
+-- sits below the warnBar.
+local bannerLabel = GuiKit.makeLabel(gui, "Banner", "", UDim2.new(0.9, 0, 0, 44), UDim2.new(0.5, 0, 0, 232), 30, GuiKit.COLORS.Gold)
 bannerLabel.AnchorPoint = Vector2.new(0.5, 0)
+bannerLabel.TextScaled = true
+bannerLabel.TextWrapped = true
 bannerLabel.Visible = false
 
 -- Carrying banner (cheap win): a big red bar above the hint line while
 -- the player holds a Rotling — it names the catch and tells them to
--- run home. Hidden while empty-handed.
+-- run home. Hidden while empty-handed. (fix round 9, item 10) 90% of
+-- the screen wide like the banner line, so the catch name never clips
+-- at the edges.
 local carryBanner = Instance.new("Frame")
 carryBanner.Name = "CarryBanner"
-carryBanner.Size = UDim2.new(0, 640, 0, 44)
+carryBanner.Size = UDim2.new(0.9, 0, 0, 44)
 carryBanner.Position = UDim2.new(0.5, 0, 1, -108)
 carryBanner.AnchorPoint = Vector2.new(0.5, 0)
 carryBanner.BackgroundColor3 = Color3.fromRGB(180, 20, 20)
@@ -251,6 +259,8 @@ carryCorner.CornerRadius = UDim.new(0, 10)
 carryCorner.Parent = carryBanner
 carryBanner.Parent = gui
 local carryBannerLabel = GuiKit.makeLabel(carryBanner, "CarryBannerLabel", "", UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), 26, GuiKit.COLORS.White)
+carryBannerLabel.TextScaled = true
+carryBannerLabel.TextWrapped = true
 
 -- Leaderboard panel, top-right under the Lock button: the top 3 players
 -- by coins, always visible, so every shot shows the competition (like the

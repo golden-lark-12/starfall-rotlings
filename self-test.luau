@@ -974,19 +974,23 @@ do
 	end
 end
 
--- 22. Storm front wall: giant glowing wall sweeps the map, banner, SAFE DOME.
+-- 22. Storm front wall: giant glowing wall sweeps the map, warning bar, SAFE DOME.
 do
 	local stormSrc = read("src/server/StarfallService.luau")
 	local worldSrc = read("src/server/WorldBuilder.luau")
-	if not stormSrc or not worldSrc then
-		step("storm-front", false, "StarfallService.luau or WorldBuilder.luau missing")
+	local warnSrc = read("src/client/StormWarningController.client.luau")
+	if not stormSrc or not worldSrc or not warnSrc then
+		step("storm-front", false, "StarfallService.luau, WorldBuilder.luau or StormWarningController.client.luau missing")
 	else
 		local problems: { string } = {}
 		if not stormSrc:find("StormFront") then
 			table.insert(problems, "no StormFront wall")
 		end
-		if not stormSrc:find("METEOR SHOWER INCOMING! RUN HOME!") then
-			table.insert(problems, "no METEOR SHOWER INCOMING banner")
+		if stormSrc:find("METEOR SHOWER INCOMING! RUN HOME!") then
+			table.insert(problems, 'the server still fires the "METEOR SHOWER INCOMING" banner (overlaps the warning bar)')
+		end
+		if not warnSrc:find("SPACE ROCKS INCOMING") then
+			table.insert(problems, "no storm warning bar countdown")
 		end
 		if not worldSrc:find("SAFE DOME") then
 			table.insert(problems, 'no "SAFE DOME" label')
@@ -997,7 +1001,7 @@ do
 		if #problems > 0 then
 			step("storm-front", false, table.concat(problems, "; "))
 		else
-			step("storm-front", true, "giant glowing wall sweeps the map, METEOR SHOWER INCOMING banner, green SAFE DOME over bases, meteors still knock back and drop carries")
+			step("storm-front", true, "giant glowing wall sweeps the map, storm voice is the warning bar, green SAFE DOME over bases, meteors still knock back and drop carries")
 		end
 	end
 end

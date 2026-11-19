@@ -2745,10 +2745,12 @@ end
 
 -- -- (ax) the storm front wall --------------------------------------------------------
 -- Step 2: a giant glowing meteor wall sweeps the whole map during the
--- storm, with a "METEOR SHOWER INCOMING! RUN HOME!" banner and a green
--- "SAFE DOME" label over every base while it passes. The wall is pure
--- spectacle: knockback and dropped Rotlings still come only from the
--- falling meteors.
+-- storm, with a green "SAFE DOME" label over every base while it
+-- passes. The wall is pure spectacle: knockback and dropped Rotlings
+-- still come only from the falling meteors. The storm voice is the
+-- StormWarningController's warnBar + countdown (fix round 9, item 10)
+-- — the old server "METEOR SHOWER INCOMING! RUN HOME!" banner drew
+-- over it, so it is gone.
 do
 	local stormSrc = read("src/server/StarfallService.luau")
 	local warnSrc = read("src/client/StormWarningController.client.luau")
@@ -2771,8 +2773,8 @@ do
 		if not stormSrc:find("Enum%.EasingStyle%.Linear") then
 			table.insert(problems, "the wall does not sweep linearly across the map")
 		end
-		if not stormSrc:find("METEOR SHOWER INCOMING! RUN HOME!") then
-			table.insert(problems, 'no "METEOR SHOWER INCOMING! RUN HOME!" storm banner')
+		if stormSrc:find("METEOR SHOWER INCOMING! RUN HOME!") then
+			table.insert(problems, 'the server still fires the "METEOR SHOWER INCOMING! RUN HOME!" banner — it overlaps the warning bar')
 		end
 		if not warnSrc:find("SPACE ROCKS INCOMING") then
 			table.insert(problems, "the storm warning bar does not show the space-rocks line")
@@ -2792,7 +2794,7 @@ do
 		if #problems > 0 then
 			check("ax", false, "the storm front is missing — " .. table.concat(problems, "; ") .. ". Parts: StormFront (StarfallService.luau), warning bar (StormWarningController), SAFE DOME (WorldBuilder.luau), feed (IncomeService.luau)")
 		else
-			check("ax", true, "storm front: giant glowing wall sweeps the map, METEOR SHOWER INCOMING banner, green SAFE DOME label + dome over every base while it passes")
+			check("ax", true, "storm front: giant glowing wall sweeps the map, storm voice is the warning bar (no overlapping server banner), green SAFE DOME label + dome over every base while it passes")
 		end
 	end
 end
@@ -3244,9 +3246,12 @@ do
 		if not warnSrc:find("startPulse") or not warnSrc:find("TweenInfo.new%(0%.5") then
 			table.insert(problems, "storm bar does not pulse while the storm runs")
 		end
-		-- Simultaneous at storm start: banner + wall + heroes + rain.
-		if not starSrc:find('bannerEvent%(%)%:FireAllClients%("🌠 METEOR SHOWER INCOMING') then
-			table.insert(problems, "no METEOR SHOWER INCOMING banner at storm start")
+		-- Simultaneous at storm start: warning bar + wall + heroes + rain.
+		-- (fix round 9, item 10) the server banner is gone — the
+		-- StormWarningController's warnBar + countdown is the storm
+		-- voice at storm start.
+		if not warnSrc:find("SPACE ROCKS INCOMING") then
+			table.insert(problems, "no storm warning bar countdown at storm start")
 		end
 		if not starSrc:find("task.spawn%(function%(%)%s+local ok, err = pcall%(spawnStormFront%)") then
 			table.insert(problems, "storm front wall is not spawned at storm start")
@@ -3254,7 +3259,7 @@ do
 		if #problems > 0 then
 			check("bd", false, "the storm's effect is not unmistakable — " .. table.concat(problems, "; ") .. ". Parts: onMeteorLanded hit banner (StarfallService.luau), MeteorHitFlash (CameraFX.client.luau), storm bar x2 + pulse (StormWarningController.client.luau)")
 		else
-			check("bd", true, "storm hit feedback: METEOR HIT banner + red screen flash on a close impact; storm bar says SHELTER = x2 INCOME and throbs; banner + wall + heroes + rain all fire at storm start")
+			check("bd", true, "storm hit feedback: METEOR HIT banner + red screen flash on a close impact; storm bar says SHELTER = x2 INCOME and throbs; warning bar + wall + heroes + rain all fire at storm start")
 		end
 	end
 end
@@ -7001,6 +7006,63 @@ do
 			check("du", false, "the thief alert is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, Remotes.luau, ThiefAlertController.client.luau, default.project.json")
 		else
 			check("du", true, "thief visibility is danger-side: ThiefAlert remote fires on steal start + every 3s in-base, client shows red vignette + flashing banner + jitter + alarm (4s per fire), thief glows red with a 220x48 sign")
+		end
+	end
+end
+
+-- (dv) HUD OVERLAP FIXES (fix round 9, item 10): playtest 10's
+-- screenshots showed four overlaps. (1) Two storm warnings: the
+-- server fired its own storm banners over StormWarningController's
+-- warnBar + countdown — both server banners are gone, the controller
+-- owns the storm voice. (2) The thief banner was cut off at the
+-- edges: the banner line is 90% of the screen wide now, scales +
+-- wraps its text, and sits below the warnBar (y=232). (3) The
+-- carrying banner gets the same 90% + scale/wrap treatment. (4) The
+-- "Bloop the Blob" placed label overlapped the base sign: placed
+-- tags hide until 12 studs (free tags keep 6). (5) The SELL sign was
+-- cut off at the right edge: 200x64 (was 240x80), MaxDistance 45
+-- (was 60).
+do
+	local starfallSrc = read("src/server/StarfallService.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local tagSrc = read("src/client/TagController.client.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not starfallSrc or not hudSrc or not tagSrc or not worldSrc or not configSrc then
+		check("dv", false, "could not verify the HUD overlap fixes — StarfallService.luau, HUDController.client.luau, TagController.client.luau, WorldBuilder.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if starfallSrc:find("METEOR STORM IN 10 SECONDS") then
+			table.insert(problems, "the server still fires the 10-second storm banner (overlaps the warnBar)")
+		end
+		if starfallSrc:find("METEOR SHOWER INCOMING! RUN HOME!") then
+			table.insert(problems, "the server still fires the METEOR SHOWER banner (overlaps the warnBar)")
+		end
+		if not hudSrc:find('UDim2%.new%(0%.9, 0, 0, 44%), UDim2%.new%(0%.5, 0, 0, 232%)') then
+			table.insert(problems, "the banner line is not 90% wide at y=232")
+		end
+		if not hudSrc:find("bannerLabel%.TextScaled = true") then
+			table.insert(problems, "the banner line does not scale its text")
+		end
+		if not hudSrc:find("bannerLabel%.TextWrapped = true") then
+			table.insert(problems, "the banner line does not wrap its text")
+		end
+		if not hudSrc:find("carryBanner%.Size = UDim2%.new%(0%.9, 0, 0, 44%)") then
+			table.insert(problems, "the carrying banner is not 90% wide")
+		end
+		if not configSrc:find("TAG_PLACED_MIN_DISTANCE = 12") then
+			table.insert(problems, "no TAG_PLACED_MIN_DISTANCE = 12 in Config")
+		end
+		if not tagSrc:find("TAG_PLACED_MIN_DISTANCE") then
+			table.insert(problems, "TagController does not use the placed min distance")
+		end
+		if not worldSrc:find("sign%.Size = UDim2%.fromOffset%(200, 64%)") then
+			table.insert(problems, "the SELL sign is not 200x64")
+		end
+		if #problems > 0 then
+			check("dv", false, "the HUD overlap fixes are incomplete — " .. table.concat(problems, "; ") .. ". Parts: StarfallService.luau, HUDController.client.luau, TagController.client.luau, WorldBuilder.luau, Config.luau")
+		else
+			check("dv", true, "HUD overlap fixed: server storm banners removed (warnBar owns the storm voice), banner + carrying banner 90% wide with scaled/wrapped text, placed tags hide until 12 studs, SELL sign 200x64 at MaxDistance 45")
 		end
 	end
 end

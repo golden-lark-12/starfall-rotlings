@@ -772,11 +772,11 @@ local function buildSellArea()
 	sellSign.CastShadow = false
 	local sign = Instance.new("BillboardGui")
 	sign.Name = "SellSign"
-	sign.Size = UDim2.fromOffset(240, 80)
+	sign.Size = UDim2.fromOffset(200, 64)
 	sign.StudsOffsetWorldSpace = Vector3.new(0, 0, 0)
 	sign.AlwaysOnTop = true
 	sign.LightInfluence = 0
-	sign.MaxDistance = 60
+	sign.MaxDistance = 45
 	sign.Parent = sellSign
 	local sellLabel = Instance.new("TextLabel")
 	sellLabel.Name = "SellLabel"

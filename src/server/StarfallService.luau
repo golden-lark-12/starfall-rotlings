@@ -600,7 +600,12 @@ function StarfallService.start()
 						end
 					end
 				end)
-				Remotes.bannerEvent():FireAllClients("METEOR STORM IN 10 SECONDS! " .. Config.STORM_HAZARD_LABEL .. " — get home or dodge the red circles!", 10)
+				-- (fix round 9, item 10) the server storm banner is
+				-- REMOVED — StormWarningController owns the storm
+				-- voice now. The old banner ("METEOR STORM IN 10
+				-- SECONDS…") drew over the controller's warnBar +
+				-- countdown in playtest 10: two storm warnings
+				-- overlapping. One voice, one banner.
 				waitPhase()
 				-- Storm: meteors rain across the WHOLE map, lightning flashes, the
 				-- wind blows, the rumble drones. The lightning loop runs
@@ -650,7 +655,8 @@ function StarfallService.start()
 						lightningFlash()
 					end
 				end)
-				Remotes.bannerEvent():FireAllClients("🌠 METEOR SHOWER INCOMING! RUN HOME! 🌠", 8)
+				-- (fix round 9, item 10) the storm-start server banner
+				-- is REMOVED too — same overlap as the warning one.
 				-- The rain loop spawns the first meteor immediately
 				-- (no wait before the first call), so a meteor is
 				-- falling within a second of the storm starting.

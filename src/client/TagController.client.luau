@@ -37,6 +37,7 @@ local function updateTags()
 				table.insert(tagged, {
 					label = label,
 					dist = flat.Magnitude,
+					state = state,
 					showable = state == "free" or state == "placed",
 				})
 			end
@@ -64,8 +65,11 @@ local function updateTags()
 		-- screen and overlaps the base sign and the thief banner
 		-- (Playtest 5's "Mister Muffin Feet"). A hidden close tag
 		-- does not consume one of the 3 shown slots. Step back and
-		-- it reads again.
-		if entry.showable and entry.dist >= Config.TAG_MIN_DISTANCE and entry.dist <= maxDist then
+		-- it reads again. Placed tags hide until 12 studs (fix round
+		-- 9, item 10): they overlap the base sign from on the base;
+		-- free tags keep 6 — they are the crater's readable names.
+		local minDist = if entry.state == "placed" then Config.TAG_PLACED_MIN_DISTANCE else Config.TAG_MIN_DISTANCE
+		if entry.showable and entry.dist >= minDist and entry.dist <= maxDist then
 			shown += 1
 			show = shown <= maxShown
 		end
