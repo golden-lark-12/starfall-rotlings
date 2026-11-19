@@ -1299,8 +1299,9 @@ do
 end
 
 -- Fix round 8, item 3 — steal walk: MoveTo re-issued every 2s, steal +
--- run-home legs route through the ramp's low end, abort log carries
--- positions + remaining distance.
+-- run-home legs route through the ramp's low end and up the ramp-top
+-- waypoint, steal walk is storm-proof, abort log carries positions +
+-- remaining distance.
 do
 	local rivalSrc = read("src/server/RivalService.luau")
 	if not rivalSrc then
@@ -1310,8 +1311,11 @@ do
 		if not rivalSrc:find("waited %- lastMoveAt >= 2") then
 			table.insert(problems, "walkTo does not re-issue MoveTo every 2s")
 		end
-		if not rivalSrc:find("walkTo%(model, entrancePos, 20, stormRunning%)") then
-			table.insert(problems, "no entrance leg on the steal walk")
+		if not rivalSrc:find("walkTo%(model, entrancePos, 20, nil%)") then
+			table.insert(problems, "no storm-proof entrance leg on the steal walk")
+		end
+		if not rivalSrc:find("rampTopPos") then
+			table.insert(problems, "no ramp-top waypoint")
 		end
 		if not rivalSrc:find("studs short") then
 			table.insert(problems, "the steal-abort log does not carry the remaining distance")
@@ -1319,7 +1323,7 @@ do
 		if #problems > 0 then
 			step("steal-walk", false, table.concat(problems, "; "))
 		else
-			step("steal-walk", true, "MoveTo re-issued every 2s, steal + run-home route through the ramp, abort log shows where the walk died")
+			step("steal-walk", true, "MoveTo re-issued every 2s, steal + run-home route through the ramp and up the ramp-top waypoint, steal walk storm-proof, abort log shows where the walk died")
 		end
 	end
 end

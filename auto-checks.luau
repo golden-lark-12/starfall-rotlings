@@ -6365,15 +6365,19 @@ do
 	end
 end
 
--- (dh) STEAL WALK COMPLETES (fix round 8, item 3): "Ziggy couldn't
--- reach the base" — two causes: (a) walkTo issued MoveTo once and
--- Roblox's internal ~8s MoveTo timeout stopped the rival silently,
--- so it stood hopping for the rest of a 40s walk; (b) the straight
--- leg from the ring to the pad crossed the platform's 2-stud edge
--- anywhere but the 6-wide entrance ramp. Fixed: walkTo re-issues
--- MoveTo every 2s, and both the steal leg and the run-home leg route
--- through the ramp's low end first. The abort log carries positions
--- + the remaining distance, so the F9 trail shows where a walk died.
+-- (dh) STEAL WALK COMPLETES (fix round 8, item 3; storm-proofed fix
+-- round 9, item 3): "Ziggy couldn't reach the base" — two causes:
+-- (a) walkTo issued MoveTo once and Roblox's internal ~8s MoveTo
+-- timeout stopped the rival silently, so it stood hopping for the
+-- rest of a 40s walk; (b) the straight leg from the ring to the pad
+-- crossed the platform's 2-stud edge anywhere but the 6-wide
+-- entrance ramp. Fixed: walkTo re-issues MoveTo every 2s, and both
+-- the steal leg and the run-home leg route through the ramp's low
+-- end first, then UP the ramp (ramp-top waypoint) before the pad.
+-- The steal walk is storm-proof (nil cancel): a storm starting
+-- mid-walk used to abort the steal outright. The abort log carries
+-- positions + the remaining distance, so the F9 trail shows where a
+-- walk died.
 do
 	local rivalSrc = read("src/server/RivalService.luau")
 	if not rivalSrc then
@@ -6386,8 +6390,11 @@ do
 		if not rivalSrc:find("entrancePos = if victimCf then %(victimCf %* CFrame%.new%(0, 0, %-15%)%)%.Position") then
 			table.insert(problems, "the steal leg does not route through the ramp's low end (entrancePos)")
 		end
-		if not rivalSrc:find("walkTo%(model, entrancePos, 20, stormRunning%)") then
-			table.insert(problems, "no entrance leg on the steal walk")
+		if not rivalSrc:find("walkTo%(model, entrancePos, 20, nil%)") then
+			table.insert(problems, "no storm-proof entrance leg on the steal walk")
+		end
+		if not rivalSrc:find("rampTopPos") then
+			table.insert(problems, "no ramp-top waypoint — the leg still crosses the platform edge outside the ramp")
 		end
 		if not rivalSrc:find("entrancePos = if homeCf then %(homeCf %* CFrame%.new%(0, 0, %-15%)%)%.Position") then
 			table.insert(problems, "the run-home leg does not route through the ramp's low end (entrancePos)")
@@ -6398,7 +6405,7 @@ do
 		if #problems > 0 then
 			check("dh", false, "the steal-walk fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau")
 		else
-			check("dh", true, "steal walk: walkTo re-issues MoveTo every 2s, steal + run-home legs route through the ramp's low end, abort log carries positions + remaining distance")
+			check("dh", true, "steal walk: walkTo re-issues MoveTo every 2s, steal + run-home legs route through the ramp's low end and up the ramp-top waypoint, steal walk is storm-proof, abort log carries positions + remaining distance")
 		end
 	end
 end
