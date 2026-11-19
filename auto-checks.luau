@@ -6952,6 +6952,59 @@ do
 	end
 end
 
+-- (du) THIEF VISIBILITY IS DANGER-SIDE (fix round 9, item 9): the
+-- old warning was a small banner + a red Highlight on the thief, and
+-- Malek still could not see the thief in his base in playtest 10.
+-- Now the server fires a dedicated ThiefAlert remote at the victim
+-- when a steal starts AND every 3s while the thief is inside the
+-- base; the client answers with a full-screen red flash wash, a
+-- pulsing red edge vignette, a big flashing centre banner ("🚨 NAME
+-- IS IN YOUR BASE! 🚨" + "Go bonk them!") that jitters while live,
+-- and a low alarm ping on every fire. Each fire shows for 4s, so the
+-- alert stays live until the thief leaves or is bonked. The thief
+-- itself also glows: a red PointLight while stealing, and a bigger
+-- sign (220x48, was 160x36).
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	local alertSrc = read("src/client/ThiefAlertController.client.luau")
+	local projectSrc = read("default.project.json")
+	if not rivalSrc or not remotesSrc or not alertSrc or not projectSrc then
+		check("du", false, "could not verify the thief alert — RivalService.luau, Remotes.luau, ThiefAlertController.client.luau or default.project.json missing")
+	else
+		local problems: { string } = {}
+		if not projectSrc:find('"ThiefAlert": {') then
+			table.insert(problems, "no ThiefAlert RemoteEvent in default.project.json")
+		end
+		if not remotesSrc:find("function Remotes%.thiefAlertEvent") then
+			table.insert(problems, "no Remotes.thiefAlertEvent getter")
+		end
+		if not rivalSrc:find("Remotes%.thiefAlertEvent%(%)%:FireClient%(victim, rival%.name%)") then
+			table.insert(problems, "the server does not fire the thief alert at the victim")
+		end
+		if not rivalSrc:find('thiefLight%.Name = "ThiefLight"') then
+			table.insert(problems, "no red PointLight on the thief while stealing")
+		end
+		if not rivalSrc:find("UDim2%.fromOffset%(220, 48%)") then
+			table.insert(problems, "the THIEF sign is not enlarged to 220x48")
+		end
+		if not alertSrc:find("THIEF IN YOUR BASE") then
+			table.insert(problems, "the client has no THIEF IN YOUR BASE banner")
+		end
+		if not alertSrc:find("ThiefEdgeTop") then
+			table.insert(problems, "the client has no red edge vignette")
+		end
+		if not alertSrc:find("ThiefAlarm") then
+			table.insert(problems, "the client has no alarm sound")
+		end
+		if #problems > 0 then
+			check("du", false, "the thief alert is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, Remotes.luau, ThiefAlertController.client.luau, default.project.json")
+		else
+			check("du", true, "thief visibility is danger-side: ThiefAlert remote fires on steal start + every 3s in-base, client shows red vignette + flashing banner + jitter + alarm (4s per fire), thief glows red with a 220x48 sign")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

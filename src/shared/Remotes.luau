@@ -97,6 +97,15 @@ function Remotes.bannerEvent(): RemoteEvent
 	return Remotes.getFolder():WaitForChild("ShowBanner") :: RemoteEvent
 end
 
+-- Thief alert (fix round 9, item 9): the server fires this at the
+-- victim when a thief starts sneaking AND every 3s while the thief
+-- is inside their base — the client answers with the full danger
+-- treatment (red vignette, flashing banner, alarm). Payload: the
+-- thief's name.
+function Remotes.thiefAlertEvent(): RemoteEvent
+	return Remotes.getFolder():WaitForChild("ThiefAlert") :: RemoteEvent
+end
+
 function Remotes.hudEvent(): RemoteEvent
 	return Remotes.getFolder():WaitForChild("UpdateHud") :: RemoteEvent
 end

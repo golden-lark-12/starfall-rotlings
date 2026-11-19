@@ -105,10 +105,11 @@ local function buildRival(name: string, color: Color3, position: Vector3): Model
 	label.TextStrokeTransparency = 0.3
 	label.Parent = billboard
 
-	-- THIEF sign: hidden until this rival steals.
+	-- THIEF sign: hidden until this rival steals. Big (220x48, fix
+	-- round 9, item 9 — the old 160x36 was easy to miss at a glance).
 	local thiefSign = Instance.new("BillboardGui")
 	thiefSign.Name = "ThiefSign"
-	thiefSign.Size = UDim2.fromOffset(160, 36)
+	thiefSign.Size = UDim2.fromOffset(220, 48)
 	thiefSign.StudsOffsetWorldSpace = Vector3.new(0, 6, 0)
 	thiefSign.AlwaysOnTop = true
 	thiefSign.LightInfluence = 0
@@ -222,7 +223,9 @@ end
 -- across the map. The sign and the Highlight are one switch: both go
 -- on when a steal starts and both go off at every steal end (all
 -- six setThiefSign(model, false) call sites), so a Highlight can
--- never leak onto a rival that is not stealing.
+-- never leak onto a rival that is not stealing. A red PointLight
+-- joins them (fix round 9, item 9): the thief glows red in the dark,
+-- so it reads as danger at a glance.
 local function setThiefSign(model: Model, on: boolean)
 	local body = model.PrimaryPart
 	if not body then
@@ -231,6 +234,21 @@ local function setThiefSign(model: Model, on: boolean)
 	local sign = body:FindFirstChild("ThiefSign")
 	if sign and sign:IsA("BillboardGui") then
 		sign.Enabled = on
+	end
+	local thiefLight = body:FindFirstChild("ThiefLight")
+	if on then
+		if not thiefLight then
+			thiefLight = Instance.new("PointLight")
+			thiefLight.Name = "ThiefLight"
+			thiefLight.Color = Color3.fromRGB(255, 40, 40)
+			thiefLight.Brightness = 2
+			thiefLight.Range = 12
+			thiefLight.Parent = body
+		end
+	else
+		if thiefLight then
+			thiefLight:Destroy()
+		end
 	end
 	local highlight = model:FindFirstChild("ThiefHighlight")
 	if on then
@@ -504,6 +522,10 @@ local function tryStartSteal(rival: State.Rival, model: Model): boolean
 	-- Steal alarm (fix round 7, item 4): the warning banner was
 	-- silent — a low alarm so the player HEARS the thief coming.
 	FeedbackService.playSound(victim, 0.7, 1)
+	-- Danger alert (fix round 9, item 9): the full-screen treatment
+	-- (red vignette, flashing banner, alarm) fires at the victim
+	-- the moment the steal starts — not just the small banner.
+	Remotes.thiefAlertEvent():FireClient(victim, rival.name)
 	print("[Rival] " .. rival.name .. " stealing from " .. victim.Name .. " (base " .. tostring(victimBase) .. ")")
 	return true
 end
@@ -1102,6 +1124,11 @@ function RivalService.start()
 						if dist <= 20 and time() - rival.lastThiefBannerAt >= 3 then
 							rival.lastThiefBannerAt = time()
 							Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " is IN your base — bonk them!", 3)
+							-- (fix round 9, item 9) re-fire the danger
+							-- alert with every repeat banner, so the
+							-- vignette + flashing text + alarm stay
+							-- live the whole time the thief is inside.
+							Remotes.thiefAlertEvent():FireClient(victim, rival.name)
 						end
 					end
 				end
