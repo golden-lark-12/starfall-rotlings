@@ -203,6 +203,110 @@ function MeteorEggService.spawnEggsForStorm()
 	end
 end
 
+-- LEGENDARY EGG DROP (fix round 9, item 11): every 240s (first drop
+-- 60s after boot), a LEGENDARY egg falls into the crater — a gold egg
+-- under a gold beam, announced server-wide, gone in 75s if nobody
+-- grabs it. It hatches into a Legendary Brainrot (its hatchDef is
+-- forced Legendary at spawn). One drop on a timer, only if none is
+-- active — the point is excitement and urgency, a moment players rush
+-- for.
+local legendaryEggModel: Model? = nil
+local legendaryBeam: Part? = nil
+
+local function clearLegendaryBeam()
+	if legendaryBeam then
+		legendaryBeam:Destroy()
+		legendaryBeam = nil
+	end
+end
+
+local function spawnLegendaryEgg()
+	if legendaryEggModel and State.eggs[legendaryEggModel :: Model] then
+		return -- one already active (falling, ground, carried or incubating)
+	end
+	local defs = RotlingCatalog.defsOfRarity("Legendary")
+	if #defs == 0 then
+		return
+	end
+	local hatchDef = defs[math.random(1, #defs)]
+	-- A random spot in the crater (radius < 25) — the drop is IN the
+	-- crater, where everyone can see it and race for it.
+	local angle = math.random() * math.pi * 2
+	local radius = math.random(5, 24)
+	local target = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
+	local model = buildEgg(target)
+	-- Gold, not orange: the shell, its light and its label all read
+	-- legendary at a glance. The mystery rule does NOT apply here —
+	-- the whole point is that everyone KNOWS this one is legendary.
+	local shell = model.PrimaryPart
+	if shell and shell:IsA("BasePart") then
+		shell.Color = Color3.fromRGB(255, 215, 0)
+		local light = shell:FindFirstChildOfClass("PointLight")
+		if light then
+			light.Color = Color3.fromRGB(255, 215, 0)
+			light.Range = 30
+		end
+	end
+	setEggLabel(model, "🌟 LEGENDARY EGG — " .. tostring(Config.LEGENDARY_EGG_LIFETIME) .. "s!")
+	-- Gold beam marking the drop, 40 studs tall, until the egg is
+	-- grabbed, hatches or vanishes.
+	local beam = Instance.new("Part")
+	beam.Name = "LegendaryEggBeam"
+	beam.Shape = Enum.PartType.Cylinder
+	beam.Size = Vector3.new(40, 3, 3)
+	beam.Color = Color3.fromRGB(255, 215, 0)
+	beam.Material = Enum.Material.Neon
+	beam.Transparency = 0.3
+	beam.Anchored = true
+	beam.CanCollide = false
+	beam.CFrame = CFrame.new(target + Vector3.new(0, 20, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	beam.Parent = workspace
+	legendaryBeam = beam
+	legendaryEggModel = model
+	State.eggs[model] = {
+		model = model,
+		phase = "falling",
+		carrier = nil,
+		baseId = nil,
+		hatchAt = nil,
+		hatchDef = hatchDef.id,
+		hatchMutation = nil,
+		bornAt = time(),
+	}
+	if shell then
+		local tween = TweenService:Create(shell, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			CFrame = CFrame.new(target + Vector3.new(0, 2.2, 0)),
+		})
+		tween:Play()
+		tween.Completed:Connect(function()
+			local egg = State.eggs[model]
+			if egg and egg.phase == "falling" then
+				egg.phase = "ground"
+				print("[MeteorEgg] LEGENDARY egg landed in the crater at (" .. tostring(math.floor(target.X)) .. ", " .. tostring(math.floor(target.Z)) .. ") — " .. hatchDef.name)
+			end
+		end)
+	end
+	-- Server-wide announcement + fanfare to every player.
+	Remotes.bannerEvent():FireAllClients("🌟 A LEGENDARY EGG HAS FALLEN IN THE CRATER! Grab it before it vanishes in " .. tostring(Config.LEGENDARY_EGG_LIFETIME) .. "s!", 8)
+	for _, player in ipairs(Players:GetPlayers()) do
+		FeedbackService.playSound(player, 1.6, 0.9)
+	end
+	print("[MeteorEgg] LEGENDARY egg drop — " .. hatchDef.name .. " in the crater, " .. tostring(Config.LEGENDARY_EGG_LIFETIME) .. "s to grab it")
+	-- Vanish at expiry — but only if nobody claimed it: a carried or
+	-- incubating egg is safe, the prize is the player's.
+	task.delay(Config.LEGENDARY_EGG_LIFETIME, function()
+		local egg = State.eggs[model]
+		if egg and (egg.phase == "ground" or egg.phase == "falling") then
+			State.eggs[model] = nil
+			legendaryEggModel = nil
+			clearLegendaryBeam()
+			model:Destroy()
+			Remotes.bannerEvent():FireAllClients("💨 The legendary egg vanished… the next one drops soon!", 5)
+			print("[MeteorEgg] LEGENDARY egg vanished unclaimed")
+		end
+	end)
+end
+
 function MeteorEggService.grabEgg(player: Player, model: Model)
 	local egg = State.eggs[model]
 	if not egg or (egg.phase ~= "ground" and egg.phase ~= "falling") then
@@ -235,6 +339,11 @@ function MeteorEggService.grabEgg(player: Player, model: Model)
 	egg.phase = "carried"
 	egg.carrier = player.UserId
 	State.eggCarriedByUser[player.UserId] = model
+	-- (fix round 9, item 11) the legendary beam marks the crater drop
+	-- spot — once the egg is carried, the beam goes with the claim.
+	if model == legendaryEggModel then
+		clearLegendaryBeam()
+	end
 	shell.Anchored = false
 	local weld = Instance.new("Weld")
 	weld.Name = "EggWeld"
@@ -603,6 +712,12 @@ local function hatchEgg(model: Model)
 	end
 	local baseId = egg.baseId
 	State.eggs[model] = nil
+	-- (fix round 9, item 11) the legendary slot frees when the egg
+	-- hatches, and the beam is gone (the egg is in the incubator now).
+	if model == legendaryEggModel then
+		legendaryEggModel = nil
+		clearLegendaryBeam()
+	end
 	if not baseId then
 		model:Destroy()
 		return
@@ -631,6 +746,26 @@ function MeteorEggService.start()
 					end
 				end
 			end
+			-- Legendary egg countdown (fix round 9, item 11): the
+			-- ground label shows the seconds left, so the urgency
+			-- reads on the egg itself.
+			if legendaryEggModel then
+				local legEgg = State.eggs[legendaryEggModel]
+				if legEgg and (legEgg.phase == "ground" or legEgg.phase == "falling") then
+					local remaining = math.max(0, math.ceil(Config.LEGENDARY_EGG_LIFETIME - (time() - legEgg.bornAt)))
+					setEggLabel(legendaryEggModel, "🌟 LEGENDARY EGG — " .. tostring(remaining) .. "s!")
+				end
+			end
+		end
+	end)
+	task.spawn(function()
+		-- Legendary egg timer (fix round 9, item 11): first drop 60s
+		-- after boot (so the first playtest sees it), then one every
+		-- 240s — only if none is active.
+		task.wait(60)
+		while true do
+			spawnLegendaryEgg()
+			task.wait(Config.LEGENDARY_EGG_INTERVAL)
 		end
 	end)
 end

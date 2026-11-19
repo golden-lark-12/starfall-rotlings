@@ -7068,6 +7068,53 @@ do
 	end
 end
 
+-- (dw) LEGENDARY EGG DROP EVENT (fix round 9, item 11): every 240s
+-- (first drop 60s after boot) a LEGENDARY egg falls into the crater
+-- — a gold egg under a gold beam, announced server-wide with a
+-- fanfare, gone in 75s if nobody grabs it. It hatches into a
+-- Legendary Brainrot (its hatchDef is forced Legendary at spawn).
+-- One drop on a timer, only if none is active; the ground label
+-- shows the live countdown; the beam clears when the egg is grabbed,
+-- hatches or vanishes.
+do
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not eggSrc or not configSrc then
+		check("dw", false, "could not verify the legendary egg drop — MeteorEggService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if not configSrc:find("LEGENDARY_EGG_INTERVAL = 240") then
+			table.insert(problems, "no LEGENDARY_EGG_INTERVAL = 240 in Config")
+		end
+		if not configSrc:find("LEGENDARY_EGG_LIFETIME = 75") then
+			table.insert(problems, "no LEGENDARY_EGG_LIFETIME = 75 in Config")
+		end
+		if not eggSrc:find("local function spawnLegendaryEgg%(%)") then
+			table.insert(problems, "no spawnLegendaryEgg")
+		end
+		if not eggSrc:find('defsOfRarity%("Legendary"%)') then
+			table.insert(problems, "the drop does not force a Legendary hatch")
+		end
+		if not eggSrc:find("LEGENDARY EGG HAS FALLEN IN THE CRATER") then
+			table.insert(problems, "no server-wide legendary drop announcement")
+		end
+		if not eggSrc:find('beam%.Name = "LegendaryEggBeam"') then
+			table.insert(problems, "no gold beam marking the drop")
+		end
+		if not eggSrc:find("LEGENDARY EGG — ") then
+			table.insert(problems, "no live legendary countdown label")
+		end
+		if not eggSrc:find("LEGENDARY egg vanished unclaimed") then
+			table.insert(problems, "no vanish at expiry")
+		end
+		if #problems > 0 then
+			check("dw", false, "the legendary egg drop is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau, Config.luau")
+		else
+			check("dw", true, "legendary egg drop: every 240s (first 60s after boot), gold egg + gold beam in the crater, server-wide announcement + fanfare, 75s to grab, hatches Legendary, vanishes unclaimed")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
