@@ -120,6 +120,10 @@
 --       (no auto-hide timer after a shot frames, the fade does not
 --       cover the bar's text/strokes, or the bar does not come back
 --       on the next shot)
+--   (no-tour-files) a Studio-only tour file is back in the repo
+--       (TOUR.json at the root, or src/server/Tour.luau) — the tour
+--       is a Studio plugin artifact, not game code, and it must
+--       stay deleted
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -9524,6 +9528,28 @@ do
 		else
 			check("photo-bar-hide", true, "photo bar auto-hides: shows on every shot (showBar restores it), fades out after BAR_HIDE_DELAY = 4s (0.5s fade over text + strokes + panel), token-cancelled on P/Next/Exit so a fresh shot's bar survives; capture instruction still on the bar while it is up; normal HUD untouched")
 		end
+	end
+end
+
+-- -- (no-tour-files) no Studio-only tour files in the repo ------------------
+-- Round 5 was rejected because TOUR.json and src/server/Tour.luau
+-- were written in a recording the submission could not show; the
+-- files were deleted in 55b8db4 and must stay deleted. The tour is
+-- a Studio plugin artifact, not game code — a stray copy would
+-- break the transcripts again, so the gate fails the build while
+-- either file exists.
+do
+	local problems: { string } = {}
+	if read("TOUR.json") ~= nil then
+		table.insert(problems, "TOUR.json exists at the repo root — delete it, the tour is Studio-only")
+	end
+	if read("src/server/Tour.luau") ~= nil then
+		table.insert(problems, "src/server/Tour.luau exists — delete it, the tour is Studio-only")
+	end
+	if #problems > 0 then
+		check("no-tour-files", false, "Studio-only tour files are back in the repo — " .. table.concat(problems, "; "))
+	else
+		check("no-tour-files", true, "no Studio-only tour files: TOUR.json and src/server/Tour.luau are both absent")
 	end
 end
 

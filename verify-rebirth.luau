@@ -1,12 +1,16 @@
 -- Starfall Rotlings: Rebirth-2 proof (simplify/polish, real-base section).
 -- Rebirth 2 must reset cash only and keep the index (and the placed
--- Brainrots, XP, level and Stardust). Two proofs:
+-- Brainrots, XP, level and Stardust) — and recolor the base, the one
+-- visible side effect the reset is allowed to have. Three proofs:
 --   (1) STATIC: the doRebirth body in RebirthService.luau assigns ONLY
 --       profile.coins, profile.banked and profile.rebirths — no touch
 --       of placed, index, xp, level, stardust, or any remove/clear.
 --   (2) REPLAY: a concrete profile (cash + banked + 3 placed Brainrots
 --       + 14/20 index + XP + level + Stardust) goes through the exact
 --       reset the code performs; everything but the cash survives.
+--   (3) BASE COLOUR: the rebirth recolors the base by cycling the
+--       8-entry COLORS palette by rebirth count, so Rebirth 2 takes
+--       entry 2 (blue 120, 180, 255) and Rebirth 9 wraps to entry 1.
 --
 -- This is a headless replay, not a live Roblox run: it exercises the
 -- exact reset logic with the real source, but no Roblox server is
@@ -125,8 +129,35 @@ assertOk(profile.xp == 450, "xp changed in the rebirth")
 assertOk(profile.level == 5, "level changed in the rebirth")
 assertOk(profile.stardust == 30, "stardust changed in the rebirth")
 
+-- (3) BASE COLOUR: the rebirth recolors the base — the one visible
+-- side effect allowed. The colour cycles the COLORS palette by
+-- rebirth count: entry (rebirths - 1) % 8 + 1, so Rebirth 2 takes
+-- entry 2 (blue 120, 180, 255) and Rebirth 9 wraps to entry 1.
+local colorsStart = rebirthSrc:find("RebirthService.COLORS = {", 1, true)
+assertOk(colorsStart ~= nil, "COLORS palette not found in RebirthService.luau")
+local colorsEnd = nil
+if colorsStart then
+	colorsEnd = rebirthSrc:find("} :: { Color3 }", colorsStart, true)
+end
+assertOk(colorsEnd ~= nil, "COLORS palette end not found")
+local colorsBlock = ""
+if colorsStart and colorsEnd then
+	colorsBlock = rebirthSrc:sub(colorsStart, colorsEnd)
+end
+local colorEntries: { string } = {}
+for r, g, b in colorsBlock:gmatch("Color3%.fromRGB%((%d+), (%d+), (%d+)%)") do
+	table.insert(colorEntries, r .. ", " .. g .. ", " .. b)
+end
+assertOk(#colorEntries == 8, "COLORS palette has " .. tostring(#colorEntries) .. " entries, not 8 — the rebirth colour cycle is broken")
+assertOk(body:find("WorldBuilder.setBaseColor(baseId, color)", 1, true) ~= nil, "doRebirth does not recolor the base")
+assertOk(body:find("RebirthService.COLORS[(profile.rebirths - 1) % #RebirthService.COLORS + 1]", 1, true) ~= nil, "doRebirth does not cycle the base colour by rebirth count")
+local colorIndex = (profile.rebirths - 1) % #colorEntries + 1
+print(string.format("base colour after Rebirth 2: palette entry %d of %d (RGB %s)", colorIndex, #colorEntries, colorEntries[colorIndex] or "?"))
+assertOk(colorIndex == 2, "Rebirth 2 takes palette entry " .. tostring(colorIndex) .. ", not entry 2")
+assertOk(colorEntries[colorIndex] == "120, 180, 255", "palette entry 2 is RGB " .. (colorEntries[colorIndex] or "?") .. ", not 120, 180, 255 (blue)")
+
 if #failures > 0 then
 	print("FAIL: Rebirth-2 proof broken — " .. table.concat(failures, "; "))
 	process.exit(1)
 end
-print("PASS: Rebirth 2 resets cash only — coins + banked zeroed, rebirths 1 -> 2, placed (3), index (14/20), xp, level and Stardust all kept.")
+print("PASS: Rebirth 2 resets cash only — coins + banked zeroed, rebirths 1 -> 2, placed (3), index (14/20), xp, level and Stardust all kept; base recolored to palette entry 2 (blue 120, 180, 255).")
