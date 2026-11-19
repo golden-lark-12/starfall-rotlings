@@ -6817,6 +6817,44 @@ do
 	end
 end
 
+-- (dr) HATCH REVEAL IS A LIVING ANIMAL (fix round 9, item 6): the
+-- old reveal was a stepped scale-in (0.2 → 0.5 → 0.8 → 1, three hard
+-- jumps) — it read as a robot inflating in stages, and Malek called
+-- it "a robot something" in playtest 10. The reveal is now a smooth
+-- eased pop (12 steps over 0.6s, ease-out-back with an overshoot to
+-- ~1.12 then a settle to 1.0, re-seated on the incubator each step)
+-- followed by a birth wiggle (three bounces + a full 360° spin over
+-- ~1.2s), so the hatch reads as a living animal stretching, not a
+-- statue appearing.
+do
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	if not eggSrc then
+		check("dr", false, "could not verify the hatch reveal — MeteorEggService.luau missing")
+	else
+		local problems: { string } = {}
+		if eggSrc:find("for _, s in ipairs%({ 0%.5, 0%.8, 1 }%)") then
+			table.insert(problems, "the stepped scale-in (0.2 → 0.5 → 0.8 → 1) is still there")
+		end
+		if not eggSrc:find("ease%-out%-back") then
+			table.insert(problems, "no ease-out-back pop curve")
+		end
+		if not eggSrc:find("1%.12") then
+			table.insert(problems, "no overshoot to ~1.12 in the pop")
+		end
+		if not eggSrc:find("seatHatched") then
+			table.insert(problems, "the pop does not re-seat the hatchling on the incubator each step")
+		end
+		if not eggSrc:find("Birth wiggle") then
+			table.insert(problems, "no birth wiggle (bounces + spin) after the pop")
+		end
+		if #problems > 0 then
+			check("dr", false, "the hatch reveal is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau")
+		else
+			check("dr", true, "hatch reveal: smooth eased pop (12 steps, ease-out-back, overshoot 1.12, settles to 1.0, re-seated each step) + birth wiggle (3 bounces + full 360° spin)")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

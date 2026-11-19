@@ -444,10 +444,51 @@ local function crackEgg(model: Model, egg: State.Egg, baseId: number)
 		return
 	end
 	hatched.Parent = workspace
+	-- 2. The break: the egg is gone, the animal pops out at the
+	-- incubator with a SMOOTH eased pop (fix round 9, item 6) — the
+	-- old stepped scale-in (0.2 → 0.5 → 0.8 → 1, three hard jumps)
+	-- read as a robot inflating in stages. Twelve steps over 0.6s on
+	-- an ease-out-back curve: it bursts out, overshoots to ~1.12,
+	-- then settles to 1.0, re-seated on the incubator each step so
+	-- the bottom never sinks through it. Then the birth wiggle: three
+	-- bounces + a full 360° spin over ~1.2s, so the hatch reads as a
+	-- living animal stretching, not a statue appearing.
+	local hatchBody = hatched.PrimaryPart
+	local function seatHatched()
+		if hatchBody then
+			hatched:PivotTo(CFrame.new(hatchPos + Vector3.new(0, hatchBody.Size.Y / 2, 0)))
+		end
+	end
 	RotlingFactory.setModelScale(hatched, 0.2)
-	for _, s in ipairs({ 0.5, 0.8, 1 }) do
-		RotlingFactory.setModelScale(hatched, s)
-		task.wait(0.15)
+	seatHatched()
+	for step = 1, 12 do
+		local t = step / 12
+		-- ease-out-back: bursts past 1.0, then the last steps settle.
+		local c1 = 1.70158
+		local c3 = c1 + 1
+		local eased = 1 + c3 * (t - 1) ^ 3 + c1 * (t - 1) ^ 2
+		local target = 0.2 + (1.12 - 0.2) * eased
+		if step >= 10 then
+			target = 1.12 - (1.12 - 1.0) * ((step - 9) / 3)
+		end
+		RotlingFactory.setModelScale(hatched, math.max(0.2, target))
+		seatHatched()
+		task.wait(0.05)
+	end
+	RotlingFactory.setModelScale(hatched, 1)
+	seatHatched()
+	-- Birth wiggle: three bounces + a full spin.
+	if hatchBody then
+		local wiggleBase = hatchBody.CFrame
+		for bounce = 1, 3 do
+			for i = 1, 4 do
+				local up = math.sin(i / 4 * math.pi) * 1.2
+				local yaw = (bounce - 1 + i / 4) / 3 * math.pi * 2
+				hatched:PivotTo(wiggleBase * CFrame.new(0, up, 0) * CFrame.Angles(0, yaw, 0))
+				task.wait(0.1)
+			end
+		end
+		hatched:PivotTo(wiggleBase)
 	end
 	RotlingFactory.placePop(hatched)
 	-- 3. The animal comes out: if the owner is standing nearby with
