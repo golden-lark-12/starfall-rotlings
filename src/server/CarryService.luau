@@ -84,13 +84,13 @@ function CarryService.refreshFreePrompts()
 	end
 end
 
--- The carry fan (fix round 8, item 5): three carried Brainrots used
--- to share one weld C0 (0, CARRY_Y, CARRY_Z) and overlap into a
--- single blob. Each slot gets its own X offset so every carried
--- Brainrot is visible; the outer ones sit slightly closer to the
--- player so the fan arcs around the chest instead of clipping the
--- arms. Slot 1 of 1 sits dead centre (the old position); slot 2 of
--- 3 sits 4.2 studs left, slot 3 sits 4.2 right.
+-- The carry fan: three carried Brainrots used to share one weld C0
+-- (0, CARRY_Y, CARRY_Z) and overlap into a single blob. Each slot
+-- gets its own X offset so every carried Brainrot is visible; the
+-- outer ones sit slightly closer to the player so the fan arcs around
+-- the chest instead of clipping the arms. Slot 1 of 1 sits dead
+-- centre (the old position); slot 2 of 3 sits 4.2 studs left, slot 3
+-- sits 4.2 right.
 local FAN_SPREAD = 4.2
 local FAN_ARC = 0.5
 local function carrySlotOffset(index: number, total: number): CFrame
@@ -178,13 +178,12 @@ function CarryService.carryRotling(player: Player, model: Model)
 	model:SetAttribute("OwnerUserId", player.UserId)
 	CarryService.setPromptState(model)
 	-- Fan out: a new grab takes its own slot instead of piling onto
-	-- the centre (fix round 8, item 5).
+	-- the centre.
 	CarryService.reseatCarried(player)
 	-- Filling your arms turns every free grab prompt off.
 	CarryService.refreshFreePrompts()
-	-- THE CHASE (rev 77, positional rule in fix round 12, item 3):
-	-- carrying a Brainrot is dangerous — but the danger is about
-	-- the CARRY, not where you stand. If the carrier is inside
+	-- THE CHASE: carrying a Brainrot is dangerous — but the danger is
+	-- about the CARRY, not where you stand. If the carrier is inside
 	-- their OWN base interior, the heat is ARMED, not unleashed:
 	-- the Guardian is watching (banner now), and the Guardian +
 	-- rivals engage the moment the carrier steps outside their
@@ -236,12 +235,12 @@ function CarryService.removeCarried(player: Player, model: Model)
 		index = table.find(carried, model)
 	end
 	-- Closing the gap: the remaining Brainrots re-fan onto their new
-	-- slots instead of leaving a hole (fix round 8, item 5).
+	-- slots instead of leaving a hole.
 	CarryService.reseatCarried(player)
 	-- Freeing a slot turns the free grab prompts back on.
 	CarryService.refreshFreePrompts()
-	-- No longer carrying anything: the chase ends (rev 77), and any
-	-- armed base-grab heat clears with it (fix round 12, item 3).
+	-- No longer carrying anything: the chase ends, and any armed
+	-- base-grab heat clears with it.
 	if #carried == 0 then
 		State.brainrotCarriedByUser[player.UserId] = nil
 		State.baseHeat[player.UserId] = nil
@@ -269,7 +268,7 @@ function CarryService.setPromptState(model: Model)
 		-- picking their own Rotling back up and a rival stealing it.
 		-- tryGrab routes owners to pickupOwn and everyone else to
 		-- StealService.trySteal. The base id comes from the model's
-		-- own BaseId attribute (fix 2): the old code read an undefined
+		-- own BaseId attribute: the old code read an undefined
 		-- global, so the lock check silently never ran.
 		prompt.ActionText = "Pick up " .. name
 		local placedBaseId = model:GetAttribute("BaseId") :: number?
@@ -300,9 +299,9 @@ end
 -- your own Rotlings ("That one is already yours") — a placed Rotling
 -- was stuck on its pad forever and could never be sold or moved.
 function CarryService.pickupOwn(player: Player, model: Model)
-	-- [Pickup] log (fix round 5, item 3): the playtest said the Take
-	-- prompt shows but E does not pick the Rotling up, so every
-	-- pickup attempt and its result must show in Output.
+	-- [Pickup] log: the playtest said the Take prompt shows but E
+	-- does not pick the Rotling up, so every pickup attempt and its
+	-- result must show in Output.
 	print("[Pickup] " .. player.Name .. " picking up " .. model.Name .. " (carrying " .. tostring(#CarryService.getCarried(player)) .. "/" .. tostring(CarryService.getCarrySlots(player)) .. ")")
 	if #CarryService.getCarried(player) >= CarryService.getCarrySlots(player) then
 		print("[Pickup] " .. player.Name .. " arms full — pickup of " .. model.Name .. " refused")
@@ -476,10 +475,10 @@ function CarryService.placeOnPad(player: Player, model: Model, baseId: number, p
 	RotlingFactory.setCarriedVisual(model, false)
 	RotlingFactory.setModelScale(model, 1)
 	RotlingFactory.refreshLabelOffset(model)
-	-- Uniform pedestal height (rev 75): every placed Brainrot
-	-- stands at one tidy height, whatever its type. The lift below
-	-- reads the live body size, so it seats the normalized model
-	-- correctly. Restores and egg hatches ride this same path.
+	-- Uniform pedestal height: every placed Brainrot stands at one
+	-- tidy height, whatever its type. The lift below reads the live
+	-- body size, so it seats the normalized model correctly.
+	-- Restores and egg hatches ride this same path.
 	RotlingFactory.normalizeToHeight(model, Config.PLACED_DISPLAY_HEIGHT)
 	local padCf = WorldBuilder.padCFrame(baseId, padIndex)
 	local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
@@ -609,12 +608,12 @@ function CarryService.restorePlaced(player: Player, saved: { State.PlacedEntry }
 			end
 		end
 	end
-	-- Sync the "place" mission to the live placed count (fix round 4,
-	-- item 3): a player who already has enough placed when the "place"
-	-- mission is active completes it on join instead of staring at
-	-- 0/3. placeOnPad already adds 1 per restore, but only while
-	-- "place" is active; the sync catches the case where the mission
-	-- became active after the placements were made.
+	-- Sync the "place" mission to the live placed count: a player who
+	-- already has enough placed when the "place" mission is active
+	-- completes it on join instead of staring at 0/3. placeOnPad
+	-- already adds 1 per restore, but only while "place" is active;
+	-- the sync catches the case where the mission became active after
+	-- the placements were made.
 	MissionService.syncPlaceMission(player)
 end
 
