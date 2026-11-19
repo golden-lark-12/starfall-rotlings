@@ -56,6 +56,7 @@ local PAD_OFFSETS = {
 local padCFrames: { [number]: { [number]: CFrame } } = {}
 local baseCFrames: { [number]: CFrame } = {}
 local signLabels: { [number]: TextLabel } = {}
+local signStripes: { [number]: Part } = {}
 local collectLabels: { [number]: TextLabel } = {}
 local collectPads: { [number]: Part } = {}
 local padParts: { [number]: { [number]: Part } } = {}
@@ -258,6 +259,10 @@ function WorldBuilder.setBaseColor(baseId: number, color: Color3)
 			plinth.Color = darken(color, 0.7)
 		end
 	end
+	local stripe = signStripes[baseId]
+	if stripe then
+		stripe.Color = color
+	end
 end
 
 -- Show or hide a locked pad: hidden pads cannot be used.
@@ -381,6 +386,14 @@ local function buildBase(baseId: number)
 	local signBoard = part("SignBoard", Enum.PartType.Block, Vector3.new(8, 4, 0.5), Color3.fromRGB(20, 15, 40), cf * CFrame.new(0, 7, 9.5))
 	signBoard.CanCollide = false
 	signBoard.CastShadow = false
+	-- (fix round 12, item 1) A coloured stripe across the top of the
+	-- sign board, in the base's own colour: no two base signs look
+	-- alike at a glance, and the colour survives a rebirth recolour
+	-- (setBaseColor repaints the stripe with the base).
+	local signStripe = part("SignStripe", Enum.PartType.Block, Vector3.new(8.4, 0.7, 0.6), color, cf * CFrame.new(0, 9.2, 9.5), Enum.Material.Neon)
+	signStripe.CanCollide = false
+	signStripe.CastShadow = false
+	signStripes[baseId] = signStripe
 	local sign = Instance.new("BillboardGui")
 	sign.Name = "BaseSign"
 	sign.Size = UDim2.fromOffset(200, 100)
@@ -1082,15 +1095,22 @@ local function buildStarShop()
 			crate.CanCollide = false
 		end
 	end
-	-- Neon sign above the open front.
-	local signBoard = part("ShopSignBoard", Enum.PartType.Block, Vector3.new(18, 3, 0.5), Color3.fromRGB(20, 15, 40), shopCf * CFrame.new(0, 9, 10))
+	-- Neon sign above the open front — a ROUND gold-rimmed disc, not
+	-- another flat dark board: every sign has its own silhouette
+	-- (fix round 12, item 1). Lowered to y=7 (was 9) so it reads
+	-- from the plaza without the HUD storm banner crossing it from
+	-- normal camera angles. The disc faces the open front (+Z in
+	-- shop space, toward the crater and the path).
+	local signRim = part("ShopSignRim", Enum.PartType.Cylinder, Vector3.new(0.5, 7.2, 7.2), Color3.fromRGB(255, 215, 0), shopCf * CFrame.new(0, 7, 10) * CFrame.Angles(math.rad(90), 0, 0), Enum.Material.Neon)
+	signRim.CanCollide = false
+	local signBoard = part("ShopSignDisc", Enum.PartType.Cylinder, Vector3.new(0.7, 6.4, 6.4), Color3.fromRGB(20, 15, 40), shopCf * CFrame.new(0, 7, 10.3) * CFrame.Angles(math.rad(90), 0, 0))
 	signBoard.CanCollide = false
 	local signGui = Instance.new("BillboardGui")
 	signGui.Name = "ShopSign"
 	-- Depth-tested and shorter-range (v74, plaza fix): the old
 	-- AlwaysOnTop sign at MaxDistance 120 rendered over the
 	-- Contract Board from the plaza. It still reads from the shop.
-	signGui.Size = UDim2.fromOffset(300, 50)
+	signGui.Size = UDim2.fromOffset(260, 80)
 	signGui.AlwaysOnTop = false
 	signGui.LightInfluence = 0
 	signGui.MaxDistance = 60
@@ -1300,11 +1320,15 @@ local function fenceLine(from: Vector3, to: Vector3)
 	rail.CanCollide = false
 end
 
-local function signpost(position: Vector3, lines: { string })
+-- A signpost: a wooden post with one board per direction. Each
+-- board has its own colour (crater = sky blue, shop = gold, altar =
+-- purple), so no two signposts read the same — and no board is a
+-- plain dark panel with white text (fix round 12, item 1).
+local function signpost(position: Vector3, lines: { { text: string, color: Color3, board: Color3 } })
 	local post = part("Signpost", Enum.PartType.Cylinder, Vector3.new(6, 0.8, 0.8), Color3.fromRGB(120, 85, 50), CFrame.new(position + Vector3.new(0, 3, 0)) * CFrame.Angles(0, 0, math.rad(90)))
 	post.CanCollide = false
 	for i, line in ipairs(lines) do
-		local board = part("SignpostBoard", Enum.PartType.Block, Vector3.new(7, 1.6, 0.4), Color3.fromRGB(60, 45, 90), CFrame.new(position + Vector3.new(0, 5 + (i - 1) * 1.8, 0)))
+		local board = part("SignpostBoard", Enum.PartType.Block, Vector3.new(7, 1.6, 0.4), line.board, CFrame.new(position + Vector3.new(0, 5 + (i - 1) * 1.8, 0)))
 		board.CanCollide = false
 		local gui = Instance.new("BillboardGui")
 		gui.Name = "SignpostLabel"
@@ -1316,19 +1340,24 @@ local function signpost(position: Vector3, lines: { string })
 		local label = Instance.new("TextLabel")
 		label.Size = UDim2.new(1, 0, 1, 0)
 		label.BackgroundTransparency = 1
-		label.Text = line
+		label.Text = line.text
 		label.Font = Enum.Font.FredokaOne
 		label.TextScaled = true
-		label.TextColor3 = Color3.fromRGB(255, 255, 255)
+		label.TextColor3 = line.color
 		label.TextStrokeTransparency = 0.3
 		label.Parent = gui
 	end
 end
 
 local function buildSignpostsAndFences()
-	signpost(Vector3.new(6, 0, 58), { "← Crater", "Shop →" })
-	signpost(Vector3.new(-22, 0, 28), { "Shop →", "← Crater" })
-	signpost(Vector3.new(6, 0, -48), { "Altar ↑", "← Crater" })
+	-- (fix round 12, item 1) The spawn-path signpost used to stand
+	-- at (6, 58), dead on the sightline from the crater to the title
+	-- sign at (12, 72) — its boards overlapped the title text
+	-- ("BRAINI Shop") from the plaza. It now stands on the WEST
+	-- side of the spawn path (-8, 62), clear of every big sign.
+	signpost(Vector3.new(-8, 0, 62), { { text = "← Crater", color = Color3.fromRGB(140, 210, 255), board = Color3.fromRGB(40, 60, 110) }, { text = "Shop →", color = Color3.fromRGB(255, 220, 90), board = Color3.fromRGB(110, 85, 30) } })
+	signpost(Vector3.new(-22, 0, 28), { { text = "Shop →", color = Color3.fromRGB(255, 220, 90), board = Color3.fromRGB(110, 85, 30) }, { text = "← Crater", color = Color3.fromRGB(140, 210, 255), board = Color3.fromRGB(40, 60, 110) } })
+	signpost(Vector3.new(6, 0, -48), { { text = "Altar ↑", color = Color3.fromRGB(210, 150, 255), board = Color3.fromRGB(80, 50, 110) }, { text = "← Crater", color = Color3.fromRGB(140, 210, 255), board = Color3.fromRGB(40, 60, 110) } })
 	-- Fences flank the spawn path (fix 5): they used to stop at z=46
 	-- while the path stopped at z=57; now both run to the crater rim
 	-- (z=40), so the walkway is fenced all the way in. The spawn path
@@ -1471,8 +1500,15 @@ end
 -- old-billboard checks still prove the sky text is gone.
 local function buildWorldTitleSign()
 	local cx, cz = 12, 72
+	-- (fix round 12, item 1) The posts used to stand at cx +/- 10,
+	-- INSIDE the 22-wide board's span (edges at cx +/- 11) — from
+	-- spawn angles a post ran straight through the middle of the
+	-- text ("SPAC...OCK / BR...OTS!"). The posts now stand at
+	-- cx +/- 12.5, 1.5 studs CLEAR of the board edges: in the same
+	-- plane as the board and outside its span, a post can never
+	-- cover the board's face from any camera angle.
 	for _, side in ipairs({ -1, 1 }) do
-		local post = part("WorldTitlePost", Enum.PartType.Block, Vector3.new(1.2, 10, 1.2), Color3.fromRGB(72, 62, 92), CFrame.new(cx + side * 10, 5, cz))
+		local post = part("WorldTitlePost", Enum.PartType.Block, Vector3.new(1.2, 10, 1.2), Color3.fromRGB(72, 62, 92), CFrame.new(cx + side * 12.5, 5, cz))
 		post.CanCollide = false
 	end
 	local board = part("WorldTitleSign", Enum.PartType.Block, Vector3.new(22, 6, 1), Color3.fromRGB(60, 45, 90), CFrame.new(cx, 8, cz))
@@ -1481,6 +1517,28 @@ local function buildWorldTitleSign()
 	trimTop.CanCollide = false
 	local trimBottom = part("WorldTitleTrim", Enum.PartType.Block, Vector3.new(22.4, 0.5, 1.2), Color3.fromRGB(255, 215, 0), CFrame.new(cx, 4.9, cz), Enum.Material.Neon)
 	trimBottom.CanCollide = false
+	-- A soft gold glow + a slow pulse on the trims, so the sign
+	-- reads as alive, not a flat board.
+	local glow = Instance.new("PointLight")
+	glow.Color = Color3.fromRGB(255, 215, 0)
+	glow.Brightness = 1.5
+	glow.Range = 18
+	glow.Parent = board
+	task.spawn(function()
+		local TweenService = game:GetService("TweenService")
+		while board.Parent do
+			local tween = TweenService:Create(trimTop, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Transparency = 0.45 })
+			tween:Play()
+			local tween2 = TweenService:Create(trimBottom, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Transparency = 0.45 })
+			tween2:Play()
+			tween.Completed:Wait()
+			local back = TweenService:Create(trimTop, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Transparency = 0 })
+			back:Play()
+			local back2 = TweenService:Create(trimBottom, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Transparency = 0 })
+			back2:Play()
+			back.Completed:Wait()
+		end
+	end)
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "WorldTitleLabel"
 	gui.Size = UDim2.fromOffset(440, 90)
@@ -1545,49 +1603,73 @@ end
 local function buildContractBoard()
 	-- East side of the spawn path, facing the path.
 	local boardCf = CFrame.lookAt(Vector3.new(16, 0, 94), Vector3.new(0, 0, 96))
-	for _, x in ipairs({ -4, 4 }) do
+	-- (fix round 12, item 1) The posts used to stand at +/- 4,
+	-- behind the 10-wide board; the text (220x110, TextSize 15,
+	-- NO wrapping) clipped mid-word — "Finish one, cla..." — and
+	-- the board read as an empty dark panel. Now: a 12x8 board
+	-- with a gold backing (a gold border around the dark face),
+	-- posts OUTSIDE the board at +/- 6.5, a 260x140 GUI, wrapped
+	-- text that fits, and a footer line — so the board reads as a
+	-- reward board with content, never as an empty panel.
+	for _, x in ipairs({ -6.5, 6.5 }) do
 		local post = part("ContractPost", Enum.PartType.Cylinder, Vector3.new(7, 0.8, 0.8), Color3.fromRGB(120, 85, 50), boardCf * CFrame.new(x, 3.5, 0) * CFrame.Angles(0, 0, math.rad(90)))
 		post.CanCollide = false
 	end
-	local board = part("ContractBoard", Enum.PartType.Block, Vector3.new(10, 7, 0.6), Color3.fromRGB(60, 45, 90), boardCf * CFrame.new(0, 6, 0))
+	local backing = part("ContractBoardBacking", Enum.PartType.Block, Vector3.new(12.6, 8.6, 0.4), Color3.fromRGB(255, 215, 0), boardCf * CFrame.new(0, 6, -0.3), Enum.Material.Neon)
+	backing.CanCollide = false
+	local board = part("ContractBoard", Enum.PartType.Block, Vector3.new(12, 8, 0.6), Color3.fromRGB(60, 45, 90), boardCf * CFrame.new(0, 6, 0))
 	board.CanCollide = false
 	-- Gold trim on top, so the board reads as the reward board from
 	-- the path — the bounty board it replaces was plain dark.
-	local trim = part("ContractBoardTrim", Enum.PartType.Block, Vector3.new(10.4, 0.5, 0.8), Color3.fromRGB(255, 215, 0), boardCf * CFrame.new(0, 9.6, 0), Enum.Material.Neon)
+	local trim = part("ContractBoardTrim", Enum.PartType.Block, Vector3.new(12.4, 0.5, 0.8), Color3.fromRGB(255, 215, 0), boardCf * CFrame.new(0, 10.2, 0), Enum.Material.Neon)
 	trim.CanCollide = false
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "ContractBoardGui"
 	-- Small and depth-tested (v74, plaza fix): the old 280x160
 	-- AlwaysOnTop board rendered giant centre-screen text over the
 	-- world at close range and drew over the STAR SHOP sign. At
-	-- 220x110 with fixed text sizes it reads as a sign, not a
+	-- 260x140 with wrapped text it reads as a sign, not a
 	-- fullscreen overlay, and it hides behind nearer geometry.
-	gui.Size = UDim2.fromOffset(220, 110)
+	gui.Size = UDim2.fromOffset(260, 140)
 	gui.AlwaysOnTop = false
 	gui.LightInfluence = 0
 	gui.MaxDistance = 40
 	gui.Parent = board
 	local title = Instance.new("TextLabel")
 	title.Name = "ContractTitle"
-	title.Size = UDim2.new(1, 0, 0.3, 0)
+	title.Size = UDim2.new(1, 0, 0.25, 0)
 	title.BackgroundTransparency = 1
-	title.Text = "📋 CONTRACT BOARD"
+	title.Text = "CONTRACT BOARD"
 	title.Font = Enum.Font.FredokaOne
-	title.TextSize = 22
+	title.TextSize = 20
+	title.TextWrapped = true
 	title.TextColor3 = Color3.fromRGB(255, 220, 90)
 	title.TextStrokeTransparency = 0.3
 	title.Parent = gui
 	local text = Instance.new("TextLabel")
 	text.Name = "ContractText"
-	text.Size = UDim2.new(1, 0, 0.7, 0)
-	text.Position = UDim2.new(0, 0, 0.3, 0)
+	text.Size = UDim2.new(1, 0, 0.5, 0)
+	text.Position = UDim2.new(0, 0, 0.25, 0)
 	text.BackgroundTransparency = 1
 	text.Text = "3 contracts at a time.\nFinish one, claim the reward!"
 	text.Font = Enum.Font.FredokaOne
-	text.TextSize = 15
+	text.TextSize = 14
+	text.TextWrapped = true
 	text.TextColor3 = Color3.fromRGB(255, 255, 255)
 	text.TextStrokeTransparency = 0.3
 	text.Parent = gui
+	local footer = Instance.new("TextLabel")
+	footer.Name = "ContractFooter"
+	footer.Size = UDim2.new(1, 0, 0.25, 0)
+	footer.Position = UDim2.new(0, 0, 0.75, 0)
+	footer.BackgroundTransparency = 1
+	footer.Text = "Press E to open"
+	footer.Font = Enum.Font.FredokaOne
+	footer.TextSize = 13
+	footer.TextWrapped = true
+	footer.TextColor3 = Color3.fromRGB(255, 220, 90)
+	footer.TextStrokeTransparency = 0.3
+	footer.Parent = gui
 	-- Press E to open your board: the prompt is wired by
 	-- MissionService.init (it fires OpenContracts at that player).
 	local prompt = Instance.new("ProximityPrompt")

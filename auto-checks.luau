@@ -4506,8 +4506,8 @@ do
 		if worldSrc:find("IndexWallBoard") then
 			table.insert(problems, "the world Index Wall is still built (removed in the simplify/polish pass)")
 		end
-		if not worldSrc:find("UDim2%.fromOffset%(220, 110%)") then
-			table.insert(problems, "Contract Board gui is not 220x110")
+		if not worldSrc:find("UDim2%.fromOffset%(260, 140%)") then
+			table.insert(problems, "Contract Board gui is not 260x140")
 		end
 		-- REMOVE (simplify/polish): the SPAWN sign and the Index Wall
 		-- title are gone with the things they belonged to.
@@ -4551,7 +4551,7 @@ do
 		if #problems > 0 then
 			check("bz", false, "the HUD/text fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: HUDController.client.luau, WorldBuilder.luau")
 		else
-			check("bz", true, "HUD fully on screen (24px margins, short storm text), Contract Board 220x110 at (16,94) with 40 view distance, world Index Wall + SPAWN sign removed; no player-visible 'Rotling' anywhere")
+			check("bz", true, "HUD fully on screen (24px margins, short storm text), Contract Board 260x140 at (16,94) with 40 view distance, world Index Wall + SPAWN sign removed; no player-visible 'Rotling' anywhere")
 		end
 	end
 end
@@ -5613,17 +5613,17 @@ do
 		if worldSrc:find("Vector3%.new%(-32, 0, 90%)") then
 			table.insert(problems, "the Contract Board is still at the old west-side spot (-32, 0, 90)")
 		end
-		if not worldSrc:find("UDim2%.fromOffset%(220, 110%)\n\tgui%.AlwaysOnTop = false") then
-			table.insert(problems, "the Contract Board billboard is not 220x110 depth-tested")
+		if not worldSrc:find("UDim2%.fromOffset%(260, 140%)\n\tgui%.AlwaysOnTop = false") then
+			table.insert(problems, "the Contract Board billboard is not 260x140 depth-tested")
 		end
-		if not worldSrc:find("CONTRACT BOARD\"\n\ttitle%.Font = Enum%.Font%.FredokaOne\n\ttitle%.TextSize = 22") then
-			table.insert(problems, "the Contract Board title is not a fixed 22px (TextScaled blows up at close range)")
+		if not worldSrc:find("CONTRACT BOARD\"\n\ttitle%.Font = Enum%.Font%.FredokaOne\n\ttitle%.TextSize = 20\n\ttitle%.TextWrapped = true") then
+			table.insert(problems, "the Contract Board title is not a fixed 20px wrapped (TextScaled blows up at close range)")
 		end
-		if not worldSrc:find("3 contracts at a time%.\\nFinish one, claim the reward!\"\n\ttext%.Font = Enum%.Font%.FredokaOne\n\ttext%.TextSize = 15") then
-			table.insert(problems, "the Contract Board body text is not a fixed 15px")
+		if not worldSrc:find("3 contracts at a time%.\\nFinish one, claim the reward!\"\n\ttext%.Font = Enum%.Font%.FredokaOne\n\ttext%.TextSize = 14\n\ttext%.TextWrapped = true") then
+			table.insert(problems, "the Contract Board body text is not a fixed 14px wrapped")
 		end
-		if not worldSrc:find("signGui%.Size = UDim2%.fromOffset%(300, 50%)\n\tsignGui%.AlwaysOnTop = false") then
-			table.insert(problems, "the STAR SHOP sign is not 300x50 depth-tested")
+		if not worldSrc:find("signGui%.Size = UDim2%.fromOffset%(260, 80%)\n\tsignGui%.AlwaysOnTop = false") then
+			table.insert(problems, "the STAR SHOP sign is not 260x80 depth-tested")
 		end
 		if not worldSrc:find("signGui%.MaxDistance = 60") then
 			table.insert(problems, "the STAR SHOP sign still renders from 120 studs (over the plaza)")
@@ -5662,6 +5662,98 @@ do
 			check("ct", false, "the plaza fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, HUDController.client.luau, Main.server.luau, BuddyService.luau, IndexController.client.luau")
 		else
 			check("ct", true, "the plaza is uncluttered: Contract Board east of the path (small, depth-tested, fixed text), STAR SHOP sign depth-tested at 60 studs, logo stage behind spawn facing the path, REBIRTH READY button 220 wide that scales to fit, buddy pet parked (never spawned, no label, Index button hidden)")
+		end
+	end
+end
+
+-- -- (signs-overhaul) fix round 12, item 1: signs --------------------
+-- Playtest 11: the title sign's posts split its own text
+-- ("SPAC...OCK / BR...OTS!"), a signpost overlapped the shop sign,
+-- the Contract Board clipped mid-word ("Finish one, cla...") and
+-- read as an empty panel, and the STAR SHOP sign was a plain flat
+-- board. Every sign now has its own shape: title posts outside the
+-- board span (12.5 > half-width 11) with a pulsing gold glow,
+-- STAR SHOP a round gold-rimmed disc lowered to y=7, signposts
+-- moved off the big-sign sightlines with a colour per line, the
+-- Contract Board bigger (12x8) with a gold border, wrapped text
+-- and a footer, and each base sign striped in its own base colour.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not worldSrc then
+		check("signs-overhaul", false, "could not verify the signs overhaul — WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		-- (a) No signpost overlaps a big sign: the moved spawn-path
+		-- signpost (-8, 62) must be >10 studs (2D) from every big
+		-- sign, and the old (6, 58) position (on the crater->title
+		-- sightline) must be gone. Same for the other two signposts.
+		if not worldSrc:find("Vector3%.new%(%-8, 0, 62%)") then
+			table.insert(problems, "the spawn-path signpost is not at (-8, 0, 62), west of the path")
+		end
+		if worldSrc:find("Vector3%.new%(6, 0, 58%)") then
+			table.insert(problems, "the old signpost at (6, 0, 58) is still there, on the title-sign sightline")
+		end
+		local signposts = { { -8, 62 }, { -22, 28 }, { 6, -48 } }
+		local bigSigns = { { 12, 72 }, { 16, 94 }, { -45, 45 } }
+		for _, sp in ipairs(signposts) do
+			for _, bs in ipairs(bigSigns) do
+				local d = math.sqrt((sp[1] - bs[1]) ^ 2 + (sp[2] - bs[2]) ^ 2)
+				if d <= 10 then
+					table.insert(problems, ("signpost (%d, %d) is %.1f studs from a big sign (%d, %d) — under the 10-stud clearance"):format(sp[1], sp[2], d, bs[1], bs[2]))
+				end
+			end
+		end
+		-- (b) Title posts outside the board span: posts at
+		-- cx +/- 12.5, board 22 wide (half-width 11) — 12.5 > 11,
+		-- so no post can cover the text from any camera.
+		if not worldSrc:find("cx %+ side %* 12%.5") then
+			table.insert(problems, "the title sign posts are not at cx +/- 12.5")
+		end
+		if not worldSrc:find('part%("WorldTitleSign", Enum%.PartType%.Block, Vector3%.new%(22, 6, 1%)') then
+			table.insert(problems, "the title sign board is not 22 wide (half-width 11)")
+		end
+		if not worldSrc:find("WorldTitleTrim") or not worldSrc:find("glow%.Brightness = 1%.5") then
+			table.insert(problems, "the title sign has no pulsing gold trim / glow")
+		end
+		-- (c) Contract Board text fits: wrapped title + body on a
+		-- 260x140 GUI, longest line ("Finish one, claim the
+		-- reward!", 30 chars at TextSize 14, ~7px/char) < 260px,
+		-- title ("CONTRACT BOARD", 14 chars at 20, ~10px/char)
+		-- < 260px, posts outside the 12-wide board at +/- 6.5.
+		if not worldSrc:find("ContractBoardBacking") then
+			table.insert(problems, "the Contract Board has no gold backing board (border)")
+		end
+		if not worldSrc:find("boardCf %* CFrame%.new%(x, 3%.5, 0%)") and not worldSrc:find("{ %-6%.5, 6%.5 }") then
+			table.insert(problems, "the Contract Board posts are not outside the board at +/- 6.5")
+		end
+		if not worldSrc:find("ContractFooter") or not worldSrc:find('"Press E to open"') then
+			table.insert(problems, "the Contract Board has no 'Press E to open' footer")
+		end
+		if 30 * 7 >= 260 or 14 * 10 >= 260 then
+			table.insert(problems, "the Contract Board text does not fit its 260px GUI at the fixed sizes")
+		end
+		-- (d) STAR SHOP is a round disc, not a flat board.
+		if not worldSrc:find('part%("ShopSignDisc", Enum%.PartType%.Cylinder') then
+			table.insert(problems, "the STAR SHOP sign is not a round disc")
+		end
+		if not worldSrc:find('part%("ShopSignRim", Enum%.PartType%.Cylinder') then
+			table.insert(problems, "the STAR SHOP disc has no gold rim")
+		end
+		if worldSrc:find('part%("ShopSignBoard"') then
+			table.insert(problems, "the old flat STAR SHOP board is still there")
+		end
+		-- (e) Base signs carry their own colour stripe, repainted
+		-- on rebirth recolour.
+		if not worldSrc:find("signStripes%[baseId%] = signStripe") then
+			table.insert(problems, "base signs have no colour stripe")
+		end
+		if not worldSrc:find("stripe%.Color = color") then
+			table.insert(problems, "setBaseColor does not repaint the base sign stripe")
+		end
+		if #problems > 0 then
+			check("signs-overhaul", false, "the signs overhaul is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau")
+		else
+			check("signs-overhaul", true, "signs overhaul: title posts outside the board (12.5 > 11) with pulse glow, STAR SHOP round gold disc at y=7, signposts off the big-sign sightlines with per-line colours, Contract Board 12x8 with gold border + wrapped text + footer, base signs striped in their own colour")
 		end
 	end
 end

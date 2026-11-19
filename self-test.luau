@@ -1650,6 +1650,39 @@ do
 	end
 end
 
+-- Fix round 12, item 1 — signs overhaul: title posts outside the
+-- board span, STAR SHOP a round disc, signposts off the big-sign
+-- sightlines with per-line colours, Contract Board bigger with a
+-- gold border and wrapped text, base signs striped in their colour.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not worldSrc then
+		step("signs", false, "WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find("cx %+ side %* 12%.5") then
+			table.insert(problems, "title posts are not at cx +/- 12.5")
+		end
+		if not worldSrc:find("Vector3%.new%(%-8, 0, 62%)") or worldSrc:find("Vector3%.new%(6, 0, 58%)") then
+			table.insert(problems, "spawn-path signpost is not moved to (-8, 62)")
+		end
+		if not worldSrc:find('part%("ShopSignDisc", Enum%.PartType%.Cylinder') then
+			table.insert(problems, "STAR SHOP is not a round disc")
+		end
+		if not worldSrc:find("ContractBoardBacking") or not worldSrc:find("ContractFooter") then
+			table.insert(problems, "Contract Board has no gold backing / footer")
+		end
+		if not worldSrc:find("signStripes%[baseId%] = signStripe") then
+			table.insert(problems, "base signs have no colour stripe")
+		end
+		if #problems > 0 then
+			step("signs", false, table.concat(problems, "; "))
+		else
+			step("signs", true, "title posts outside the board (12.5 > 11) with pulse glow; STAR SHOP round gold disc; signposts off sightlines with per-line colours; Contract Board 12x8 gold-bordered with wrapped text + footer; base sign stripes")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
