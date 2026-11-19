@@ -1480,6 +1480,31 @@ do
 	end
 end
 
+-- Follow-up, item 1 — thief alert is truthful: fires only while
+-- the thief is really inside the base, and a bonked thief loses
+-- the sign.
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	local slapSrc = read("src/server/SlapService.luau")
+	if not rivalSrc or not slapSrc then
+		step("thief-alert", false, "RivalService.luau or SlapService.luau missing")
+	else
+		local problems: { string } = {}
+		local _, fires = rivalSrc:gsub("thiefAlertEvent%(%)%:FireClient", "")
+		if fires ~= 1 then
+			table.insert(problems, "ThiefAlert fires " .. tostring(fires) .. " times — must be exactly 1 (the in-base watcher)")
+		end
+		if not slapSrc:find("clearThiefVisuals%(rival%)") then
+			table.insert(problems, "a bonked thief keeps its THIEF sign")
+		end
+		if #problems > 0 then
+			step("thief-alert", false, table.concat(problems, "; "))
+		else
+			step("thief-alert", true, "thief alert fires only while the thief is really inside; a bonked thief loses the sign")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

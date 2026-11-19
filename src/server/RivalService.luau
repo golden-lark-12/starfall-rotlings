@@ -269,6 +269,18 @@ local function setThiefSign(model: Model, on: boolean)
 	end
 end
 
+-- Clear the thief visuals (sign + light + Highlight) and any hunt
+-- state, wherever the rival's thief behaviour ends — bonked, hunt
+-- over, steal over. One call so no path can leak the sign onto a
+-- rival that is not stealing or hunting: a sign that is on all the
+-- time means nothing (follow-up, item 1: slapRival used to flee
+-- without clearing it, so a bonked thief kept the red sign and the
+-- through-walls highlight forever, until its next steal ended).
+function RivalService.clearThiefVisuals(rival: State.Rival)
+	setThiefSign(rival.model, false)
+	rival.chaseKind = nil
+end
+
 -- Walk to a target WITHOUT crossing the crater: route along a ring
 -- of open ground at radius 45 (the rim's outer ring ends at 39),
 -- then straight in. (fix round 7, item 2) The straight-line walks
@@ -522,10 +534,14 @@ local function tryStartSteal(rival: State.Rival, model: Model): boolean
 	-- Steal alarm (fix round 7, item 4): the warning banner was
 	-- silent — a low alarm so the player HEARS the thief coming.
 	FeedbackService.playSound(victim, 0.7, 1)
-	-- Danger alert (fix round 9, item 9): the full-screen treatment
-	-- (red vignette, flashing banner, alarm) fires at the victim
-	-- the moment the steal starts — not just the small banner.
-	Remotes.thiefAlertEvent():FireClient(victim, rival.name)
+	-- NO danger alert here (follow-up, item 1): the full-screen
+	-- "NAME IS IN YOUR BASE!" treatment used to fire at steal start,
+	-- when the thief is still at its own base ~100 studs away — the
+	-- alert claimed a presence the thief did not have yet, so the
+	-- player learned to distrust it ("it says he's in my base but I
+	-- look and nobody's there"). The alert fires ONLY while the thief
+	-- is actually inside (the watcher below, every 3s, dist <= 20),
+	-- so when it screams, the thief is really there.
 	print("[Rival] " .. rival.name .. " stealing from " .. victim.Name .. " (base " .. tostring(victimBase) .. ")")
 	return true
 end

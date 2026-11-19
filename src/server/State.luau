@@ -81,6 +81,14 @@ export type Rival = {
 	chaseWpIndex: number,
 	chasePathTarget: Vector3?,
 	chaseRepathAt: number,
+	-- Hunt state (follow-up, item 2): the chase has two kinds —
+	-- "carrier" (chasing someone carrying an egg/Brainrot, to make
+	-- them drop it) and "hunt" (hunting a free-walking player, to
+	-- steal what they carry or knock them down). The kind decides
+	-- the chase speed, the tag outcome, and the end conditions.
+	chaseKind: string?, -- "carrier" | "hunt" | nil
+	huntReadyAt: number, -- earliest time() this rival may start a hunt (cooldown after a knockdown tag)
+	huntStartedAt: number, -- time() the current hunt started (timeout)
 }
 
 export type Boost = {

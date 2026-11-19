@@ -4,14 +4,18 @@
 -- scream danger — the old warning was a small banner + a red
 -- Highlight on the thief, and Malek still could not see the thief in
 -- his base in playtest 10. The server fires ThiefAlert at the victim
--- when a steal starts AND every 3s while the thief is inside the
--- base; each fire shows for 4s, so the alert stays live until the
--- thief leaves or is bonked. The treatment: a full-screen red flash
--- wash, a pulsing red edge vignette, a big flashing centre banner
--- ("🚨 NAME IS IN YOUR BASE! 🚨" + "Go bonk them!") that jitters
--- while live, and a low alarm ping on every fire. The jitter is on
--- the GUI, not the camera — CameraFX owns the camera shake, and two
--- controllers writing the camera CFrame every frame would fight.
+-- every 3s while the thief is actually inside the base; each fire
+-- shows for 4s, so the alert stays live until the thief leaves or is
+-- bonked. (It used to fire at steal start too — but then it claimed
+-- "IS IN YOUR BASE" while the thief was still ~100 studs away, so
+-- the player learned to distrust it. Follow-up, item 1: the alert
+-- fires only on real presence now.) The treatment: a full-screen red
+-- flash wash, a pulsing red edge vignette, a big flashing centre
+-- banner ("🚨 NAME IS IN YOUR BASE! 🚨" + "Go bonk them!") that
+-- jitters while live, and a low alarm ping on every fire. The jitter
+-- is on the GUI, not the camera — CameraFX owns the camera shake,
+-- and two controllers writing the camera CFrame every frame would
+-- fight.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -134,8 +138,9 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- The server fires this at the victim when a steal starts and every
--- 3s while the thief is inside their base.
+-- The server fires this at the victim every 3s while the thief is
+-- actually inside their base (follow-up, item 1: no fire at steal
+-- start — the thief is not in the base yet then).
 task.spawn(function()
 	while true do
 		local ok, event = pcall(function()

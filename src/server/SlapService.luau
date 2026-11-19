@@ -71,6 +71,11 @@ function SlapService.slapRival(rival: State.Rival, byPlayer: Player?)
 		slapHitAt(root.Position)
 	end
 	RivalService.dropCarried(rival)
+	-- A bonked thief stops being a thief: clear the sign/light/
+	-- highlight, or a rival that was stealing keeps the red THIEF
+	-- sign and the through-walls highlight forever — and a sign that
+	-- is on all the time means nothing (follow-up, item 1).
+	RivalService.clearThiefVisuals(rival)
 	rival.phase = "flee"
 	rival.targetUserId = nil
 	if byPlayer then

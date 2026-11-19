@@ -7115,6 +7115,46 @@ do
 	end
 end
 
+-- Follow-up, item 1 — thief alert is truthful: the danger alert
+-- fires ONLY while the thief is actually inside the victim's base
+-- (the watcher, every 3s), never at steal start when the thief is
+-- still ~100 studs away claiming "IS IN YOUR BASE"; and a bonked
+-- thief loses the sign/light/highlight, so the sign means something.
+-- Verified by reading the code: the sign is AlwaysOnTop (through
+-- walls), the Highlight is DepthMode Occluded, the watcher radius
+-- (20) covers the whole 26-wide platform, and the sign is on for
+-- the entire steal phase (1 on-site, 6 off-sites).
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	local slapSrc = read("src/server/SlapService.luau")
+	if not rivalSrc or not slapSrc then
+		check("thief-alert", false, "could not verify the thief alert — RivalService.luau or SlapService.luau missing")
+	else
+		local problems: { string } = {}
+		local _, fires = rivalSrc:gsub("thiefAlertEvent%(%)%:FireClient", "")
+		if fires ~= 1 then
+			table.insert(problems, "ThiefAlert fires " .. tostring(fires) .. " times in RivalService — must be exactly 1 (the in-base watcher)")
+		end
+		if not rivalSrc:find("function RivalService%.clearThiefVisuals") then
+			table.insert(problems, "no clearThiefVisuals helper")
+		end
+		if not slapSrc:find("clearThiefVisuals%(rival%)") then
+			table.insert(problems, "a bonked thief keeps its THIEF sign (slapRival never clears it)")
+		end
+		if not rivalSrc:find('AlwaysOnTop = true') then
+			table.insert(problems, "the THIEF sign is not AlwaysOnTop (not visible through walls)")
+		end
+		if not rivalSrc:find("HighlightDepthMode%.Occluded") then
+			table.insert(problems, "the thief Highlight is not Occluded (not visible through walls)")
+		end
+		if #problems > 0 then
+			check("thief-alert", false, "the thief alert is not truthful — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, SlapService.luau")
+		else
+			check("thief-alert", true, "thief alert fires only while the thief is really inside (watcher, every 3s); sign is AlwaysOnTop + Occluded highlight through walls; a bonked thief loses the sign")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
