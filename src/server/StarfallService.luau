@@ -51,8 +51,8 @@ local function calmDuration(): number
 end
 
 function StarfallService.getStatus()
-	-- "Meteor Danger" (cheap win 8): 0 when the next storm is far away,
-	-- filling to 1 as it approaches, full during warn and storm.
+	-- "Meteor Danger": 0 when the next storm is far away, filling to
+	-- 1 as it approaches, full during warn and storm.
 	local danger = 0
 	if phase == "warn" or phase == "storm" then
 		danger = 1
@@ -101,12 +101,6 @@ end
 -- The storm dark is SOFTENED (Brightness 1.2, not 0.9) so the storm
 -- shot stays readable at thumbnail size: the wall, the dome, the base
 -- and the (x2) income readout must all read in the same frame.
--- (Fix round 2, lighting: base Brightness lowered 3 -> 2 and Bloom
--- 0.35 -> 0.15 so nothing glows white; the storm dark follows it
--- down 1.5 -> 1.2 so the storm still reads darker than calm. Fix
--- round 4, item 7: base Brightness 2 -> 1.8 and Bloom 0.15 -> 0.1,
--- one more step down so nothing glows white; the storm dark stays
--- 1.2, still darker than calm.)
 local function dimSky()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
@@ -293,14 +287,13 @@ local function onMeteorLanded(target: Vector3, isHero: boolean)
 			end
 		end
 	end
-	-- Bots are hit too (fix round 5, item 4): a rival or raider caught
-	-- outside a base is knocked out — it drops what it carries. A
-	-- rival dies and respawns after 15s (its Died handler, coins
-	-- kept); a raider just despawns (its loot scatters back to the
-	-- crater). Bots on a base (in their Safe Dome) are safe, same as
-	-- players. Collect first, then knock out, so the Died handler
-	-- removing a rival from State.rivals never mutates the table
-	-- mid-iteration.
+	-- Bots are hit too: a rival or raider caught outside a base is
+	-- knocked out — it drops what it carries. A rival dies and
+	-- respawns after 15s (its Died handler, coins kept); a raider just
+	-- despawns (its loot scatters back to the crater). Bots on a base
+	-- (in their Safe Dome) are safe, same as players. Collect first,
+	-- then knock out, so the Died handler removing a rival from
+	-- State.rivals never mutates the table mid-iteration.
 	local hitRivals: { State.Rival } = {}
 	for rivalModel, rival in pairs(State.rivals) do
 		local root = rivalModel:FindFirstChild("HumanoidRootPart")
@@ -391,13 +384,11 @@ local function pickTarget(): Vector3
 				end
 			end
 		elseif roll < Config.STORM_NEAR_PLAYER_CHANCE + 0.2 then
-			-- Near a random base: the doorway ring (fix round 9, item
-			-- 4) — meteors can land at the door, because the ground
-			-- at the ramp foot is outside the safe zone. The `not
-			-- onBase(candidate)` filter below keeps platform targets
-			-- out (fix round 13, item 3: ground-level candidates ON
-			-- the platform now count as onBase), so the platform top
-			-- is never hit.
+			-- Near a random base: the doorway ring — meteors can land
+			-- at the door, because the ground at the ramp foot is
+			-- outside the safe zone. The `not onBase(candidate)`
+			-- filter below keeps platform targets out, so the
+			-- platform top is never hit.
 			local baseId = math.random(1, Config.BASE_COUNT)
 			local cf = WorldBuilder.baseCFrame(baseId)
 			if cf then
@@ -593,11 +584,11 @@ function StarfallService.start()
 				setPhase("warn", Config.STORM_WARN)
 				dimSky()
 				playAlarm()
-				-- Siren repeats through the 10s warning (fix round 2,
-				-- fix 3): one short ping at the start is easy to miss;
-				-- three pings across the warning make the countdown
-				-- unmissable. Guarded by the phase so a stale thread
-				-- can never sound after the warning ends.
+				-- Siren repeats through the 10s warning: one short
+				-- ping at the start is easy to miss; three pings
+				-- across the warning make the countdown unmissable.
+				-- Guarded by the phase so a stale thread can never
+				-- sound after the warning ends.
 				task.spawn(function()
 					for i = 2, 3 do
 						task.wait(Config.STORM_WARN / 3)
@@ -606,16 +597,16 @@ function StarfallService.start()
 						end
 					end
 				end)
-				-- (fix round 9, item 10) the server storm banner is
-				-- REMOVED — StormWarningController owns the storm
-				-- voice now. The old banner ("METEOR STORM IN 10
-				-- SECONDS…") drew over the controller's warnBar +
-				-- countdown in playtest 10: two storm warnings
-				-- overlapping. One voice, one banner.
+				-- The server storm banner is REMOVED — the
+				-- StormWarningController owns the storm voice now. The
+				-- old banner drew over the controller's warnBar +
+				-- countdown: two storm warnings overlapping. One
+				-- voice, one banner.
 				waitPhase()
-				-- Storm: meteors rain across the WHOLE map, lightning flashes, the
-				-- wind blows, the rumble drones. The lightning loop runs
-				-- beside the meteor loop and stops the moment the storm ends.
+				-- Storm: meteors rain across the WHOLE map, lightning
+				-- flashes, the wind blows, the rumble drones. The
+				-- lightning loop runs beside the meteor loop and stops
+				-- the moment the storm ends.
 				setPhase("storm", Config.STORM_DURATION)
 				stormActive = true
 				WorldBuilder.setWind(true)
@@ -630,11 +621,10 @@ function StarfallService.start()
 					end
 				end)
 				-- Bounty: earnings during this storm decide the bonus.
-				-- Each wrapped in its own pcall (fix round 4, item 4):
-				-- a failure in either used to abort the whole storm
-				-- pcall BEFORE the rain loop, so the first storm
-				-- dropped no rocks at all. Now a failure only warns
-				-- and the rain still falls.
+				-- Each wrapped in its own pcall: a failure in either
+				-- used to abort the whole storm pcall BEFORE the rain
+				-- loop, so the first storm dropped no rocks at all.
+				-- Now a failure only warns and the rain still falls.
 				local IncomeService = require(script.Parent.IncomeService)
 				local resetOk, resetErr = pcall(IncomeService.resetStormEarnings)
 				if not resetOk then
@@ -647,10 +637,10 @@ function StarfallService.start()
 					warn("[Starfall] spawnEggsForStorm failed: " .. tostring(eggsErr) .. " — no meteor eggs this storm, rain continues")
 				end
 				-- Three hero meteors at storm start: big, slow, bright —
-				-- the threat shot needs a giant hazard visible in a still.
-				-- They spawn immediately (no wait before the first), so a
-				-- meteor is always in the air within a second of the storm
-				-- starting and lands within 10s.
+				-- the threat shot needs a giant hazard visible in a
+				-- still. They spawn immediately (no wait before the
+				-- first), so a meteor is always in the air within a
+				-- second of the storm starting and lands within 10s.
 				for _ = 1, 3 do
 					task.spawn(spawnHeroMeteor)
 					task.wait(0.4)
@@ -661,11 +651,11 @@ function StarfallService.start()
 						lightningFlash()
 					end
 				end)
-				-- (fix round 9, item 10) the storm-start server banner
-				-- is REMOVED too — same overlap as the warning one.
-				-- The rain loop spawns the first meteor immediately
-				-- (no wait before the first call), so a meteor is
-				-- falling within a second of the storm starting.
+				-- The storm-start server banner is REMOVED too — same
+				-- overlap as the warning one. The rain loop spawns the
+				-- first meteor immediately (no wait before the first
+				-- call), so a meteor is falling within a second of the
+				-- storm starting.
 				while time() < phaseEndsAt do
 					spawnMeteor()
 					task.wait(Config.STORM_METEOR_INTERVAL)
