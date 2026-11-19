@@ -154,25 +154,41 @@ function RotlingFactory.setModelScale(model: Model, target: number)
 	model:ScaleTo(target / current)
 end
 
--- Scale a Rotling so its TOTAL height (body + hat/accessories) is
--- exactly `height` studs, whatever it was built at. The pedestal is
--- the display case: every placed Brainrot stands at one uniform
--- height (Config.PLACED_DISPLAY_HEIGHT), so the base reads tidy
--- instead of a staircase. Measured from the live bounding box, so
--- hats and accessories count — a tall hat shrinks the whole model
--- to fit, a flat puddle grows. Uses GetScale so the target is
--- absolute relative to the build size.
+-- Scale a Rotling so its BODY height (the PrimaryPart — the animal
+-- itself, not the hat) is exactly `height` studs, whatever it was
+-- built at, with its widest body dimension capped so flat wide bodies
+-- do not sprawl across the neighbour's pad. The old version measured
+-- the TOTAL bounding-box height (body + hat/accessories), so a flat
+-- puddle with slabs sticking up (Bloop) got its body under-scaled
+-- while a tall dome (Baron) stayed big — the sizes still read uneven
+-- in playtest 10 even though every placed Rotling was "4.5 tall".
+-- The body is the animal; the body is the measure. Honest limit: a
+-- flat silhouette (puddle, couch, mole) is inherently shorter than a
+-- dome in the same footprint — no uniform scaling can make a 4.2:1
+-- puddle as tall as a dome without it sprawling past its pad. What
+-- this guarantees is that every body is as tall as its shape allows
+-- within one pad, and no hat or accessory inflates or shrinks it.
+-- (fix round 9, item 5)
 function RotlingFactory.normalizeToHeight(model: Model, height: number)
+	local body = model.PrimaryPart
+	if not body or not body:IsA("BasePart") then
+		return
+	end
 	local current = model:GetScale()
 	if current <= 0 then
 		current = 1
 	end
-	local extents = model:GetExtentsSize()
-	local buildHeight = extents.Y / current
-	if buildHeight <= 0 then
+	local buildBodyHeight = body.Size.Y / current
+	local buildBodyWidth = math.max(body.Size.X, body.Size.Z) / current
+	if buildBodyHeight <= 0 then
 		return
 	end
-	RotlingFactory.setModelScale(model, height / buildHeight)
+	local factor = height / buildBodyHeight
+	-- Width cap: a flat wide body must not sprawl past its pad.
+	if buildBodyWidth > 0 then
+		factor = math.min(factor, Config.PLACED_MAX_WIDTH / buildBodyWidth)
+	end
+	RotlingFactory.setModelScale(model, factor)
 	RotlingFactory.refreshLabelOffset(model)
 end
 
@@ -249,11 +265,14 @@ local function startIdleMotion()
 					-- state, no fight.
 					local state = model:GetAttribute("State")
 					if body and state == "placed" then
-						local seed = bobSeed[model] or 0
-						local bob = math.sin(now * 1.6 + seed) * 0.22
-						-- Placed Rotlings slowly spin on display.
-						local angle = (now * 0.5 + seed) % (math.pi * 2)
-						body.CFrame = base * CFrame.new(0, bob, 0) * CFrame.Angles(0, angle, 0)
+						-- (fix round 9, item 5) placed Brainrots STAND
+						-- STILL — the old bob (±0.22) + slow spin made
+						-- them read as "moving in place" in playtest
+						-- 10. A placed Brainrot is a trophy on a
+						-- pedestal: it holds its pose. Re-seat it at
+						-- its base pose every tick (cheap, and it
+						-- heals any drift from a knock or a weld).
+						body.CFrame = base
 					end
 				end
 			end

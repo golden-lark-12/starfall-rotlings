@@ -5633,10 +5633,16 @@ do
 	end
 end
 
--- (cu) Uniform placed size (rev 75): every Brainrot on a pedestal
--- stands at one height (Config.PLACED_DISPLAY_HEIGHT), so the base
--- reads as a tidy display case. The crater keeps per-type sizes
--- (1.5x spawns) and carrying keeps CARRY_MAX_HEIGHT.
+-- (cu) Uniform placed size (rev 75; measure fixed fix round 9, item
+-- 5): every Brainrot on a pedestal stands at one BODY height
+-- (Config.PLACED_DISPLAY_HEIGHT), so the base reads as a tidy display
+-- case. The old measure was the total bounding box (body + hat), so
+-- a flat puddle with slabs sticking up got its body under-scaled
+-- while a tall dome stayed big — the sizes still read uneven in
+-- playtest 10. The measure is now the body (PrimaryPart.Size.Y),
+-- with the widest body dimension capped at PLACED_MAX_WIDTH so flat
+-- wide bodies do not sprawl past their pad. The crater keeps
+-- per-type sizes (1.5x spawns) and carrying keeps CARRY_MAX_HEIGHT.
 do
 	local configSrc = read("src/shared/Config.luau")
 	local factorySrc = read("src/server/RotlingFactory.luau")
@@ -5652,8 +5658,11 @@ do
 		if not factorySrc:find("function RotlingFactory%.normalizeToHeight") then
 			table.insert(problems, "no normalizeToHeight in RotlingFactory")
 		end
-		if not factorySrc:find("GetExtentsSize%(%)") then
-			table.insert(problems, "normalizeToHeight does not measure the live bounding box (hats/accessories would not count)")
+		if not factorySrc:find("buildBodyHeight = body%.Size%.Y / current") then
+			table.insert(problems, "normalizeToHeight does not measure the BODY height (PrimaryPart.Size.Y) — hats/accessories would still skew the size")
+		end
+		if not factorySrc:find("PLACED_MAX_WIDTH") then
+			table.insert(problems, "normalizeToHeight has no width cap — flat wide bodies sprawl past their pad")
 		end
 		if not carrySrc:find("normalizeToHeight%(model, Config%.PLACED_DISPLAY_HEIGHT%)") then
 			table.insert(problems, "placeOnPad does not normalize the placed Brainrot")
@@ -5667,7 +5676,7 @@ do
 		if #problems > 0 then
 			check("cu", false, "the uniform placed size is incomplete — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, RotlingFactory.luau, CarryService.luau, WorldBuilder.luau")
 		else
-			check("cu", true, "placed Brainrots stand at one uniform height (4.5 studs, body + hat): placeOnPad normalizes every placement (restores + egg hatches ride the same path), the logo-stage heroes match; crater spawns keep per-type 1.5x sizes and carrying keeps CARRY_MAX_HEIGHT")
+			check("cu", true, "placed Brainrots stand at one uniform BODY height (4.5 studs, hat excluded, width capped at 6): placeOnPad normalizes every placement (restores + egg hatches ride the same path), the logo-stage heroes match; crater spawns keep per-type 1.5x sizes and carrying keeps CARRY_MAX_HEIGHT")
 		end
 	end
 end
@@ -6757,6 +6766,53 @@ do
 			check("dp", false, "the storm safe zone is incomplete — " .. table.concat(problems, "; ") .. ". Parts: StarfallService.luau, IncomeService.luau, WorldBuilder.luau")
 		else
 			check("dp", true, "storm safe zone is the interior only: damage, targeting and 2x shelter income all use isOnBaseInterior, meteors target the doorway ring, inside = safe and door = exposed")
+		end
+	end
+end
+
+-- (dq) PLACED BRAINROTS STAND STILL + EVEN BODY SIZES (fix round 9,
+-- item 5): playtest 10 showed placed Brainrots bobbing and slowly
+-- spinning in place, and sizes still uneven (Baron much bigger than
+-- Bloop) even though every placement was "4.5 tall". The bob + spin
+-- are gone — a placed Brainrot holds its base pose. The size measure
+-- is the BODY (PrimaryPart.Size.Y), not the total bounding box, so a
+-- hat can no longer shrink the animal; the widest body dimension is
+-- capped at PLACED_MAX_WIDTH so flat wide bodies do not sprawl past
+-- their pad. Rival placements use the same normalize (they used to
+-- seat at scale 1 and skip the rule). Honest limit, stated in the
+-- code: a flat silhouette is inherently shorter than a dome in the
+-- same footprint — the fix makes every body as tall as its shape
+-- allows, it cannot make a puddle as tall as a dome.
+do
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not factorySrc or not rivalSrc or not configSrc then
+		check("dq", false, "could not verify the placed stillness + sizes — RotlingFactory.luau, RivalService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if factorySrc:find("math%.sin%(now %* 1%.6 %+ seed%) %* 0%.22") then
+			table.insert(problems, "placed Brainrots still bob (±0.22)")
+		end
+		if factorySrc:find("slowly spin on display") then
+			table.insert(problems, "placed Brainrots still spin on display")
+		end
+		if not factorySrc:find("body%.CFrame = base") then
+			table.insert(problems, "placed Brainrots are not re-seated at their base pose")
+		end
+		if not factorySrc:find("buildBodyHeight = body%.Size%.Y / current") then
+			table.insert(problems, "normalizeToHeight does not measure the body height")
+		end
+		if not configSrc:find("PLACED_MAX_WIDTH = 6") then
+			table.insert(problems, "no PLACED_MAX_WIDTH = 6 in Config")
+		end
+		if not rivalSrc:find("normalizeToHeight%(carried, Config%.PLACED_DISPLAY_HEIGHT%)") then
+			table.insert(problems, "rival placements do not normalize (still scale 1)")
+		end
+		if #problems > 0 then
+			check("dq", false, "the placed stillness + sizes are incomplete — " .. table.concat(problems, "; ") .. ". Parts: RotlingFactory.luau, RivalService.luau, Config.luau")
+		else
+			check("dq", true, "placed Brainrots stand still (no bob, no spin) and size by body height (4.5, hat excluded, width capped at 6) — player and rival placements alike")
 		end
 	end
 end

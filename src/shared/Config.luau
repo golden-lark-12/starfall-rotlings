@@ -136,7 +136,8 @@ Config.CARRY_MAX_HEIGHT = 3.6 -- a carried Rotling is at most 3.6 studs tall
 -- said 3.5 read too small on the pedestal — the Brainrots are the
 -- collection on display, so they stand tall, just under the
 -- player's eye line (walk 16, eye ~5 studs up).
-Config.PLACED_DISPLAY_HEIGHT = 4.5 -- total height (body + hat) of a placed Brainrot
+Config.PLACED_DISPLAY_HEIGHT = 4.5 -- BODY height of a placed Brainrot (the animal itself, not the hat — fix round 9, item 5)
+Config.PLACED_MAX_WIDTH = 6.0 -- widest a placed body may be (a pad plinth is 6 wide; wider would overlap the neighbour's pad)
 Config.PLACE_RANGE = 14 -- how close to a free pad the carrier must stand
 
 -- Name tags: only the nearest few, only up close, so they never stack

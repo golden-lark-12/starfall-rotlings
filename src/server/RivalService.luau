@@ -681,7 +681,12 @@ local function stepRival(rival: State.Rival, model: Model)
 					local CarryService2 = require(script.Parent.CarryService)
 					-- Place by hand: anchored, full size, on the pad.
 					RotlingFactory.setCarriedVisual(carried, false)
-					RotlingFactory.setModelScale(carried, 1)
+					-- (fix round 9, item 5) normalize like a player
+					-- placement — the old setModelScale(carried, 1)
+					-- skipped the placed-size rule, so rival-placed
+					-- Brainrots kept their build size and read
+					-- uneven against player-placed ones.
+					RotlingFactory.normalizeToHeight(carried, Config.PLACED_DISPLAY_HEIGHT)
 					RotlingFactory.refreshLabelOffset(carried)
 					local def = RotlingCatalog.getDef(carried:GetAttribute("DefId") :: string)
 					local liftBody = carried.PrimaryPart
