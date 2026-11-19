@@ -205,15 +205,19 @@ local function lightningFlash()
 	end
 end
 
--- Is a position on a base INTERIOR (a safe zone)? The dome protects
--- the platform top only (fix round 9, item 4 — Malek: "safe INSIDE
--- the base, no damage there; the problem is only the door"). A player
--- standing in the doorway/ramp is OUTSIDE the safe zone, so a storm
--- still hurts there and meteors can still target it. The old radial
--- check (17 studs from the centre) counted the doorway as safe.
+-- Is a position on a base PLATFORM (a safe zone)? The whole
+-- platform + ramp (fix round 13, item 3 — Malek: "ZERO damage on
+-- my base, at all", reversing the round-9 interior-only rule).
+-- A player standing anywhere ON their base — slab or ramp — is
+-- safe from meteor damage; a player on the ground at the ramp
+-- foot is OUTSIDE the safe zone, so a storm still hurts there
+-- and meteors can still target the door (the `not onBase` filter
+-- in pickTarget sees ground-level candidates, so the dash home
+-- stays scary). The old interior check counted the doorway as
+-- unsafe even when the player stood on the ramp.
 local function onBase(position: Vector3): boolean
 	for baseId = 1, Config.BASE_COUNT do
-		if WorldBuilder.isOnBaseInterior(baseId, position) then
+		if WorldBuilder.isOnBasePlatform(baseId, position) then
 			return true
 		end
 	end
@@ -388,10 +392,12 @@ local function pickTarget(): Vector3
 			end
 		elseif roll < Config.STORM_NEAR_PLAYER_CHANCE + 0.2 then
 			-- Near a random base: the doorway ring (fix round 9, item
-			-- 4) — meteors can land at the door now, because the
-			-- doorway is outside the safe zone. The `not
-			-- onBase(candidate)` filter below keeps interior targets
-			-- out, so the platform top is still never hit.
+			-- 4) — meteors can land at the door, because the ground
+			-- at the ramp foot is outside the safe zone. The `not
+			-- onBase(candidate)` filter below keeps platform targets
+			-- out (fix round 13, item 3: ground-level candidates ON
+			-- the platform now count as onBase), so the platform top
+			-- is never hit.
 			local baseId = math.random(1, Config.BASE_COUNT)
 			local cf = WorldBuilder.baseCFrame(baseId)
 			if cf then

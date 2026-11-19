@@ -96,6 +96,11 @@ end
 -- while a player on the ground outside has root local Y ~1.7-2 —
 -- the Y gate separates "on the platform" from "on the ground next
 -- to it", and the Z gate keeps the doorway out.
+-- NOTE (fix round 13, item 3): this is now the INCOME rule only
+-- (IncomeService safe-dome bonus). For DAMAGE, Malek reversed it
+-- (playtest 12: "ZERO damage on my base, at all") — see
+-- isOnBasePlatform below, which is what every damage / chase /
+-- refuge check uses now.
 function WorldBuilder.isOnBaseInterior(baseId: number, position: Vector3): boolean
 	local cf = baseCFrames[baseId]
 	if not cf then
@@ -105,6 +110,33 @@ function WorldBuilder.isOnBaseInterior(baseId: number, position: Vector3): boole
 	return math.abs(localPos.X) <= 13
 		and localPos.Z >= -10.5 and localPos.Z <= 11
 		and localPos.Y >= 3.0
+end
+
+-- Is a position on a base's WHOLE PLATFORM (the slab + the ramp)?
+-- (fix round 13, item 3 — Malek, playtest 12: "ZERO damage on my
+-- base, at all".) The round-9 interior-only rule left the doorway /
+-- ramp outside the safe zone, so a player standing on their own
+-- base could still take meteor damage there — and the guardian's
+-- Touch-catch had no own-base check at all, so a chase to the door
+-- could catch them on the platform edge. The platform is the base:
+-- the whole slab (|X| <= 13, Z -11..11) plus the ramp strip
+-- (Z -15..-11). The slab is a solid box, so nobody can stand at
+-- ground level inside it — no Y gate there. The ramp surface rises
+-- from local Y 0 (foot) to 2 (top), so a player ON the ramp has
+-- root Y >= ~2.7, while a player on the ground at the ramp foot
+-- has root ~1.7 — the Y gate (>= 2.5) keeps the ground outside
+-- the door OUT, so the dash home stays scary: meteors can still
+-- land at the door, they just cannot hurt anyone standing ON
+-- the base.
+function WorldBuilder.isOnBasePlatform(baseId: number, position: Vector3): boolean
+	local cf = baseCFrames[baseId]
+	if not cf then
+		return false
+	end
+	local localPos = cf:PointToObjectSpace(position)
+	return math.abs(localPos.X) <= 13
+		and localPos.Z >= -15 and localPos.Z <= 11
+		and (localPos.Z >= -11 or localPos.Y >= 2.5)
 end
 
 -- The incubator on a base: where a carried meteor egg is placed to

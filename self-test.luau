@@ -1724,7 +1724,8 @@ end
 
 -- Fix round 12, item 3 — base-grab heat: picking a Brainrot up from
 -- your own base arms the heat (banner now) and engages the Guardian
--- + rivals the moment you step outside your base interior.
+-- + rivals the moment you step outside your base platform.
+-- (fix round 13, item 3: platform + ramp, not interior.)
 do
 	local carrySrc = read("src/server/CarryService.luau")
 	local rivalSrc = read("src/server/RivalService.luau")
@@ -1745,13 +1746,58 @@ do
 		if not rivalSrc:find("State%.baseHeat") then
 			table.insert(problems, "no heat watcher in RivalService")
 		end
-		if not rivalSrc:find("reached their base interior") then
+		if not rivalSrc:find("reached their base platform") then
 			table.insert(problems, "carrier chase has no safe-base end")
 		end
 		if #problems > 0 then
 			step("base-heat", false, table.concat(problems, "; "))
 		else
-			step("base-heat", true, "own-base pickup arms heat (banner); watcher engages Guardian + rivals on exit, once per carry; chase ends at base interior; flag clears when carry ends")
+			step("base-heat", true, "own-base pickup arms heat (banner); watcher engages Guardian + rivals on exit, once per carry; chase ends at base platform; flag clears when carry ends")
+		end
+	end
+end
+
+-- Fix round 13, item 3 — ZERO damage on your own base, at all:
+-- the platform rule (whole slab + ramp, Y gate on the ramp) gates
+-- all 3 TakeDamage sites; the guardian catch itself refuses on
+-- your own base (closes the Touch-catch bypass); hunt refuge,
+-- chase ends, heat watcher and heat arming all use it; only the
+-- 2x shelter income stays interior-only.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local starfallSrc = read("src/server/StarfallService.luau")
+	local guardianSrc = read("src/server/GuardianService.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	if not worldSrc or not starfallSrc or not guardianSrc or not rivalSrc or not carrySrc then
+		step("own-base-damage", false, "WorldBuilder.luau, StarfallService.luau, GuardianService.luau, RivalService.luau or CarryService.luau missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find("function WorldBuilder%.isOnBasePlatform") or not worldSrc:find("localPos%.Z >= %-15") or not worldSrc:find("localPos%.Y >= 2%.5") then
+			table.insert(problems, "no isOnBasePlatform helper (slab + ramp, Y gate)")
+		end
+		if not starfallSrc:find("WorldBuilder%.isOnBasePlatform%(baseId, position%)") then
+			table.insert(problems, "storm damage / targeting does not use isOnBasePlatform")
+		end
+		if not guardianSrc:find("catch refused") or not guardianSrc:find("WorldBuilder%.isOnBasePlatform%(baseId, position%)") then
+			table.insert(problems, "guardian catch has no own-base refusal / give-up not on the platform rule")
+		end
+		if not rivalSrc:find("isOnBasePlatform%(victimBase, victimRoot%.Position%)") or not rivalSrc:find("not WorldBuilder%.isOnBasePlatform%(baseId, root%.Position%)") then
+			table.insert(problems, "hunt refuge / chase end / heat watcher not on the platform rule")
+		end
+		if not carrySrc:find("isOnBasePlatform%(ownBaseId, root%.Position%)") then
+			table.insert(problems, "heat arming not on the platform rule")
+		end
+		for _, src in ipairs({ starfallSrc, guardianSrc, rivalSrc, carrySrc }) do
+			if src:find("isOnBaseInterior") then
+				table.insert(problems, "a damage/refuge path still uses isOnBaseInterior")
+				break
+			end
+		end
+		if #problems > 0 then
+			step("own-base-damage", false, table.concat(problems, "; "))
+		else
+			step("own-base-damage", true, "platform rule gates all 3 TakeDamage sites; guardian catch refuses on your own base; refuge / chase ends / watcher / arming all on it; only shelter income stays interior-only")
 		end
 	end
 end

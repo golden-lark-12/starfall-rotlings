@@ -586,7 +586,10 @@ local function tryStartHunt(rival: State.Rival, model: Model): boolean
 		if playerRoot and humanoid and humanoid.Health > 0 then
 			if State.eggCarriedByUser[player.UserId] == nil and State.brainrotCarriedByUser[player.UserId] == nil then
 				local baseId = BaseService.getPlayerBase(player.UserId)
-				local safe = baseId and WorldBuilder.isOnBaseInterior(baseId, playerRoot.Position)
+				-- (fix round 13, item 3) The refuge is the whole
+				-- platform + ramp, not just the interior — a player
+				-- standing on their own base is home, not prey.
+				local safe = baseId and WorldBuilder.isOnBasePlatform(baseId, playerRoot.Position)
 				if not safe then
 					local alreadyHunted = false
 					for _, other in pairs(State.rivals) do
@@ -1183,10 +1186,11 @@ local function stepRival(rival: State.Rival, model: Model)
 				RivalService.clearThiefVisuals(rival)
 				rival.phase = "idle"
 				rival.targetUserId = nil
-			elseif victimBase and WorldBuilder.isOnBaseInterior(victimBase, victimRoot.Position) then
+			elseif victimBase and WorldBuilder.isOnBasePlatform(victimBase, victimRoot.Position) then
 				-- Made it home: the hunt ends at the door, like the
-				-- guardian giving up on the platform.
-				print("[Rival] " .. rival.name .. " hunt ended — " .. victim.Name .. " reached their base interior")
+				-- guardian giving up on the platform. (fix round 13,
+				-- item 3: the refuge is the whole platform + ramp.)
+				print("[Rival] " .. rival.name .. " hunt ended — " .. victim.Name .. " reached their base platform")
 				RivalService.clearThiefVisuals(rival)
 				rival.phase = "idle"
 				rival.targetUserId = nil
@@ -1265,12 +1269,13 @@ local function stepRival(rival: State.Rival, model: Model)
 		elseif not carryingEgg and not carryingBrainrot then
 			-- (fix round 12, item 3) The carrier chase gets the
 			-- same safe-base end the hunt branch has: a carrier
-			-- who makes it back inside their own base interior
+			-- who makes it back onto their own base platform
 			-- is home — the chase ends instead of piling rivals
 			-- up at the gate while the player stands safe inside.
+			-- (fix round 13, item 3: platform + ramp, not interior.)
 			local victimBase = BaseService.getPlayerBase(victim.UserId)
-			if victimBase and WorldBuilder.isOnBaseInterior(victimBase, victimRoot.Position) then
-				print("[Rival] " .. rival.name .. " chase ended — " .. victim.Name .. " reached their base interior")
+			if victimBase and WorldBuilder.isOnBasePlatform(victimBase, victimRoot.Position) then
+				print("[Rival] " .. rival.name .. " chase ended — " .. victim.Name .. " reached their base platform")
 				rival.phase = "idle"
 				rival.targetUserId = nil
 			else
@@ -1489,7 +1494,12 @@ function RivalService.start()
 					local baseId = BaseService.getPlayerBase(userId)
 					local character = player.Character
 					local root = character and character:FindFirstChild("HumanoidRootPart")
-					if baseId and root and not WorldBuilder.isOnBaseInterior(baseId, root.Position) then
+					if baseId and root and not WorldBuilder.isOnBasePlatform(baseId, root.Position) then
+						-- (fix round 13, item 3) The heat engages
+						-- the moment the carrier steps OFF the
+						-- platform + ramp — the ramp is part of the
+						-- base, so carrying down the ramp is still
+						-- safe; stepping onto the ground is not.
 						local GuardianService = require(script.Parent.GuardianService)
 						if not GuardianService.isChasing(player) and not RivalService.isChasingPlayer(userId) then
 							print("[Heat] " .. player.Name .. " left their base carrying — heat engages")

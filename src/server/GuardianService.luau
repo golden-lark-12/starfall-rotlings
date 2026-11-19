@@ -65,20 +65,18 @@ local function speedForRarity(rarity: string): number
 	return Config.GUARDIAN_SPEED[tier] or Config.GUARDIAN_SPEED[1]
 end
 
--- Is this position on the target player's own base INTERIOR (a safe
--- zone)? Interior only (fix round 9, item 2): the doorway/ramp is
--- OUTSIDE the safe zone, so the guardian keeps chasing a player
--- standing in the door — it only gives up once the player is actually
--- on the platform. The old radial check (17 studs from the centre)
--- gave up at the door, ~15 studs before the player was safe, which
--- is why the guardian read as crater-bound: it quit before it ever
--- reached the base.
+-- Is this position on the target player's own base PLATFORM (a safe
+-- zone)? The whole platform + ramp (fix round 13, item 3 — Malek:
+-- "ZERO damage on my base, at all", reversing the round-9
+-- interior-only rule). The guardian gives up once the player is
+-- actually ON the base — slab or ramp — not only once they are
+-- inside the walls.
 local function onOwnBase(player: Player, position: Vector3): boolean
 	local baseId = BaseService.getPlayerBase(player.UserId)
 	if not baseId then
 		return false
 	end
-	return WorldBuilder.isOnBaseInterior(baseId, position)
+	return WorldBuilder.isOnBasePlatform(baseId, position)
 end
 
 local function makePart(name: string, shape: Enum.PartType, size: Vector3, color: Color3, material: Enum.Material?): Part
@@ -302,9 +300,26 @@ end
 -- Brainrot and Malek read it as harmless ("all it does is him getting
 -- dropped the brainrot", playtest 9).
 local function catchPlayer(guardian: Model, player: Player)
+	-- (fix round 13, item 3) ZERO damage on your own base, at all.
+	-- The Touch-catch handler fires the moment the guardian's body
+	-- touches the target, with no own-base check — a guardian
+	-- chasing you to the door could touch-catch you while you
+	-- stood on the platform edge, even though the chaseLoop gives
+	-- up first. So the gate lives HERE, in the catch itself: on
+	-- your own base platform the catch never lands — no damage,
+	-- no knockdown, no dropped Brainrot — the guardian just
+	-- leaves. (The distance catch in the chaseLoop is already
+	-- gated by the give-up check above it; this gate covers the
+	-- Touch path, which bypasses the loop entirely.)
 	local character = player.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and onOwnBase(player, root.Position) then
+		Remotes.bannerEvent():FireClient(player, "🛡 Safe on your base! The Guardian gives up and sinks back into the crater.", 3)
+		print("[Guardian] catch refused — " .. player.Name .. " is on their own base platform")
+		GuardianService.despawnGuardian(guardian, "safe-base")
+		return
+	end
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if humanoid and humanoid.Health > 0 then
 		humanoid:ChangeState(Enum.HumanoidStateType.FallingDown)
 		if root then

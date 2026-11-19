@@ -188,19 +188,22 @@ function CarryService.carryRotling(player: Player, model: Model)
 	-- their OWN base interior, the heat is ARMED, not unleashed:
 	-- the Guardian is watching (banner now), and the Guardian +
 	-- rivals engage the moment the carrier steps outside their
-	-- own base interior (the heat watcher in RivalService.start).
+	-- own base platform (the heat watcher in RivalService.start).
 	-- That covers the case Malek actually plays: picking a
 	-- Brainrot up from his OWN base to sell it or rearrange it —
 	-- nothing happened before, because onGrab only fired from
 	-- crater grabs and the chase despawned instantly on a safe
 	-- base. Outside the base (crater grab, or a steal from
 	-- another base), the heat fires immediately, as before.
+	-- (fix round 13, item 3: the platform is the whole slab +
+	-- ramp — picking up on the ramp arms the heat too, and it
+	-- still only engages once the carrier steps off it.)
 	-- Deferred require: RivalService requires this module.
 	State.brainrotCarriedByUser[player.UserId] = model
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	local ownBaseId = BaseService.getPlayerBase(player.UserId)
-	local onOwnBase = ownBaseId ~= nil and root ~= nil and WorldBuilder.isOnBaseInterior(ownBaseId, root.Position)
+	local onOwnBase = ownBaseId ~= nil and root ~= nil and WorldBuilder.isOnBasePlatform(ownBaseId, root.Position)
 	if onOwnBase then
 		State.baseHeat[player.UserId] = true
 		local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)

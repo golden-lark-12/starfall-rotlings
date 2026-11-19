@@ -6040,12 +6040,14 @@ end
 -- despawns instantly on a safe base — so even calling onGrab from
 -- pickupOwn would spawn + instantly despawn. The fix is a
 -- positional rule in carryRotling (the one call site for crater
--- grabs, own-base pickups and steals): on your own base interior
+-- grabs, own-base pickups and steals): on your own base platform
 -- the heat is ARMED (State.baseHeat + a "Guardian is watching"
 -- banner); outside it the heat fires immediately. A watcher in
 -- RivalService.start engages armed heat the moment the carrier
--- steps outside their own base interior, once per carry. The
--- carrier chase ends when the carrier reaches their base interior.
+-- steps outside their own base platform, once per carry. The
+-- carrier chase ends when the carrier reaches their base platform.
+-- (fix round 13, item 3: platform + ramp, not interior — the
+-- platform is the base now.)
 do
 	local carrySrc = read("src/server/CarryService.luau")
 	local rivalSrc = read("src/server/RivalService.luau")
@@ -6063,8 +6065,8 @@ do
 		if not carrySrc:find("State%.baseHeat%[player%.UserId%] = true") then
 			table.insert(problems, "carryRotling never arms base heat")
 		end
-		if not carrySrc:find("isOnBaseInterior%(ownBaseId, root%.Position%)") then
-			table.insert(problems, "carryRotling does not test whether the carrier is on their own base interior")
+		if not carrySrc:find("isOnBasePlatform%(ownBaseId, root%.Position%)") then
+			table.insert(problems, "carryRotling does not test whether the carrier is on their own base platform")
 		end
 		if not carrySrc:find("The Guardian is watching") then
 			table.insert(problems, "carryRotling gives no 'Guardian is watching' alert when heat arms")
@@ -6088,8 +6090,8 @@ do
 		if not rivalSrc:find("function RivalService%.isChasingPlayer") then
 			table.insert(problems, "RivalService.isChasingPlayer missing")
 		end
-		-- The carrier chase ends at the carrier's base interior.
-		if not rivalSrc:find('chase ended — " %.%. victim%.Name %.%. " reached their base interior') then
+		-- The carrier chase ends at the carrier's base platform.
+		if not rivalSrc:find('chase ended — " %.%. victim%.Name %.%. " reached their base platform') then
 			table.insert(problems, "the carrier chase has no safe-base end")
 		end
 		-- The flag clears when the carry ends.
@@ -6099,7 +6101,97 @@ do
 		if #problems > 0 then
 			check("base-grab-heat", false, "the base-grab heat is incomplete — " .. table.concat(problems, "; ") .. ". Parts: CarryService.luau, RivalService.luau, State.luau")
 		else
-			check("base-grab-heat", true, "base-grab heat: carryRotling arms heat on your own base (banner) and engages outside it; watcher engages on exit once per carry; carrier chase ends at your base interior; flag clears when the carry ends")
+			check("base-grab-heat", true, "base-grab heat: carryRotling arms heat on your own base (banner) and engages outside it; watcher engages on exit once per carry; carrier chase ends at your base platform; flag clears when the carry ends")
+		end
+	end
+end
+
+-- -- (own-base-damage) fix round 13, item 3: ZERO damage on your
+-- own base, at all ------------------------------------------------------
+-- Playtest 12: "I take damage on my own base" — Malek wants ZERO
+-- damage on his own base, at all. Two holes, both proven from the
+-- code: (a) the round-9 interior-only safe zone left the doorway /
+-- ramp outside it, so a meteor landing at the door hurt a player
+-- standing on their own ramp; (b) the guardian's Touch-catch had
+-- NO own-base check — a chase to the door could touch-catch the
+-- player on the platform edge, bypassing the chaseLoop give-up
+-- entirely. The fix: a shared platform rule (WorldBuilder.
+-- isOnBasePlatform — the whole slab + the ramp, with a Y gate that
+-- keeps the ground at the ramp foot outside) used by EVERY damage
+-- and refuge path: the 3 TakeDamage sites (2 meteor, 1 guardian
+-- catch) are all gated on it, the guardian give-up and the catch
+-- itself refuse on it, the rival hunt refuge, the carrier-chase
+-- end and the heat watcher use it, and heat arms on it. The ONLY
+-- thing that stays interior-only is the 2x shelter income (a dome
+-- bonus, not damage). The ground at the ramp foot stays exposed,
+-- so the dash home is still scary — meteors still target the door.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local starfallSrc = read("src/server/StarfallService.luau")
+	local guardianSrc = read("src/server/GuardianService.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	local carrySrc = read("src/server/CarryService.luau")
+	if not worldSrc or not starfallSrc or not guardianSrc or not rivalSrc or not carrySrc then
+		check("own-base-damage", false, "could not verify the own-base damage rule — WorldBuilder.luau, StarfallService.luau, GuardianService.luau, RivalService.luau or CarryService.luau missing")
+	else
+		local problems: { string } = {}
+		-- The platform rule itself: slab + ramp, Y gate on the ramp.
+		if not worldSrc:find("function WorldBuilder%.isOnBasePlatform") then
+			table.insert(problems, "no WorldBuilder.isOnBasePlatform helper")
+		end
+		if not worldSrc:find("localPos%.Z >= %-15") then
+			table.insert(problems, "the platform check does not include the ramp strip (local z >= -15)")
+		end
+		if not worldSrc:find("localPos%.Y >= 2%.5") then
+			table.insert(problems, "the platform check has no Y gate on the ramp strip (ground at the ramp foot would count as safe)")
+		end
+		-- Meteor damage: both TakeDamage sites gated on onBase,
+		-- which uses the platform rule.
+		if not starfallSrc:find("WorldBuilder%.isOnBasePlatform%(baseId, position%)") then
+			table.insert(problems, "the storm damage / targeting check does not use isOnBasePlatform")
+		end
+		local _, meteorDmg = starfallSrc:gsub("TakeDamage%(Config%.STORM_DAMAGE%)", "")
+		if meteorDmg ~= 2 then
+			table.insert(problems, "expected exactly 2 meteor TakeDamage sites, found " .. tostring(meteorDmg))
+		end
+		-- Guardian catch: the catch itself refuses on your own base
+		-- (this is what closes the Touch-catch bypass).
+		if not guardianSrc:find("catch refused") then
+			table.insert(problems, "catchPlayer has no own-base refusal (Touch-catch bypass still open)")
+		end
+		if not guardianSrc:find("WorldBuilder%.isOnBasePlatform%(baseId, position%)") then
+			table.insert(problems, "the guardian give-up does not use isOnBasePlatform")
+		end
+		local _, catchDmg = guardianSrc:gsub("TakeDamage%(Config%.GUARDIAN_CATCH_DAMAGE%)", "")
+		if catchDmg ~= 1 then
+			table.insert(problems, "expected exactly 1 guardian catch TakeDamage site, found " .. tostring(catchDmg))
+		end
+		-- Rivals + heat: refuge, chase ends and watcher all use it.
+		if not rivalSrc:find("isOnBasePlatform%(baseId, playerRoot%.Position%)") then
+			table.insert(problems, "the hunt refuge does not use isOnBasePlatform")
+		end
+		if not rivalSrc:find("isOnBasePlatform%(victimBase, victimRoot%.Position%)") then
+			table.insert(problems, "the hunt / carrier-chase end does not use isOnBasePlatform")
+		end
+		if not rivalSrc:find("not WorldBuilder%.isOnBasePlatform%(baseId, root%.Position%)") then
+			table.insert(problems, "the heat watcher does not use isOnBasePlatform")
+		end
+		if not carrySrc:find("isOnBasePlatform%(ownBaseId, root%.Position%)") then
+			table.insert(problems, "heat arming does not use isOnBasePlatform")
+		end
+		-- No damage path may still use the interior rule: if any
+		-- of these files still references isOnBaseInterior, a
+		-- damage/refuge path is on the old (doorway-exposed) rule.
+		for _, src in ipairs({ starfallSrc, guardianSrc, rivalSrc, carrySrc }) do
+			if src:find("isOnBaseInterior") then
+				table.insert(problems, "a damage/refuge path still uses isOnBaseInterior (doorway-exposed rule)")
+				break
+			end
+		end
+		if #problems > 0 then
+			check("own-base-damage", false, "zero damage on your own base is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, StarfallService.luau, GuardianService.luau, RivalService.luau, CarryService.luau")
+		else
+			check("own-base-damage", true, "ZERO damage on your own base: platform rule (slab + ramp, Y gate on the ramp) gates all 3 TakeDamage sites, the guardian catch refuses on it (Touch bypass closed), hunt refuge / chase ends / heat watcher / heat arming all use it; only 2x shelter income stays interior-only")
 		end
 	end
 end
@@ -7239,18 +7331,19 @@ do
 	end
 end
 
--- (dn) GUARDIAN LEAVES THE CRATER (fix round 9, item 2): the
--- guardian read as crater-bound because its give-up fired at the
--- base DOOR (17 studs from the centre) — it quit ~15 studs before
--- the player was even on the platform. The give-up now uses the
--- base INTERIOR only (WorldBuilder.isOnBaseInterior): the doorway
--- and ramp are outside the safe zone, so the guardian keeps chasing
--- a player standing in the door and only gives up once the player
--- is actually on the platform. Nothing blocks the guardian — no
--- dome, no wall — only the interior, the dropped carry, and the
--- 25s timeout stop it. The proof is the chase itself: the loop
--- logs LEFT THE CRATER the first time it passes radius 40, and the
--- despawn summary prints its max radius.
+-- (dn) GUARDIAN LEAVES THE CRATER (fix round 9, item 2; platform
+-- rule fix round 13, item 3): the guardian read as crater-bound
+-- because its give-up fired at the base DOOR (17 studs from the
+-- centre) — it quit ~15 studs before the player was even on the
+-- platform. The give-up now uses the base PLATFORM (the whole slab
+-- + ramp, WorldBuilder.isOnBasePlatform): the ramp is part of the
+-- base, so the guardian keeps chasing a player still on the ground
+-- outside the door and only gives up once the player is actually
+-- ON the base. Nothing blocks the guardian — no dome, no wall —
+-- only the platform, the dropped carry, and the 25s timeout stop
+-- it. The proof is the chase itself: the loop logs LEFT THE CRATER
+-- the first time it passes radius 40, and the despawn summary
+-- prints its max radius.
 do
 	local worldSrc = read("src/server/WorldBuilder.luau")
 	local guardianSrc = read("src/server/GuardianService.luau")
@@ -7258,14 +7351,14 @@ do
 		check("dn", false, "could not verify the crater range — WorldBuilder.luau or GuardianService.luau missing")
 	else
 		local problems: { string } = {}
-		if not worldSrc:find("function WorldBuilder%.isOnBaseInterior") then
-			table.insert(problems, "no WorldBuilder.isOnBaseInterior helper")
+		if not worldSrc:find("function WorldBuilder%.isOnBasePlatform") then
+			table.insert(problems, "no WorldBuilder.isOnBasePlatform helper")
 		end
-		if not worldSrc:find("localPos%.Z >= %-10%.5") then
-			table.insert(problems, "the interior check does not exclude the doorway (local z >= -10.5)")
+		if not worldSrc:find("localPos%.Z >= %-15") then
+			table.insert(problems, "the platform check does not include the ramp strip (local z >= -15)")
 		end
-		if not guardianSrc:find("WorldBuilder%.isOnBaseInterior%(baseId, position%)") then
-			table.insert(problems, "the guardian give-up does not use isOnBaseInterior (still the radial door check?)")
+		if not guardianSrc:find("WorldBuilder%.isOnBasePlatform%(baseId, position%)") then
+			table.insert(problems, "the guardian give-up does not use isOnBasePlatform (still the radial door check?)")
 		end
 		if guardianSrc:find("STORM_BASE_SAFE_RADIUS") then
 			table.insert(problems, "the guardian still references STORM_BASE_SAFE_RADIUS for its give-up")
@@ -7279,7 +7372,7 @@ do
 		if #problems > 0 then
 			check("dn", false, "the crater range is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, GuardianService.luau")
 		else
-			check("dn", true, "guardian leaves the crater: give-up is interior-only (doorway excluded), LEFT THE CRATER log + max radius in the chase summary prove the range")
+			check("dn", true, "guardian leaves the crater: give-up is platform-wide (slab + ramp), LEFT THE CRATER log + max radius in the chase summary prove the range")
 		end
 	end
 end
@@ -7331,16 +7424,19 @@ do
 	end
 end
 
--- (dp) STORM SAFE ZONE IS THE INTERIOR ONLY (fix round 9, item 4):
--- Malek corrected the brief: getting to his base IS safe — he does
--- NOT want damage on his base. The problem is only the boundary:
--- standing in the doorway he was still not damaged, because the safe
--- zone was a 17-stud radius from the centre that covered the door.
--- The dome now protects the base INTERIOR only (the same shared
--- helper the guardian give-up uses): inside = safe, door = exposed.
--- Storm damage, storm targeting exclusion, and the 2x shelter income
--- all use the interior rule, and meteors can target the doorway ring
--- (12-20 studs from the centre) so the door is genuinely dangerous.
+-- (dp) STORM SAFE ZONE IS THE WHOLE PLATFORM (fix round 13, item 3
+-- — Malek, playtest 12: "ZERO damage on my base, at all"): the
+-- round-9 interior-only rule left the doorway/ramp outside the safe
+-- zone, so a player standing on their own base could still take
+-- meteor damage there, and the guardian's Touch-catch had no
+-- own-base check at all. The platform IS the base now: storm
+-- damage, storm targeting exclusion, the guardian give-up AND the
+-- catch itself all use the platform rule (whole slab + ramp, with a
+-- Y gate that keeps the ground at the ramp foot outside). The 2x
+-- shelter income is the ONE thing that stays interior-only — it is
+-- a dome bonus, not damage. Meteors can still target the doorway
+-- ring (12-20 studs from the centre) so the door is genuinely
+-- dangerous — they just cannot hurt anyone standing ON the base.
 do
 	local starfallSrc = read("src/server/StarfallService.luau")
 	local incomeSrc = read("src/server/IncomeService.luau")
@@ -7349,11 +7445,11 @@ do
 		check("dp", false, "could not verify the storm safe zone — StarfallService.luau, IncomeService.luau or WorldBuilder.luau missing")
 	else
 		local problems: { string } = {}
-		if not worldSrc:find("function WorldBuilder%.isOnBaseInterior") then
-			table.insert(problems, "no WorldBuilder.isOnBaseInterior helper")
+		if not worldSrc:find("function WorldBuilder%.isOnBasePlatform") then
+			table.insert(problems, "no WorldBuilder.isOnBasePlatform helper")
 		end
-		if not starfallSrc:find("WorldBuilder%.isOnBaseInterior%(baseId, position%)") then
-			table.insert(problems, "the storm damage / targeting check does not use isOnBaseInterior (still the radial door check?)")
+		if not starfallSrc:find("WorldBuilder%.isOnBasePlatform%(baseId, position%)") then
+			table.insert(problems, "the storm damage / targeting check does not use isOnBasePlatform (still the interior check?)")
 		end
 		if starfallSrc:find("flat%.Magnitude <= Config%.STORM_BASE_SAFE_RADIUS") then
 			table.insert(problems, "the storm code still uses the radial STORM_BASE_SAFE_RADIUS check")
@@ -7367,7 +7463,7 @@ do
 		if #problems > 0 then
 			check("dp", false, "the storm safe zone is incomplete — " .. table.concat(problems, "; ") .. ". Parts: StarfallService.luau, IncomeService.luau, WorldBuilder.luau")
 		else
-			check("dp", true, "storm safe zone is the interior only: damage, targeting and 2x shelter income all use isOnBaseInterior, meteors target the doorway ring, inside = safe and door = exposed")
+			check("dp", true, "storm safe zone is the whole platform: damage, targeting and guardian give-up all use isOnBasePlatform, meteors target the doorway ring, platform = safe and ramp foot = exposed; 2x shelter income stays interior-only")
 		end
 	end
 end
@@ -7789,8 +7885,8 @@ do
 		if not rivalSrc:find("knocked \" .. victim%.Name .. \" down") then
 			table.insert(problems, "no knockdown-on-tag for an empty-handed player")
 		end
-		if not rivalSrc:find("isOnBaseInterior%(victimBase, victimRoot%.Position%)") then
-			table.insert(problems, "the hunt does not end at the base interior")
+		if not rivalSrc:find("isOnBasePlatform%(victimBase, victimRoot%.Position%)") then
+			table.insert(problems, "the hunt does not end at the base platform")
 		end
 		if not stateSrc:find("chaseKind: string%?") then
 			table.insert(problems, "no chaseKind on the Rival type")
@@ -7798,7 +7894,7 @@ do
 		if #problems > 0 then
 			check("thief-hunt", false, "the thief hunt is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, Config.luau, State.luau")
 		else
-			check("thief-hunt", true, "thieves hunt free-walking players at 22 studs/s; tag steals the best carried Brainrot (runs home, STEAL COMPLETE) or knocks the player flat; base interior ends the hunt; one hunter per victim; storm-proof")
+			check("thief-hunt", true, "thieves hunt free-walking players at 22 studs/s; tag steals the best carried Brainrot (runs home, STEAL COMPLETE) or knocks the player flat; base platform ends the hunt; one hunter per victim; storm-proof")
 		end
 	end
 end
