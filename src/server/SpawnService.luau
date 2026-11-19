@@ -1,12 +1,12 @@
 --!strict
 -- Starfall Rotlings: the crater spawner.
--- Rotlings stroll into the central crater on a slow timer, never more
--- than five free at once — scarcity is the game, so a Rare showing up
--- is a race, not a shopping trip. Each spawn rolls its own rarity and
--- mutation, and the creature comes from that rarity's pool. Free
--- Rotlings ride the conveyor belt: they bob, drift, slowly turn, and
--- wrap from the far end back to the start, so the crater always looks
--- alive instead of parked.
+-- Rotlings drift into the central crater on a slow timer, never more
+-- than five free at once — scarcity is the whole game, so a Rare
+-- showing up is a race, not a shopping trip. Every spawn rolls its
+-- own rarity and mutation, and the creature comes from that rarity's
+-- pool. Free Rotlings ride the conveyor belt: they bob, drift, turn
+-- slowly, and wrap from the far end back to the start, so the crater
+-- always looks alive instead of parked.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -21,8 +21,8 @@ local RotlingFactory = require(script.Parent.RotlingFactory)
 local SpawnService = {}
 
 local running = false
-local driftBases: { [Model]: CFrame } = {}
-local driftSeeds: { [Model]: number } = {}
+local drift: { [Model]: CFrame } = {}
+local seeds: { [Model]: number } = {}
 -- Rest height per free Rotling: the body's centre Y when it was
 -- registered, i.e. standing ON the belt top (BELT_TOP_Y + half its
 -- body height, set by RotlingFactory.build). The drift loop MUST use
@@ -39,28 +39,28 @@ local restY: { [Model]: number } = {}
 local connected: { [Model]: boolean } = setmetatable({}, { __mode = "k" })
 
 function SpawnService.countFree(): number
-	local total = 0
-	for _, item in ipairs(workspace:GetDescendants()) do
-		if item:IsA("Model") and item:GetAttribute("State") == "free" then
-			total += 1
+	local n = 0
+	for _, thing in ipairs(workspace:GetDescendants()) do
+		if thing:IsA("Model") and thing:GetAttribute("State") == "free" then
+			n += 1
 		end
 	end
-	return total
+	return n
 end
 
--- Positions of every free Rotling in the crater, so a new spawn can
--- keep its distance instead of piling onto the others.
+-- Where every free Rotling in the crater stands right now, so a new
+-- spawn can keep its distance instead of piling onto the others.
 local function freePositions(): { Vector3 }
-	local out = {}
-	for _, item in ipairs(workspace:GetDescendants()) do
-		if item:IsA("Model") and item:GetAttribute("State") == "free" then
-			local core = item.PrimaryPart
-			if core then
-				table.insert(out, core.Position)
+	local spots = {}
+	for _, thing in ipairs(workspace:GetDescendants()) do
+		if thing:IsA("Model") and thing:GetAttribute("State") == "free" then
+			local torso = thing.PrimaryPart
+			if torso then
+				table.insert(spots, torso.Position)
 			end
 		end
 	end
-	return out
+	return spots
 end
 
 -- Pick a spawn point ON THE CONVEYOR BELT, at least CRATER_MIN_SPACING
@@ -69,9 +69,9 @@ end
 -- keeps the first that clears the gap; if none does, keeps the spot
 -- farthest from its nearest neighbour.
 local function findSpawnPosition(): Vector3
-	local crowd = freePositions()
-	local fallbackSpot: Vector3? = nil
-	local widestGap = -1
+	local others = freePositions()
+	local bestSpot: Vector3? = nil
+	local bestGap = -1
 	for _ = 1, 12 do
 		-- On the belt: x along the belt's length, z within the belt's
 		-- width, so every Rotling stands on the conveyor in a line.
@@ -81,22 +81,22 @@ local function findSpawnPosition(): Vector3
 		-- body bottom 0.15 under the belt top at spawn.
 		local x = (math.random() * 2 - 1) * Config.BELT_HALF_LENGTH -- on the belt, not past its ends (a spawn past +20 would wrap to -20 on the first travel tick)
 		local z = (math.random() * 2 - 1) * Config.BELT_SPAWN_Z
-		local spot = Vector3.new(x, Config.BELT_TOP_Y - 0.1, z)
-		local clearance = math.huge
-		for _, pos in ipairs(crowd) do
-			local delta = Vector3.new(spot.X - pos.X, 0, spot.Z - pos.Z)
-			clearance = math.min(clearance, delta.Magnitude)
+		local try = Vector3.new(x, Config.BELT_TOP_Y - 0.1, z)
+		local gap = math.huge
+		for _, pos in ipairs(others) do
+			local flat = Vector3.new(try.X - pos.X, 0, try.Z - pos.Z)
+			gap = math.min(gap, flat.Magnitude)
 		end
-		if #crowd == 0 or clearance >= Config.CRATER_MIN_SPACING then
-			return spot
+		if #others == 0 or gap >= Config.CRATER_MIN_SPACING then
+			return try
 		end
-		if clearance > widestGap then
-			widestGap = clearance
-			fallbackSpot = spot
+		if gap > bestGap then
+			bestGap = gap
+			bestSpot = try
 		end
 	end
-	if fallbackSpot then
-		return fallbackSpot
+	if bestSpot then
+		return bestSpot
 	end
 	local x = (math.random() * 2 - 1) * Config.BELT_HALF_LENGTH -- on the belt, not past its ends (a spawn past +20 would wrap to -20 on the first travel tick)
 	local z = (math.random() * 2 - 1) * Config.BELT_SPAWN_Z
@@ -108,18 +108,18 @@ end
 -- standing ON the belt instead of sinking it to the crater floor
 -- level.
 function SpawnService.registerFree(model: Model)
-	local core = model.PrimaryPart
-	if not core then
+	local torso = model.PrimaryPart
+	if not torso then
 		return
 	end
-	driftBases[model] = core.CFrame
-	driftSeeds[model] = math.random() * math.pi * 2
-	restY[model] = core.CFrame.Position.Y
+	drift[model] = torso.CFrame
+	seeds[model] = math.random() * math.pi * 2
+	restY[model] = torso.CFrame.Position.Y
 end
 
 function SpawnService.unregister(model: Model)
-	driftBases[model] = nil
-	driftSeeds[model] = nil
+	drift[model] = nil
+	seeds[model] = nil
 	restY[model] = nil
 end
 
@@ -131,11 +131,11 @@ function SpawnService.connectPrompt(model: Model)
 	if connected[model] then
 		return
 	end
-	local core = model.PrimaryPart
-	if not core then
+	local torso = model.PrimaryPart
+	if not torso then
 		return
 	end
-	local prompt = core:FindFirstChildOfClass("ProximityPrompt")
+	local prompt = torso:FindFirstChildOfClass("ProximityPrompt")
 	if not prompt then
 		return
 	end
@@ -169,42 +169,42 @@ local function animateFree()
 	while true do
 		task.wait(0.1)
 		local now = time()
-		for model, baseCf in pairs(driftBases) do
+		for model, baseCf in pairs(drift) do
 			if not model.Parent then
-				driftBases[model] = nil
-				driftSeeds[model] = nil
+				drift[model] = nil
+				seeds[model] = nil
 				restY[model] = nil
 			else
 				local state = model:GetAttribute("State")
 				if state ~= "free" then
-					driftBases[model] = nil
-					driftSeeds[model] = nil
+					drift[model] = nil
+					seeds[model] = nil
 					restY[model] = nil
 				else
-					local seed = driftSeeds[model] or 0
+					local seed = seeds[model] or 0
 					-- Bob 0..0.25, never below rest: the old sin * 0.25
 					-- dipped 0.25 UNDER the base every cycle, so the
 					-- feet sank into the belt even at the right height.
-					local lift = (math.sin(now * 2 + seed) + 1) / 2 * 0.25
-					local sway = math.sin(now * 0.5 + seed) * 0.3
+					local hop = (math.sin(now * 2 + seed) + 1) / 2 * 0.25
+					local twist = math.sin(now * 0.5 + seed) * 0.3
 					-- Advance along the belt; wrap at the far end.
 					-- The stored base moves with the Rotling, so the
 					-- bob/spin stays relative to its current spot.
-					local nextX = baseCf.Position.X + Config.BELT_TRAVEL_SPEED * 0.1
-					if nextX > Config.BELT_HALF_LENGTH then
-						nextX = -Config.BELT_HALF_LENGTH
+					local aheadX = baseCf.Position.X + Config.BELT_TRAVEL_SPEED * 0.1
+					if aheadX > Config.BELT_HALF_LENGTH then
+						aheadX = -Config.BELT_HALF_LENGTH
 					end
 					-- Face the travel direction (+X): -90 degrees
 					-- about Y turns the model's +Z face toward +X.
-					local heading = -math.pi / 2 + sway
+					local facing = -math.pi / 2 + twist
 					-- Rest height from registration, NOT CRATER_FLOOR_Y:
 					-- the old code rebuilt the base at Y = 0.4 (the
 					-- body's centre at the belt's surface), sinking
 					-- the Rotling by half its height on the first tick.
-					local floorY = restY[model] or baseCf.Position.Y
-					local nextBase = CFrame.new(nextX, floorY, baseCf.Position.Z) * CFrame.Angles(0, heading, 0)
-					driftBases[model] = nextBase
-					model:PivotTo(nextBase * CFrame.new(0, lift, 0))
+					local restH = restY[model] or baseCf.Position.Y
+					local nextPose = CFrame.new(aheadX, restH, baseCf.Position.Z) * CFrame.Angles(0, facing, 0)
+					drift[model] = nextPose
+					model:PivotTo(nextPose * CFrame.new(0, hop, 0))
 				end
 			end
 		end
@@ -216,24 +216,24 @@ end
 -- the whole map can see the race target. Beams are cheap (one part,
 -- destroyed after the fade) and only fire for Rare+ — Commons never
 -- get one.
-local function spawnBeam(position: Vector3, color: Color3)
+local function spawnBeam(spot: Vector3, tint: Color3)
 	local beam = Instance.new("Part")
 	beam.Name = "SpawnBeam"
 	beam.Shape = Enum.PartType.Cylinder
 	beam.Size = Vector3.new(40, 1.2, 1.2)
-	beam.CFrame = CFrame.new(position + Vector3.new(0, 20, 0)) * CFrame.Angles(0, 0, math.rad(90))
 	beam.Material = Enum.Material.Neon
-	beam.Color = color
+	beam.Color = tint
 	beam.Transparency = 0.25
 	beam.Anchored = true
 	beam.CanCollide = false
 	beam.CanQuery = false
+	beam.CFrame = CFrame.new(spot + Vector3.new(0, 20, 0)) * CFrame.Angles(0, 0, math.rad(90))
 	beam.Parent = workspace
 	task.spawn(function()
-		for i = 1, 10 do
+		for step = 1, 10 do
 			task.wait(0.5)
 			if beam.Parent then
-				beam.Transparency = 0.25 + 0.075 * i
+				beam.Transparency = 0.25 + 0.075 * step
 			end
 		end
 		beam:Destroy()
@@ -247,15 +247,15 @@ end
 -- Boba Blob spawned in the crater!") so everyone — players and bots —
 -- can race for it. Commons stay silent: a banner every 17 seconds
 -- would be noise.
-local function announceSpawn(def: RotlingCatalog.RotlingDef, mutation: string?, position: Vector3)
+local function announceSpawn(def: RotlingCatalog.RotlingDef, mut: string?, spot: Vector3)
 	local tier = RarityConfig.rarityTier(def.rarity)
-	if not mutation and tier < 2 then
+	if not mut and tier < 2 then
 		return
 	end
-	spawnBeam(position, RarityConfig.rarityByName(def.rarity).color)
-	if mutation then
-		Remotes.bannerEvent():FireAllClients("✨ A " .. mutation:upper() .. " " .. def.name .. " spawned in the crater!", 4)
-		print("[Spawn] mutated " .. mutation .. " " .. def.name .. " (" .. def.rarity .. ") spawned")
+	spawnBeam(spot, RarityConfig.rarityByName(def.rarity).color)
+	if mut then
+		Remotes.bannerEvent():FireAllClients("✨ A " .. mut:upper() .. " " .. def.name .. " spawned in the crater!", 4)
+		print("[Spawn] mutated " .. mut .. " " .. def.name .. " (" .. def.rarity .. ") spawned")
 	else
 		Remotes.bannerEvent():FireAllClients("🌟 A " .. def.rarity:upper() .. " " .. def.name .. " spawned in the crater!", 4)
 		print("[Spawn] rare " .. def.name .. " (" .. def.rarity .. ") spawned")
@@ -275,15 +275,15 @@ local function spawnForced(id: string, mut: string?): Model?
 		return nil
 	end
 	built.Parent = workspace
+	announceSpawn(entry, mut, spot)
 	SpawnService.connectPrompt(built)
 	SpawnService.registerFree(built)
-	announceSpawn(entry, mut, spot)
 	return built
 end
 
 function SpawnService.spawnOne(): Model?
-	local def = RotlingCatalog.rollDef()
 	local mutation = MutationConfig.rollMutation()
+	local def = RotlingCatalog.rollDef()
 	-- Spawn on the crater floor (top of the crater disc), never at Y=0:
 	-- the disc sits above the ground, so Y=0 buries the Rotling in it.
 	-- Spaced at least CRATER_MIN_SPACING from every other free Rotling.
@@ -294,9 +294,9 @@ function SpawnService.spawnOne(): Model?
 		return nil
 	end
 	model.Parent = workspace
+	announceSpawn(def, mutation, position)
 	SpawnService.connectPrompt(model)
 	SpawnService.registerFree(model)
-	announceSpawn(def, mutation, position)
 	return model
 end
 
@@ -308,16 +308,16 @@ end
 function SpawnService.spawnRareAt(position: Vector3): Model?
 	-- Roll a rarity of Rare (tier 2) or better, weighted like the
 	-- normal roll but with Common removed.
-	local pickedRarity = RarityConfig.rollRarity()
-	local attempts = 0
-	while RarityConfig.rarityTier(pickedRarity) < 2 and attempts < 10 do
-		pickedRarity = RarityConfig.rollRarity()
-		attempts += 1
+	local drawn = RarityConfig.rollRarity()
+	local tries = 0
+	while RarityConfig.rarityTier(drawn) < 2 and tries < 10 do
+		drawn = RarityConfig.rollRarity()
+		tries += 1
 	end
-	if RarityConfig.rarityTier(pickedRarity) < 2 then
-		pickedRarity = "Rare"
+	if RarityConfig.rarityTier(drawn) < 2 then
+		drawn = "Rare"
 	end
-	local pool = RotlingCatalog.defsOfRarity(pickedRarity)
+	local pool = RotlingCatalog.defsOfRarity(drawn)
 	if #pool == 0 then
 		return nil
 	end
@@ -328,23 +328,23 @@ function SpawnService.spawnRareAt(position: Vector3): Model?
 	-- built there would spawn sunk. BELT_TOP_Y - 0.1 puts its body
 	-- bottom exactly on the belt (build adds +0.1).
 	local buildPos = Vector3.new(position.X, Config.BELT_TOP_Y - 0.1, position.Z)
-	local model = RotlingFactory.build(def.id, mutation, buildPos, 1.5)
-	if not model then
+	local built = RotlingFactory.build(def.id, mutation, buildPos, 1.5)
+	if not built then
 		return nil
 	end
-	model.Parent = workspace
-	SpawnService.connectPrompt(model)
-	SpawnService.registerFree(model)
+	built.Parent = workspace
 	announceSpawn(def, mutation, buildPos)
+	SpawnService.connectPrompt(built)
+	SpawnService.registerFree(built)
 	-- A storm rare only stays for its lifetime: after 30s it is gone
 	-- if it is still free (nobody grabbed it).
 	task.delay(Config.STORM_RARE_LIFETIME, function()
-		if model.Parent and model:GetAttribute("State") == "free" then
-			SpawnService.unregister(model)
-			model:Destroy()
+		if built.Parent and built:GetAttribute("State") == "free" then
+			SpawnService.unregister(built)
+			built:Destroy()
 		end
 	end)
-	return model
+	return built
 end
 
 function SpawnService.start()
@@ -361,7 +361,7 @@ function SpawnService.start()
 	-- the hero and base shots always show the ladder and the mutations.
 	-- The other three (quokka, avocado, narwhal) roll in later through
 	-- the normal spawn.
-	local firstWave: { { defId: string, mutation: string? } } = {
+	local opener: { { defId: string, mutation: string? } } = {
 		{ defId = "wombat", mutation = nil },
 		{ defId = "boba", mutation = nil },
 		{ defId = "puddles", mutation = nil },
@@ -372,22 +372,22 @@ function SpawnService.start()
 	-- arrives, then one more every 3s until the opening mix is out.
 	-- A crater that starts with 5 stacked Rotlings reads as a pile;
 	-- a few at a time, spread out, reads as a living conveyor.
-	local waveDone = false
+	local openerDone = false
 	task.spawn(function()
-		for n, slot in ipairs(firstWave) do
-			if n > 2 then
+		for k, pick in ipairs(opener) do
+			if k > 2 then
 				task.wait(3)
 			end
-			spawnForced(slot.defId, slot.mutation)
+			spawnForced(pick.defId, pick.mutation)
 		end
-		waveDone = true
+		openerDone = true
 	end)
 	task.spawn(animateFree)
 	task.spawn(function()
 		-- Do not top up while the opening is still staggering, or the
 		-- crater fills to the minimum before the gradual opening has
 		-- had time to spread out.
-		while not waveDone do
+		while not openerDone do
 			task.wait(1)
 		end
 		while true do
