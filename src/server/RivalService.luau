@@ -1,26 +1,21 @@
 --!strict
 -- Starfall Rotlings: rival bots.
--- 3-4 named rivals that own the other bases (5-8, reserved at server
--- start so a joining player never collides with one), run to the
--- crater, grab Rotlings, carry them home and earn — and show on the
--- leaderboard, so the competition is visible in every shot. Every so
--- often a rival sneaks to a real player's unlocked base to steal a
--- Rotling (red alert + a THIEF sign over its head; Lock Base blocks
--- it), and when a player carries a meteor egg or a Brainrot, the
--- NEAREST rivals chase them — "THIEF ON YOUR TAIL!" with a live
--- distance readout — and a touch makes the carrier drop what they
--- carry (fix round 8, item 8: the chase used to need a rival within
--- 30 studs, but rivals sit at radius 110, so nobody ever chased).
--- A rival near a free-walking player HUNTS them too (follow-up,
--- item 2 — Malek: "shouldn't they also try to get me like the
--- guardian?"): the thief runs the player down at 22 studs/s and, on
--- the tag, steals the best carried Brainrot and runs home with it —
--- or knocks the player flat if they carry nothing. The base
--- interior is the refuge: the hunt ends at the door, like the
--- guardian giving up on the platform.
--- Slap a rival and it drops what it carries and flees; rivals slap
--- back. Real players can steal from rivals' bases too (their pads
--- are never locked).
+-- Four named rivals own bases 5-8 (reserved at server start, so a
+-- joining player never collides with one). They run to the crater,
+-- grab Rotlings, carry them home and earn — and they show on the
+-- leaderboard, so the competition is visible in every shot. Every
+-- so often a rival sneaks to a real player's unlocked base to steal
+-- a Rotling (red alert + a THIEF sign over its head; Lock Base
+-- blocks it). When a player carries a meteor egg or a Brainrot,
+-- the NEAREST rivals chase them — "THIEF ON YOUR TAIL!" with a
+-- live distance readout — and a touch makes the carrier drop what
+-- they carry. A rival near a free-walking player HUNTS them too:
+-- it runs the player down at 22 studs/s and, on the tag, steals
+-- the best carried Brainrot and runs home with it — or knocks the
+-- player flat if they carry nothing. The base platform is the
+-- refuge: the hunt ends at the door. Slap a rival and it drops
+-- what it carries and flees; rivals slap back. Real players can
+-- steal from rivals' bases too (their pads are never locked).
 
 local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
@@ -48,6 +43,9 @@ local RIVAL_COLORS = {
 	Color3.fromRGB(255, 220, 100),
 }
 
+-- A small helper for the rival model's parts: unanchored, no
+-- collision, no touch, casts a shadow. The body is made solid
+-- after creation (buildRival sets CanCollide on it).
 local function makePart(name: string, shape: Enum.PartType, size: Vector3, color: Color3, material: Enum.Material?): Part
 	local part = Instance.new("Part")
 	part.Name = name
@@ -63,8 +61,8 @@ local function makePart(name: string, shape: Enum.PartType, size: Vector3, color
 	return part
 end
 
--- Build a rival: a blocky bot in its base colour, with a name tag and
--- a red THIEF sign (hidden until it steals).
+-- Build one rival: a blocky bot in its base colour, with a name
+-- tag and a red THIEF sign (hidden until it steals).
 local function buildRival(name: string, color: Color3, position: Vector3): Model
 	local model = Instance.new("Model")
 	model.Name = "Rival " .. name
@@ -83,6 +81,7 @@ local function buildRival(name: string, color: Color3, position: Vector3): Model
 	headWeld.Part1 = head
 	headWeld.Parent = head
 
+	-- Two eyes, welded to the body.
 	for _, side in ipairs({ -1, 1 }) do
 		local eye = makePart("Eye", Enum.PartType.Ball, Vector3.new(0.4, 0.4, 0.4), Color3.fromRGB(20, 20, 30))
 		eye.CFrame = body.CFrame * CFrame.new(side * 0.5, 3.1, 1)
@@ -112,8 +111,8 @@ local function buildRival(name: string, color: Color3, position: Vector3): Model
 	label.TextStrokeTransparency = 0.3
 	label.Parent = billboard
 
-	-- THIEF sign: hidden until this rival steals. Big (220x48, fix
-	-- round 9, item 9 — the old 160x36 was easy to miss at a glance).
+	-- THIEF sign: hidden until this rival steals. Big (220x48) so
+	-- it reads at a glance, even across the map.
 	local thiefSign = Instance.new("BillboardGui")
 	thiefSign.Name = "ThiefSign"
 	thiefSign.Size = UDim2.fromOffset(220, 48)
@@ -151,22 +150,26 @@ local function buildRival(name: string, color: Color3, position: Vector3): Model
 	return model
 end
 
--- True while a storm is running: a rival mid-walk aborts and runs for
--- its Safe Dome instead of finishing the trip in the meteor rain.
+-- True while a storm is running. A rival mid-walk aborts and runs
+-- for its Safe Dome instead of finishing the trip in the meteor
+-- rain. (The walk functions take this as their cancel: passing
+-- stormRunning means "stop the trip when a storm starts". The
+-- shelter walk itself passes no cancel, so it is never aborted by
+-- its own storm; the steal and chase walks pass nil, so they are
+-- storm-proof.)
 local function stormRunning(): boolean
 	local StarfallService = require(script.Parent.StarfallService)
 	return StarfallService.getStatus().phase == "storm"
 end
 
--- Walk a rival to a point: MoveTo, wait until close (4 studs) or
--- the timeout. A stuck rival hops (the 2-stud platform edge and the
--- tiered crater rim need a jump). Roblox gives a MoveTo an internal
--- ~8s timeout and then stops the Humanoid WITHOUT an error — the old
--- code issued MoveTo ONCE and waited up to 40s, so a rival whose
--- MoveTo timed out stood hopping in place for the rest of the walk
--- and the steal aborted ("Ziggy couldn't reach the base", playtest
--- 9). Re-issuing MoveTo every 2s keeps it pushing until the timeout
--- (fix round 8, item 3).
+-- Walk a rival to a point: MoveTo, re-issued every 2s, until close
+-- (4 studs) or the timeout. A stuck rival hops — the 2-stud
+-- platform edge and the tiered crater rim need a jump, and MoveTo
+-- never jumps on its own. Roblox gives a MoveTo an internal ~8s
+-- timeout and then stops the Humanoid WITHOUT an error, so issuing
+-- MoveTo once and waiting up to 40s left a rival standing and
+-- hopping in place for the rest of the walk. Re-issuing every 2s
+-- keeps it pushing until the timeout.
 local function walkTo(model: Model, target: Vector3, timeout: number, shouldCancel: (() -> boolean)?): boolean
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	local root = model:FindFirstChild("HumanoidRootPart")
@@ -189,24 +192,22 @@ local function walkTo(model: Model, target: Vector3, timeout: number, shouldCanc
 		if not model.Parent then
 			break
 		end
-		-- MoveTo's internal ~8s timeout stops the Humanoid silently:
-		-- re-issue it every 2s so the walk never dies mid-route.
+		-- MoveTo's internal ~8s timeout stops the Humanoid
+		-- silently: re-issue it every 2s so the walk never dies
+		-- mid-route.
 		if waited - lastMoveAt >= 2 then
 			humanoid:MoveTo(target)
 			lastMoveAt = waited
 		end
-		-- Storm: stop the trip now — the next stepRival tick runs
-		-- for the Safe Dome. The shelter walk itself passes no
-		-- shouldCancel, so it is never aborted by its own storm.
 		if shouldCancel and shouldCancel() then
 			break
 		end
 		if (root.Position - target).Magnitude < 4 then
 			done = true
 		end
-		-- Stuck? Hop. MoveTo never jumps, so a bot that walks into
-		-- the crater rim or a base edge just pushes against it until
-		-- the timeout. The jump clears the step (fix 2).
+		-- Stuck? Hop. A bot that walks into the crater rim or a
+		-- base edge just pushes against it until the timeout
+		-- otherwise — the jump clears the step.
 		if (root.Position - lastPos).Magnitude < 0.5 then
 			stuckTime += 0.5
 			if stuckTime >= 1.5 then
@@ -224,18 +225,18 @@ local function walkTo(model: Model, target: Vector3, timeout: number, shouldCanc
 	return done
 end
 
--- Walk a rival to a point on a COMPUTED path (fix round 14, item 4):
--- PathfindingService:ComputeAsync around solid parts, following the
--- waypoints with MoveTo and jumping on jump waypoints — the same
--- parameters steerChase uses (AgentRadius 3, AgentHeight 5,
--- AgentCanJump true, AgentMaxSlope 45). A straight MoveTo cannot
--- see the base front wall, the pads, or a placed Brainrot: it
--- pushes against them until the timeout, and the stuck-hop only
--- fires when the rival is fully stopped, not when it is sliding
--- sideways along a wall. The pathfinder routes AROUND them. One
--- repath on failure (the navmesh can lag a just-placed part), then
--- fall back to walkTo so a path failure never strands the rival.
--- shouldCancel is optional (nil = storm-proof, like the steal).
+-- Walk a rival to a point on a COMPUTED path: PathfindingService
+-- routes around solid parts, following the waypoints with MoveTo
+-- and jumping on jump waypoints — the same parameters the chase
+-- steering uses (AgentRadius 3, AgentHeight 5, AgentCanJump true,
+-- AgentMaxSlope 45). A straight MoveTo cannot see the base front
+-- wall, the pads, or a placed Brainrot: it pushes against them
+-- until the timeout, and the stuck-hop only fires when the rival
+-- is fully stopped, not when it is sliding sideways along a wall.
+-- The pathfinder routes AROUND them. One repath on failure (the
+-- navmesh can lag a just-placed part), then fall back to walkTo so
+-- a path failure never strands the rival. shouldCancel is optional
+-- (nil = storm-proof, like the steal).
 local function walkPath(model: Model, target: Vector3, timeout: number, shouldCancel: (() -> boolean)?): boolean
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	local root = model:FindFirstChild("HumanoidRootPart")
@@ -291,15 +292,14 @@ local function walkPath(model: Model, target: Vector3, timeout: number, shouldCa
 	return walkTo(model, target, timeout, shouldCancel)
 end
 
--- (fix round 7, item 7) The THIEF sign is also a red Highlight on the
--- whole model, visible THROUGH walls (DepthMode Occluded) — so the
--- player can see the thief even when it is behind the base walls or
--- across the map. The sign and the Highlight are one switch: both go
--- on when a steal starts and both go off at every steal end (all
--- six setThiefSign(model, false) call sites), so a Highlight can
--- never leak onto a rival that is not stealing. A red PointLight
--- joins them (fix round 9, item 9): the thief glows red in the dark,
--- so it reads as danger at a glance.
+-- The THIEF sign is also a red Highlight on the whole model,
+-- visible THROUGH walls (DepthMode Occluded) — so the player can
+-- see the thief even when it is behind the base walls or across
+-- the map. The sign and the Highlight are one switch: both go on
+-- when a steal starts and both go off at every steal end, so a
+-- Highlight can never leak onto a rival that is not stealing. A
+-- red PointLight joins them: the thief glows red in the dark, so
+-- it reads as danger at a glance.
 local function setThiefSign(model: Model, on: boolean)
 	local body = model.PrimaryPart
 	if not body then
@@ -347,9 +347,7 @@ end
 -- state, wherever the rival's thief behaviour ends — bonked, hunt
 -- over, steal over. One call so no path can leak the sign onto a
 -- rival that is not stealing or hunting: a sign that is on all the
--- time means nothing (follow-up, item 1: slapRival used to flee
--- without clearing it, so a bonked thief kept the red sign and the
--- through-walls highlight forever, until its next steal ended).
+-- time means nothing.
 function RivalService.clearThiefVisuals(rival: State.Rival)
 	setThiefSign(rival.model, false)
 	rival.chaseKind = nil
@@ -357,39 +355,33 @@ end
 
 -- Walk to a target WITHOUT crossing the crater: route along a ring
 -- of open ground at radius 45 (the rim's outer ring ends at 39),
--- then straight in. (fix round 7, item 2) The straight-line walks
--- are why rivals read as dead: a rival starts at its own base
--- (radius 110) and a far-side victim's "around" point is at radius
--- 45 on the opposite side, so the chord passes near the origin —
--- straight through the tiered rim (2.5 / 4 / 5.5 studs). The
--- stuck-hop cannot reliably clear those rings, so the walk timed out
--- at 40s and the steal aborted. Same for the crater approach: the
--- gap is at +Z, so a rival on the -Z side walked straight through
--- the crater to reach it. The ring route never crosses the rim: from
--- inside the crater, exit through the entrance gap (+Z, the one open
--- side); from outside, drop radially to the ring at your own angle;
--- arc along the ring to the target's angle (shorter way); then walk
--- straight to the target. Every rival walk uses this — toCrater,
--- steal, and toBase — so a rival can never stall on the rim again.
+-- then straight in. A straight line from a rival's own base
+-- (radius 110) to a far-side target passes near the origin —
+-- straight through the tiered rim (2.5 / 4 / 5.5 studs) — and the
+-- stuck-hop cannot reliably clear those rings, so the walk timed
+-- out and the steal aborted. Same for the crater approach: the
+-- entrance gap is at +Z, so a rival on the -Z side walked straight
+-- through the crater to reach it. The ring route never crosses the
+-- rim: from inside the crater, exit through the entrance gap (+Z,
+-- the one open side); from outside, drop radially to the ring at
+-- your own angle; arc along the ring to the target's angle (the
+-- shorter way); then walk straight to the target. Every rival walk
+-- uses this — toCrater, steal, and toBase — so a rival can never
+-- stall on the rim again. Returns (arrived, leg): the leg names
+-- the failed segment for the diagnostic.
 local function walkAround(model: Model, target: Vector3, timeout: number, shouldCancel: (() -> boolean)?): (boolean, string?)
 	local root = model:FindFirstChild("HumanoidRootPart")
 	if not root then
 		return false, "no-root"
 	end
-	-- (fix round 14, item 4) EXIT FIRST: a rival standing on its
-	-- own base platform walks straight toward the ring point and
-	-- hits its own front wall — the line from an off-centre pad
-	-- spot crosses the wall outside the 6-wide ramp gap. Nova
-	-- proved it live (playtest 13): at local (-4.47, -0.77) on
-	-- base 6, its straight departure hit the left front wall and
-	-- it never left its own base — 200 studs short, leg
-	-- 'unknown'. The round-13 trace started every rival at its
-	-- base CENTRE, where the line happens to clear the ramp, so
-	-- it never saw this. Walk out through the own ramp first
-	-- (ramp top, then the entrance at ground level) on a computed
-	-- path, then join the ring. Any base 1-8: the same exit also
-	-- fixes the steal's RETURN (toBase starts on the victim's
-	-- platform) and the crater run.
+	-- EXIT FIRST: a rival standing on its own base platform walks
+	-- straight toward the ring point and hits its own front wall —
+	-- the line from an off-centre pad spot crosses the wall
+	-- outside the 6-wide ramp gap. Walk out through the own ramp
+	-- first (ramp top, then the entrance at ground level) on a
+	-- computed path, then join the ring. Any base 1-8: the same
+	-- exit also fixes the steal's RETURN (toBase starts on the
+	-- victim's platform) and the crater run.
 	local start = root.Position
 	for baseId = 1, 8 do
 		local homeCf = WorldBuilder.baseCFrame(baseId)
@@ -427,8 +419,8 @@ local function walkAround(model: Model, target: Vector3, timeout: number, should
 		end
 	end
 	-- Arc along the ring to the target's angle, 30° at a time, the
-	-- shorter way around. Re-read the angle after the first leg (the
-	-- gap exit lands at +Z, 90°).
+	-- shorter way around. Re-read the angle after the first leg
+	-- (the gap exit lands at +Z, 90°).
 	local cur = model:FindFirstChild("HumanoidRootPart")
 	if not cur then
 		return false, "no-root"
@@ -455,33 +447,30 @@ local function walkAround(model: Model, target: Vector3, timeout: number, should
 		end
 		remaining -= move
 	end
-	-- Straight in from the ring to the target (never crosses the rim:
-	-- the target is outside the ring, or the gap side is open).
+	-- Straight in from the ring to the target (never crosses the
+	-- rim: the target is outside the ring, or the gap side is open).
 	if walkTo(model, target, timeout, shouldCancel) then
 		return true, nil
 	end
 	return false, "ring"
 end
 
--- (fix round 6, item 3) The sneak alert promised a thief at the
--- victim's base. When the steal aborts for any reason, the victim
--- must see the resolution on screen — a silent abort reads as a
--- false alarm ("Ziggy is sneaking!" while no one is there).
+-- The sneak alert promised a thief at the victim's base. When the
+-- steal aborts for any reason, the victim must see the resolution
+-- on screen — a silent abort reads as a false alarm.
 local function giveUpBanner(victim: Player?, rivalName: string, reason: string)
 	if victim then
 		Remotes.bannerEvent():FireClient(victim, "🚨 " .. rivalName .. " gave up sneaking to your base — " .. reason .. "!", 4)
 	end
 end
 
--- (fix round 13, item 1) Give-up diagnostic: when a steal walk
--- fails, log WHERE it died (which leg, rival position, target)
--- and the NEAREST solid part, so the F9 trail names the blocker
--- instead of "couldn't reach your base". The trace in auto-checks
--- proves the route clear on paper; this proves it (or finds the
--- miss) in the live game. A placed Brainrot on the target pad
--- reads as the nearest solid on the final leg — that is expected,
--- not a block: the walk only needs to get within 4 studs of the
--- pad centre, and the Brainrot stands on the pad.
+-- Give-up diagnostic: when a steal walk fails, log WHERE it died
+-- (which leg, rival position, target) and the NEAREST solid part,
+-- so the F9 trail names the blocker instead of "couldn't reach
+-- your base". A placed Brainrot on the target pad reads as the
+-- nearest solid on the final leg — that is expected, not a block:
+-- the walk only needs to get within 4 studs of the pad centre,
+-- and the Brainrot stands on the pad.
 local function logWalkDiagnostic(rival: State.Rival, model: Model, leg: string, target: Vector3)
 	local root = model:FindFirstChild("HumanoidRootPart")
 	local pos = if root then root.Position else Vector3.new(0, 0, 0)
@@ -525,24 +514,11 @@ local function carryModel(rival: State.Rival, model: Model)
 	weld.C0 = CFrame.new(0, Config.CARRY_Y, Config.CARRY_Z)
 	weld.Parent = modelBody
 	model:SetAttribute("State", "carried")
-	-- A rival-carried Rotling must not show a Grab prompt: the prompt
-	-- is how a player finds a catch, and a live prompt on a carried
-	-- Rotling reads as "E does nothing" (Playtest 5's grab — the
-	-- prompt showed, tryGrab hit state == "carried" and returned
-	-- silently). The prompt comes back when the loot is dropped
-	-- (scatterToCrater) or placed (setPromptState there).
-	-- (fix round 6, item 3) ROOT CAUSE of "the thief still doesn't
-	-- do anything": this used to call CarryService2.setPromptState —
-	-- a name that does not exist in this file (the only CarryService2
-	-- is a LOCAL inside stepRival's toBase branch). Reading the
-	-- undefined global returned nil, so every rival grab — crater and
-	-- steal alike — errored HERE, after the weld and State="carried"
-	-- but before rival.carried was set and before the "stole your X"
-	-- banner. The pcall in runRival caught it, the rival went idle
-	-- next tick (pad already emptied by removePlaced), and the
-	-- Brainrot stayed welded to the rival, earning nothing and never
-	-- placed or dropped — which is also why Ziggy/Nova read $0 on the
-	-- leaderboard. It is CarryService here.
+	-- A rival-carried Rotling must not show a Grab prompt: the
+	-- prompt is how a player finds a catch, and a live prompt on
+	-- a carried Rotling reads as "E does nothing". The prompt
+	-- comes back when the loot is dropped (scatterToCrater) or
+	-- placed (setPromptState there).
 	CarryService.setPromptState(model)
 	model:SetAttribute("BaseId", 0)
 	model:SetAttribute("PadIndex", 0)
@@ -556,9 +532,9 @@ function RivalService.dropCarried(rival: State.Rival)
 		return
 	end
 	rival.carried = nil
-	-- A dropped carry is a failed steal: clear the stolen flag, or a
-	-- later crater grab placed on the base would log a false STEAL
-	-- COMPLETE (fix round 9, item 3).
+	-- A dropped carry is a failed steal: clear the stolen flag, or
+	-- a later crater grab placed on the base would log a false
+	-- STEAL COMPLETE.
 	rival.stolenName = nil
 	rival.stolenFrom = nil
 	local body = model.PrimaryPart
@@ -579,13 +555,12 @@ function RivalService.isRival(model: Model): boolean
 	return State.rivals[model] ~= nil
 end
 
--- Wake the NEAREST rivals to chase a carrier (fix round 8, item 8):
--- the old code only woke rivals within 30 studs, but rivals sit at
--- their bases at radius 110 — so a grab in the crater almost never
--- had a rival in range and Malek was never chased ("STILL not chased
--- by anyone", playtest 9). Now the nearest RIVAL_CHASE_MAX (2)
--- available rivals chase, any distance, and the start is logged with
--- the distance so the F9 trail proves it fired.
+-- Wake the NEAREST rivals to chase a carrier: the old code only
+-- woke rivals within 30 studs, but rivals sit at their bases at
+-- radius 110 — so a grab in the crater almost never had a rival
+-- in range and nobody ever chased. Now the nearest RIVAL_CHASE_MAX
+-- (2) available rivals chase, any distance, and the start is
+-- logged with the distance so the F9 trail proves it fired.
 local function notifyCarrier(player: Player, kind: string)
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -624,8 +599,8 @@ function RivalService.notifyEggCarrier(player: Player)
 	notifyCarrier(player, "egg")
 end
 
--- A player grabbed a Brainrot: the nearest rivals give chase, same as an
--- egg carrier (rev 77). Carrying was risk-free before this — rivals
+-- A player grabbed a Brainrot: the nearest rivals give chase, same
+-- as an egg carrier. Carrying was risk-free before this — rivals
 -- only chased egg carriers, so the core loop (grab, run home, don't
 -- get tagged) had no teeth for Brainrots.
 function RivalService.notifyBrainrotCarrier(player: Player)
@@ -633,8 +608,8 @@ function RivalService.notifyBrainrotCarrier(player: Player)
 end
 
 -- Is any rival currently chasing this player for a carried Brainrot?
--- (fix round 12, item 3) The heat watcher uses it so it engages
--- once per carry, not once per 0.5s tick while the carrier is out.
+-- The heat watcher uses it so it engages once per carry, not once
+-- per 0.5s tick while the carrier is out.
 function RivalService.isChasingPlayer(userId: number): boolean
 	for _, rival in pairs(State.rivals) do
 		if rival.phase == "chase" and rival.targetUserId == userId then
@@ -660,15 +635,14 @@ local function pickVictim(): (Player?, number?)
 	return victim, BaseService.getPlayerBase(victim.UserId)
 end
 
--- Try to start a HUNT (follow-up, item 2): Malek asked "shouldn't
--- they also try to get me like the guardian?" — a thief near a
--- free-walking player chases the PLAYER, not just the base. The hunt
--- is for players walking free: carriers are the carrier chase's job
--- (they already draw the nearest 2 rivals), and the base interior is
--- safe (a player who made it home is not hunted). One hunter per
--- victim, so a hunt never becomes a swarm. The hunt runs at
--- RIVAL_HUNT_SPEED (22) and the thief reads as a thief the whole
--- time (sign + light + Highlight, same as a steal).
+-- Try to start a HUNT: a thief near a free-walking player chases
+-- the PLAYER, not just the base. The hunt is for players walking
+-- free: carriers are the carrier chase's job (they already draw
+-- the nearest 2 rivals), and the base platform is safe (a player
+-- who made it home is not hunted). One hunter per victim, so a
+-- hunt never becomes a swarm. The hunt runs at RIVAL_HUNT_SPEED
+-- (22) and the thief reads as a thief the whole time (sign +
+-- light + Highlight, same as a steal).
 local function tryStartHunt(rival: State.Rival, model: Model): boolean
 	if rival.carried or time() < rival.huntReadyAt then
 		return false
@@ -689,9 +663,9 @@ local function tryStartHunt(rival: State.Rival, model: Model): boolean
 		if playerRoot and humanoid and humanoid.Health > 0 then
 			if State.eggCarriedByUser[player.UserId] == nil and State.brainrotCarriedByUser[player.UserId] == nil then
 				local baseId = BaseService.getPlayerBase(player.UserId)
-				-- (fix round 13, item 3) The refuge is the whole
-				-- platform + ramp, not just the interior — a player
-				-- standing on their own base is home, not prey.
+				-- The refuge is the whole platform + ramp, not just
+				-- the interior — a player standing on their own
+				-- base is home, not prey.
 				local safe = baseId and WorldBuilder.isOnBasePlatform(baseId, playerRoot.Position)
 				if not safe then
 					local alreadyHunted = false
@@ -732,19 +706,15 @@ end
 -- Try to start a steal: pick a victim with Rotlings on an unlocked
 -- base, raise the THIEF sign, warn the victim, and switch the rival
 -- to the steal phase. Used by the idle roll AND the steal clock, so
--- both paths start a steal the same way. (fix round 7, item 2)
+-- both paths start a steal the same way.
 local function tryStartSteal(rival: State.Rival, model: Model): boolean
 	local victim, victimBase = pickVictim()
 	if not victim or not victimBase then
 		return false
 	end
-	-- One thief per victim (rev 78): if another rival is already
-	-- stealing from this victim, wait for the next roll/clock beat
-	-- instead of piling four thieves on the same base at once.
-	-- Malek is the only player with placed Brainrots, so all four
-	-- rivals could pick him at once — a swarm, not a thief. (Pairs
-	-- with the gate fix: once the gate clears, they enter one by
-	-- one instead of piling up at the entrance.)
+	-- One thief per victim: if another rival is already stealing
+	-- from this victim, wait for the next roll/clock beat instead
+	-- of piling four thieves on the same base at once.
 	for _, other in pairs(State.rivals) do
 		if other ~= rival and other.phase == "steal" and other.targetUserId == victim.UserId then
 			return false
@@ -755,28 +725,27 @@ local function tryStartSteal(rival: State.Rival, model: Model): boolean
 	rival.targetBase = victimBase
 	setThiefSign(model, true)
 	Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " is sneaking to your base! Lock it (L)!", 4)
-	-- Steal alarm (fix round 7, item 4): the warning banner was
-	-- silent — a low alarm so the player HEARS the thief coming.
+	-- Steal alarm: the warning banner was silent — a low alarm so
+	-- the player HEARS the thief coming.
 	FeedbackService.playSound(victim, 0.7, 1)
-	-- NO danger alert here (follow-up, item 1): the full-screen
-	-- "NAME IS IN YOUR BASE!" treatment used to fire at steal start,
-	-- when the thief is still at its own base ~100 studs away — the
-	-- alert claimed a presence the thief did not have yet, so the
-	-- player learned to distrust it ("it says he's in my base but I
-	-- look and nobody's there"). The alert fires ONLY while the thief
-	-- is actually inside (the watcher below, every 3s, dist <= 20),
-	-- so when it screams, the thief is really there.
+	-- NO danger alert here: the full-screen "NAME IS IN YOUR BASE!"
+	-- treatment used to fire at steal start, when the thief is
+	-- still at its own base ~100 studs away — the alert claimed a
+	-- presence the thief did not have yet. The alert fires ONLY
+	-- while the thief is actually inside (the watcher in start(),
+	-- every 3s, dist <= 20), so when it screams, the thief is
+	-- really there.
 	print("[Rival] " .. rival.name .. " stealing from " .. victim.Name .. " (base " .. tostring(victimBase) .. ")")
 	return true
 end
 
 -- Steer a chasing rival toward the victim's live position on a
--- computed path (fix round 8, item 8): a straight MoveTo from a base
--- at radius 110 to the crater crosses the tiered rim and the rival
--- pushes against it until it stalls. The path routes around the rim
--- through the entrance gap; it is recomputed toward the target's
--- live position whenever the target moved far or 1.5s passed.
--- Shared by the carrier chase and the hunt (follow-up, item 2).
+-- computed path: a straight MoveTo from a base at radius 110 to
+-- the crater crosses the tiered rim and the rival pushes against
+-- it until it stalls. The path routes around the rim through the
+-- entrance gap; it is recomputed toward the target's live position
+-- whenever the target moved far or 1.5s passed. Shared by the
+-- carrier chase and the hunt.
 local function steerChase(rival: State.Rival, model: Model, root: BasePart, victimRoot: BasePart)
 	local chaseHumanoid = model:FindFirstChildOfClass("Humanoid")
 	if not chaseHumanoid then
@@ -827,27 +796,22 @@ local function steerChase(rival: State.Rival, model: Model, root: BasePart, vict
 	end
 end
 
--- One rival's life: a state machine that walks, grabs, carries home,
--- earns, and occasionally steals or chases.
--- One tick of a rival's behaviour (fix round 4, item 5): extracted
--- so runRival can pcall-guard it. The whole step used to run
--- unguarded inside runRival's loop, so any error (a nil getStatus,
--- a failed walkTo, a missing pad) froze that rival forever with no
--- log. Now a failed step warns and the rival keeps going next tick.
+-- One rival's life: a state machine that walks, grabs, carries
+-- home, earns, and occasionally steals or chases. One tick of a
+-- rival's behaviour, extracted so runRival can pcall-guard it —
+-- a failed step warns and the rival keeps going next tick, instead
+-- of freezing forever with no log.
 local function stepRival(rival: State.Rival, model: Model)
 	task.wait(0.5)
-	-- HUNT (follow-up, item 2): checked before the storm block, so
-	-- a hunt can start in a storm — and once started it is
-	-- storm-proof (phase "chase" is exempt from storm cover, like
-	-- the carrier chase).
+	-- HUNT: checked before the storm block, so a hunt can start in
+	-- a storm — and once started it is storm-proof (phase "chase"
+	-- is exempt from storm cover, like the carrier chase).
 	tryStartHunt(rival, model)
-	-- Storm cover (fix 2): when a storm runs, a rival runs home
-	-- to its own base and waits there until the storm ends, then
-	-- resumes. Bots that ignore the storm look dead; bots that
-	-- run for cover look alive. A rival MID-CHASE or MID-STEAL
-	-- does NOT run for cover (fix round 8, item 8): abandoning a
-	-- chase the moment a storm starts reads as "the thief did
-	-- nothing" — the chase outlives the storm.
+	-- Storm cover: when a storm runs, a rival runs home to its own
+	-- base and waits there until the storm ends, then resumes. A
+	-- rival MID-CHASE or MID-STEAL does NOT run for cover:
+	-- abandoning a chase the moment a storm starts reads as "the
+	-- thief did nothing" — the chase outlives the storm.
 	local StarfallService = require(script.Parent.StarfallService)
 	if StarfallService.getStatus().phase == "storm" and rival.phase ~= "chase" and rival.phase ~= "steal" then
 		local homeCf = WorldBuilder.baseCFrame(rival.baseId)
@@ -876,14 +840,12 @@ local function stepRival(rival: State.Rival, model: Model)
 			end
 		end
 	end
-	-- Chase speed (fix round 8, item 8): a chasing rival runs at
-	-- RIVAL_CHASE_SPEED (19 — faster than a walking carrier at 16,
-	-- slower than a sprint at 26), every other phase walks at 16.
-	-- A HUNTING rival runs at RIVAL_HUNT_SPEED (22 — follow-up,
-	-- item 2: faster than the carrier chase, slower than the
-	-- guardian at 28-34). Synced every tick so the speed is right
-	-- however the phase changed (chase start, tag, slap, storm
-	-- cover, give-up).
+	-- Chase speed: a chasing rival runs at RIVAL_CHASE_SPEED (19 —
+	-- faster than a walking carrier at 16, slower than a sprint at
+	-- 26), every other phase walks at 16. A HUNTING rival runs at
+	-- RIVAL_HUNT_SPEED (22 — faster than the carrier chase, slower
+	-- than the guardian at 28-34). Synced every tick so the speed
+	-- is right however the phase changed.
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		humanoid.WalkSpeed = if rival.phase == "chase" and rival.chaseKind == "hunt" then Config.RIVAL_HUNT_SPEED
@@ -898,21 +860,19 @@ local function stepRival(rival: State.Rival, model: Model)
 		elseif math.random() < Config.RIVAL_STEAL_CHANCE then
 			-- tryStartSteal picks the victim, raises the THIEF sign,
 			-- warns the victim and logs the steal start — the same
-			-- call the steal clock uses (fix round 7, item 2), so a
-			-- steal started by either path is identical.
+			-- call the steal clock uses, so a steal started by
+			-- either path is identical.
 			tryStartSteal(rival, model)
 		else
 			rival.phase = "toCrater"
 		end
 	elseif rival.phase == "toCrater" then
-		-- Walk in through the entrance gap (+Z side), then to a spot
-		-- on the belt, then grab the RAREST free Rotling within
-		-- reach. The old straight-line walk crossed the crater rim
-		-- from whatever side the rival's base is on, so rivals pushed
-		-- against the rim wall until the 30s timeout and never reached
-		-- the belt — the leaderboard read $0 because no rival ever
-		-- grabbed or placed. The gap route is the same path the
-		-- crater raider uses (walk straight in, no rim climb).
+		-- Walk in through the entrance gap (+Z side), then to a
+		-- spot on the belt, then grab the RAREST free Rotling
+		-- within reach. The old straight-line walk crossed the
+		-- crater rim from whatever side the rival's base is on, so
+		-- rivals pushed against the rim wall until the timeout and
+		-- never reached the belt.
 		local spot = Vector3.new((math.random() * 2 - 1) * 20, Config.CRATER_FLOOR_Y, (math.random() * 2 - 1) * 2)
 		local gap = Vector3.new(0, Config.CRATER_FLOOR_Y, 45)
 		if walkAround(model, gap, 30, stormRunning) and walkTo(model, spot, 30, stormRunning) then
@@ -973,27 +933,26 @@ local function stepRival(rival: State.Rival, model: Model)
 		else
 			local padCf = WorldBuilder.padCFrame(baseId, padIndex)
 			local homeCf = WorldBuilder.baseCFrame(baseId)
-			-- Entrance leg (fix round 8, item 3): the straight line
-			-- from the ring to the pad crosses the platform's
-			-- 2-stud edge anywhere — usually NOT at the 6-wide
-			-- entrance ramp — so the rival pushes against the edge
-			-- until the walk times out. Route through the ramp's low
-			-- end first (the only way up), then to the pad. Same
-			-- geometry as the steal leg below.
+			-- Entrance leg: the straight line from the ring to the
+			-- pad crosses the platform's 2-stud edge anywhere —
+			-- usually NOT at the 6-wide entrance ramp — so the
+			-- rival pushes against the edge until the walk times
+			-- out. Route through the ramp's low end first (the
+			-- only way up), then to the pad.
 			local entrancePos = if homeCf then (homeCf * CFrame.new(0, 0, -15)).Position else nil
 			local rampTopPos = if homeCf then (homeCf * CFrame.new(0, 2, -10)).Position else nil
 			local reachedPad = false
 			if padCf and entrancePos then
-				-- Ramp-top waypoint (fix round 9, item 3): same edge
-				-- geometry as the steal leg — from the ramp's low end
-				-- straight to the pad crosses the platform edge
-				-- outside the ramp for pads 1 and 4.
-				-- (fix round 13, item 1) Final leg via the clear
-				-- strip, same as the steal leg: along the lane
-				-- between the ramp top (local z -11) and the front
-				-- pads (local z -7) at the pad's own local X, then
-				-- straight to the pad — one pad crossing at most,
-				-- never the diagonal across three pads + CollectPad.
+				-- Ramp-top waypoint: same edge geometry as the
+				-- steal leg — from the ramp's low end straight to
+				-- the pad crosses the platform edge outside the
+				-- ramp for pads 1 and 4.
+				-- Final leg via the clear strip, same as the steal
+				-- leg: along the lane between the ramp top (local
+				-- z -11) and the front pads (local z -7) at the
+				-- pad's own local X, then straight to the pad — one
+				-- pad crossing at most, never the diagonal across
+				-- three pads + CollectPad.
 				local stripPos: Vector3? = nil
 				if homeCf and padCf then
 					local localPad = homeCf:PointToObjectSpace(padCf.Position)
@@ -1001,10 +960,10 @@ local function stepRival(rival: State.Rival, model: Model)
 				end
 				reachedPad = walkAround(model, entrancePos, 40, stormRunning)
 					and (not rampTopPos or walkTo(model, rampTopPos, 20, stormRunning))
-					-- (fix round 14, item 4) The final leg runs on
-					-- a computed path too — the straight MoveTo
-					-- crossed the pad ledges, the same shape as
-					-- the steal's pad leg. Storm cancel kept.
+					-- The final leg runs on a computed path too —
+					-- the straight MoveTo crossed the pad ledges,
+					-- the same shape as the steal's pad leg. Storm
+					-- cancel kept.
 					and (not stripPos or walkPath(model, stripPos, 20, stormRunning))
 					and walkPath(model, padCf.Position, 40, stormRunning)
 			elseif padCf then
@@ -1026,11 +985,11 @@ local function stepRival(rival: State.Rival, model: Model)
 					local CarryService2 = require(script.Parent.CarryService)
 					-- Place by hand: anchored, full size, on the pad.
 					RotlingFactory.setCarriedVisual(carried, false)
-					-- (fix round 9, item 5) normalize like a player
-					-- placement — the old setModelScale(carried, 1)
-					-- skipped the placed-size rule, so rival-placed
-					-- Brainrots kept their build size and read
-					-- uneven against player-placed ones.
+					-- Normalize like a player placement — the old
+					-- setModelScale(carried, 1) skipped the
+					-- placed-size rule, so rival-placed Brainrots
+					-- kept their build size and read uneven against
+					-- player-placed ones.
 					RotlingFactory.normalizeToHeight(carried, Config.PLACED_DISPLAY_HEIGHT)
 					RotlingFactory.refreshLabelOffset(carried)
 					local def = RotlingCatalog.getDef(carried:GetAttribute("DefId") :: string)
@@ -1055,16 +1014,15 @@ local function stepRival(rival: State.Rival, model: Model)
 					State.placed[baseId][padIndex] = carried
 					CarryService2.setPromptState(carried)
 					RotlingFactory.setRestPose(carried)
-					-- (fix round 6, item 3) The steal is only complete
-					-- when the loot is placed and earning — log it, so
-					-- the F9 trail reads triggered → walking →
-					-- arrived → grabbed → running home → placed.
+					-- The steal is only complete when the loot is
+					-- placed and earning — log it, so the F9 trail
+					-- reads triggered → walking → arrived → grabbed
+					-- → running home → placed.
 					print("[Rival] " .. rival.name .. " placed " .. (if def then def.name else "a Brainrot") .. " on its base — earning now")
-					-- (fix round 9, item 3) STEAL COMPLETE: the steal
-					-- is only PROVEN when the stolen Brainrot is
-					-- placed and earning on the thief's base — this
-					-- is the line Malek reads in F9 to know the thief
-					-- actually did something this time.
+					-- STEAL COMPLETE: the steal is only PROVEN when
+					-- the stolen Brainrot is placed and earning on
+					-- the thief's base — this is the line to read in
+					-- F9 to know the thief actually did something.
 					if rival.stolenName then
 						print("[Rival] STEAL COMPLETE — " .. rival.name .. " stole " .. rival.stolenName .. " from " .. (rival.stolenFrom or "a player") .. " and placed it on its base — earning now")
 						rival.stolenName = nil
@@ -1073,8 +1031,8 @@ local function stepRival(rival: State.Rival, model: Model)
 				end
 			else
 				print("[Rival] " .. rival.name .. " could not reach its own base (pad " .. tostring(padIndex) .. ") — still carrying, will retry next cycle")
-				-- (fix round 13, item 1) Same diagnostic as the
-				-- steal: name the leg + nearest solid in F9.
+				-- Same diagnostic as the steal: name the leg +
+				-- nearest solid in F9.
 				if padCf then
 					logWalkDiagnostic(rival, model, "toBase", padCf.Position)
 				end
@@ -1089,8 +1047,9 @@ local function stepRival(rival: State.Rival, model: Model)
 			setThiefSign(model, false)
 			rival.phase = "idle"
 		elseif BaseService.isLocked(victimBase) then
-			-- Locked mid-sneak: give up and go home. The victim sees
-			-- the lock work instead of a thief that never arrives.
+			-- Locked mid-sneak: give up and go home. The victim
+			-- sees the lock work instead of a thief that never
+			-- arrives.
 			print("[Rival] " .. rival.name .. " steal aborted — " .. victim.Name .. "'s base is locked")
 			giveUpBanner(victim, rival.name, "your base is locked")
 			setThiefSign(model, false)
@@ -1111,49 +1070,44 @@ local function stepRival(rival: State.Rival, model: Model)
 				rival.phase = "idle"
 			else
 				local padCf = WorldBuilder.padCFrame(victimBase, padIndex)
-				-- (fix round 6, item 3) Walk AROUND the crater, not
-				-- through it. Bases sit on a circle around the crater,
-				-- and a rival on the far side walks a straight line
-				-- through the rim twice and pushes against the wall
-				-- until the timeout — the sneak alert fires but the
-				-- thief never arrives (Ziggy's base is directly
-				-- opposite the player's, so its line goes straight
-				-- through the crater centre). Leg 1 goes to open
-				-- ground outside the rim at the victim base's angle
-				-- (radius 45, the same approach the raider uses);
-				-- leg 2 walks straight in to the pad.
+				-- Walk AROUND the crater, not through it. Bases sit
+				-- on a circle around the crater, and a rival on the
+				-- far side walks a straight line through the rim
+				-- twice and pushes against the wall until the
+				-- timeout — the sneak alert fires but the thief
+				-- never arrives. Leg 1 goes to open ground outside
+				-- the rim at the victim base's angle (radius 45,
+				-- the same approach the raider uses); leg 2 walks
+				-- straight in to the pad.
 				print("[Rival] " .. rival.name .. " walking to " .. victim.Name .. "'s base (pad " .. tostring(padIndex) .. ") — around the crater")
 				local victimCf = WorldBuilder.baseCFrame(victimBase)
 				local victimAngle = if victimCf then math.atan2(victimCf.Position.Z, victimCf.Position.X) else nil
 				local arrived = false
 				if padCf and victimAngle then
 					local around = Vector3.new(math.cos(victimAngle) * 45, 0, math.sin(victimAngle) * 45)
-					-- Entrance leg (fix round 8, item 3; rewritten fix
-					-- round 9, item 3): three real causes of "the
-					-- thief does nothing". (a) The walk passed
-					-- stormRunning as the cancel, so any storm
-					-- starting mid-walk (a 20-40s walk against an 8s
-					-- storm every 90s cycle) aborted the steal — even
-					-- though stepRival's header exempts steal/chase
-					-- from storm cover. The steal walk is storm-proof
-					-- now (nil cancel). (b) The final leg ran from
-					-- the ramp's LOW end straight to the pad, crossing
+					-- Entrance leg: three real causes of "the thief
+					-- does nothing". (a) The walk passed stormRunning
+					-- as the cancel, so any storm starting mid-walk
+					-- aborted the steal — even though stepRival's
+					-- header exempts steal/chase from storm cover.
+					-- The steal walk is storm-proof now (nil
+					-- cancel). (b) The final leg ran from the
+					-- ramp's LOW end straight to the pad, crossing
 					-- the 2-stud platform edge OUTSIDE the 6-wide
-					-- ramp for pads 1 and 4 (crossing at x ≈ ±3.43)
-					-- — the rival pushed the edge until the 40s
-					-- timeout. Route UP the ramp first (ramp-top
-					-- waypoint, local (0,2,-10)), then along the
-					-- platform to the pad. (c) The pad picked at the
-					-- start could empty during the walk — re-pick the
-					-- first occupied pad on arrival instead of
-					-- grabbing at an empty one.
+					-- ramp for pads 1 and 4 — the rival pushed the
+					-- edge until the 40s timeout. Route UP the ramp
+					-- first (ramp-top waypoint, local (0,2,-10)),
+					-- then along the platform to the pad. (c) The
+					-- pad picked at the start could empty during
+					-- the walk — re-pick the first occupied pad on
+					-- arrival instead of grabbing at an empty one.
 					local entrancePos = if victimCf then (victimCf * CFrame.new(0, 0, -15)).Position else padCf.Position
 					local rampTopPos = if victimCf then (victimCf * CFrame.new(0, 2, -10)).Position else nil
-					-- (fix round 13, item 1) Per-leg tracking: the
-					-- old `and`-chain knew the walk failed but not
-					-- WHERE (ring? entrance? ramp? pad?) — so four
-					-- rounds guessed at single parts. failedLeg names
-					-- the leg for the diagnostic below.
+					-- Per-leg tracking: the old `and`-chain knew
+					-- the walk failed but not WHERE (ring?
+					-- entrance? ramp? pad?) — so four rounds
+					-- guessed at single parts. failedLeg names the
+					-- leg for the diagnostic below.
 					local failedLeg: string? = nil
 					local reachedRamp = false
 					local ringOk, ringLeg = walkAround(model, around, 40, nil)
@@ -1170,17 +1124,16 @@ local function stepRival(rival: State.Rival, model: Model)
 					else
 						failedLeg = ringLeg or "ring"
 					end
-					-- (fix round 14, item 4) THE DOOR: Malek watched
-					-- the thief reach the door and stand there doing
-					-- nothing — the final leg was a straight MoveTo
-					-- from the ramp top that crossed the platform
-					-- edge, the CollectPad and the front pads, and
-					-- the rival pushed the first ledge until the
-					-- timeout. Cross the threshold explicitly —
-					-- local (0,2,-11), the line the rival must pass
-					-- to be INSIDE — on a computed path, and log
-					-- it, so the F9 trail shows the thief entering
-					-- instead of vanishing at the door.
+					-- THE DOOR: the thief used to reach the door and
+					-- stand there doing nothing — the final leg was
+					-- a straight MoveTo from the ramp top that
+					-- crossed the platform edge, the CollectPad and
+					-- the front pads, and the rival pushed the first
+					-- ledge until the timeout. Cross the threshold
+					-- explicitly — local (0,2,-11), the line the
+					-- rival must pass to be INSIDE — on a computed
+					-- path, and log it, so the F9 trail shows the
+					-- thief entering instead of vanishing at the door.
 					if reachedRamp then
 						local doorPos = if victimCf then (victimCf * CFrame.new(0, 2, -11)).Position else nil
 						if doorPos then
@@ -1204,21 +1157,19 @@ local function stepRival(rival: State.Rival, model: Model)
 						if freshPad then
 							padIndex = freshPad
 							padCf = WorldBuilder.padCFrame(victimBase, freshPad)
-							-- (fix round 13, item 1) Final leg via
-							-- the clear strip: the old diagonal from
-							-- the ramp top straight to the pad crossed
-							-- up to 3 intermediate pads plus the
-							-- CollectPad (the trace: pad 6's line
-							-- clips the CollectPad at 0.05 studs) —
-							-- every crossing is a 0.6 ledge the rival
-							-- must hop, and a hop that lands wrong
-							-- stalls the walk. The strip is the clear
-							-- lane between the ramp top (local z -11)
-							-- and the front pads (local z -7): walk
-							-- along it at the pad's own local X, then
+							-- Final leg via the clear strip: the old
+							-- diagonal from the ramp top straight to
+							-- the pad crossed up to 3 intermediate
+							-- pads plus the CollectPad — every
+							-- crossing is a 0.6 ledge the rival must
+							-- hop, and a hop that lands wrong stalls
+							-- the walk. The strip is the clear lane
+							-- between the ramp top (local z -11) and
+							-- the front pads (local z -7): walk along
+							-- it at the pad's own local X, then
 							-- straight to the pad. A front-row pad
-							-- needs no crossing at all; a back-row pad
-							-- crosses exactly one front pad.
+							-- needs no crossing at all; a back-row
+							-- pad crosses exactly one front pad.
 							local stripPos: Vector3? = nil
 							if victimCf and padCf then
 								local localPad = victimCf:PointToObjectSpace(padCf.Position)
@@ -1227,18 +1178,16 @@ local function stepRival(rival: State.Rival, model: Model)
 							arrived = if padCf
 								then (not stripPos or walkPath(model, stripPos, 20)) and walkPath(model, padCf.Position, 40)
 								else false
-							-- (fix round 14, item 4) The pad leg
-							-- runs on a computed path now (the
-							-- straight MoveTo crossed the pad
-							-- ledges), and gets ONE retry: if the
-							-- path fails, hop the ledge it could
-							-- not clear and walk the path once
-							-- more before the steal aborts. A thief
-							-- that gives up at the pad after
-							-- reaching the door is still a failure
-							-- — the retry is the difference between
-							-- "stood at the door" and "entered and
-							-- grabbed".
+							-- The pad leg runs on a computed path
+							-- now (the straight MoveTo crossed the
+							-- pad ledges), and gets ONE retry: if
+							-- the path fails, hop the ledge it could
+							-- not clear and walk the path once more
+							-- before the steal aborts. A thief that
+							-- gives up at the pad after reaching the
+							-- door is still a failure — the retry is
+							-- the difference between "stood at the
+							-- door" and "entered and grabbed".
 							if not arrived and padCf then
 								local hopHumanoid = model:FindFirstChildOfClass("Humanoid")
 								if hopHumanoid then
@@ -1277,9 +1226,9 @@ local function stepRival(rival: State.Rival, model: Model)
 							carryModel(rival, stolen)
 							local stolenDef = RotlingCatalog.getDef(stolen:GetAttribute("DefId") :: string)
 							local stolenName = if stolenDef then stolenDef.name else "Brainrot"
-							-- (fix round 9, item 3) remember what was
-							-- stolen, so the placement logs STEAL
-							-- COMPLETE — the proof the steal worked.
+							-- Remember what was stolen, so the
+							-- placement logs STEAL COMPLETE — the
+							-- proof the steal worked.
 							rival.stolenName = stolenName
 							rival.stolenFrom = victim.Name
 							Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " stole your " .. stolenName .. "! Slap them to get it back!", 5)
@@ -1293,24 +1242,23 @@ local function stepRival(rival: State.Rival, model: Model)
 						setThiefSign(model, false)
 					end
 				else
-					-- The walk failed: log it AND tell the victim, or
-					-- the sneak alert reads as a false alarm. The log
-					-- carries positions + the remaining distance, so
-					-- the F9 trail shows WHERE the walk died (ring?
-					-- entrance? pad?) instead of just "couldn't
-					-- reach" (fix round 8, item 3).
+					-- The walk failed: log it AND tell the victim,
+					-- or the sneak alert reads as a false alarm. The
+					-- log carries positions + the remaining distance,
+					-- so the F9 trail shows WHERE the walk died
+					-- (ring? entrance? pad?) instead of just
+					-- "couldn't reach".
 					local rivalPos = if root then root.Position else Vector3.new(0, 0, 0)
 					local padPos = if padCf then padCf.Position else Vector3.new(0, 0, 0)
 					print("[Rival] " .. rival.name .. " could not reach " .. victim.Name .. "'s base (pad " .. tostring(padIndex) .. ") — steal aborted; rival at " .. tostring(rivalPos) .. ", pad at " .. tostring(padPos) .. ", " .. tostring(math.floor((rivalPos - padPos).Magnitude)) .. " studs short")
-					-- (fix round 13, item 1) Name the blocker: the
-					-- leg + the nearest solid part, in F9.
-					-- (fix round 14, item 4) 'unknown' is gone:
-					-- every failure path above names its leg
-					-- (exit / departure / ring / entrance / ramp /
-					-- door / pad / pads-emptied / direct). The
-					-- "unlabelled" fallback is defensive only — if
-					-- it ever appears in F9, it is a NEW un-named
-					-- failure path, not a shrug.
+					-- Name the blocker: the leg + the nearest solid
+					-- part, in F9. 'unknown' is gone: every failure
+					-- path above names its leg (exit / departure /
+					-- ring / entrance / ramp / door / pad /
+					-- pads-emptied / direct). The "unlabelled"
+					-- fallback is defensive only — if it ever
+					-- appears in F9, it is a NEW un-named failure
+					-- path, not a shrug.
 					logWalkDiagnostic(rival, model, failedLeg or "unlabelled", padPos)
 					giveUpBanner(victim, rival.name, "couldn't reach your base")
 					setThiefSign(model, false)
@@ -1319,14 +1267,14 @@ local function stepRival(rival: State.Rival, model: Model)
 			end
 		end
 	elseif rival.phase == "chase" then
-		-- Two chases share this branch (follow-up, item 2):
+		-- Two chases share this branch:
 		-- "carrier" — a carrier (egg or Brainrot). "THIEF ON YOUR
 		-- TAIL!" with a live distance readout; a touch makes the
 		-- carrier drop what they carry and the rival flees.
 		-- "hunt" — a free-walking player, chased like the guardian
 		-- chases: on the tag the thief steals the best carried
 		-- Brainrot and runs home, or knocks the player flat if they
-		-- carry nothing. The base interior ends the hunt, like the
+		-- carry nothing. The base platform ends the hunt, like the
 		-- guardian giving up on the platform.
 		local victim = if rival.targetUserId then Players:GetPlayerByUserId(rival.targetUserId) else nil
 		local character = victim and victim.Character
@@ -1352,8 +1300,8 @@ local function stepRival(rival: State.Rival, model: Model)
 				rival.targetUserId = nil
 			elseif victimBase and WorldBuilder.isOnBasePlatform(victimBase, victimRoot.Position) then
 				-- Made it home: the hunt ends at the door, like the
-				-- guardian giving up on the platform. (fix round 13,
-				-- item 3: the refuge is the whole platform + ramp.)
+				-- guardian giving up on the platform. The refuge is
+				-- the whole platform + ramp.
 				print("[Rival] " .. rival.name .. " hunt ended — " .. victim.Name .. " reached their base platform")
 				RivalService.clearThiefVisuals(rival)
 				rival.phase = "idle"
@@ -1431,12 +1379,11 @@ local function stepRival(rival: State.Rival, model: Model)
 				task.wait(1)
 			end
 		elseif not carryingEgg and not carryingBrainrot then
-			-- (fix round 12, item 3) The carrier chase gets the
-			-- same safe-base end the hunt branch has: a carrier
-			-- who makes it back onto their own base platform
-			-- is home — the chase ends instead of piling rivals
-			-- up at the gate while the player stands safe inside.
-			-- (fix round 13, item 3: platform + ramp, not interior.)
+			-- The carrier chase gets the same safe-base end the
+			-- hunt branch has: a carrier who makes it back onto
+			-- their own base platform is home — the chase ends
+			-- instead of piling rivals up at the gate while the
+			-- player stands safe inside.
 			local victimBase = BaseService.getPlayerBase(victim.UserId)
 			if victimBase and WorldBuilder.isOnBasePlatform(victimBase, victimRoot.Position) then
 				print("[Rival] " .. rival.name .. " chase ended — " .. victim.Name .. " reached their base platform")
@@ -1481,9 +1428,9 @@ local function stepRival(rival: State.Rival, model: Model)
 	end
 end
 
--- The rival's loop (fix round 4, item 5): every tick is pcall-guarded,
--- so an error in one step warns and the rival keeps going next tick
--- instead of freezing forever with no log.
+-- The rival's loop: every tick is pcall-guarded, so an error in one
+-- step warns and the rival keeps going next tick instead of
+-- freezing forever with no log.
 local function runRival(rival: State.Rival)
 	local model = rival.model
 	while model.Parent do
@@ -1495,8 +1442,9 @@ local function runRival(rival: State.Rival)
 	end
 end
 
--- Rivals earn like players: every second, each rival's placed Rotlings
--- pay their income into the rival's coins (the leaderboard shows it).
+-- Rivals earn like players: every second, each rival's placed
+-- Rotlings pay their income into the rival's coins (the leaderboard
+-- shows it).
 local function earningsLoop()
 	while true do
 		task.wait(1)
@@ -1518,9 +1466,9 @@ end
 local savedCoins: { [number]: number } = {}
 
 -- Spawn (or respawn) one rival: a fresh model + record on its base.
--- The base itself (owner, pads, placed Rotlings, lock) is set up once
--- in start() and is NOT reset here, so a respawned rival keeps its
--- placed Rotlings and its coins.
+-- The base itself (owner, pads, placed Rotlings, lock) is set up
+-- once in start() and is NOT reset here, so a respawned rival keeps
+-- its placed Rotlings and its coins.
 local function spawnRival(index: number)
 	local baseId = 4 + index
 	local name = Config.RIVAL_NAMES[index]
@@ -1584,8 +1532,8 @@ function RivalService.start()
 		return
 	end
 	running = true
-	-- Claim bases 5-8 for the rivals (negative owner ids reserve them:
-	-- a joining player never collides with a rival's base).
+	-- Claim bases 5-8 for the rivals (negative owner ids reserve
+	-- them: a joining player never collides with a rival's base).
 	for i = 1, Config.RIVAL_COUNT do
 		local baseId = 4 + i
 		local name = Config.RIVAL_NAMES[i]
@@ -1602,14 +1550,14 @@ function RivalService.start()
 	end
 	task.spawn(earningsLoop)
 	task.spawn(function()
-		-- Thief-in-base watcher (fix round 7, item 7): a stealing
-		-- rival must be UNMISSABLE while it is inside the victim's
-		-- base. Every second, any rival in the steal phase that is
-		-- inside its victim's base re-banners the victim ("🚨 NAME
-		-- is IN your base — bonk them!") at most once per 3s — so
-		-- the player is told, repeatedly, while the thief is there.
-		-- (The red Highlight from setThiefSign makes the thief
-		-- visible through walls; the banner tells the player to look.)
+		-- Thief-in-base watcher: a stealing rival must be
+		-- UNMISSABLE while it is inside the victim's base. Every
+		-- second, any rival in the steal phase that is inside its
+		-- victim's base re-banners the victim ("🚨 NAME is IN your
+		-- base — bonk them!") at most once per 3s — so the player
+		-- is told, repeatedly, while the thief is there. The red
+		-- Highlight from setThiefSign makes the thief visible
+		-- through walls; the banner tells the player to look.
 		while true do
 			task.wait(1)
 			for _, rival in pairs(State.rivals) do
@@ -1622,10 +1570,10 @@ function RivalService.start()
 						if dist <= 20 and time() - rival.lastThiefBannerAt >= 3 then
 							rival.lastThiefBannerAt = time()
 							Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " is IN your base — bonk them!", 3)
-							-- (fix round 9, item 9) re-fire the danger
-							-- alert with every repeat banner, so the
-							-- vignette + flashing text + alarm stay
-							-- live the whole time the thief is inside.
+							-- Re-fire the danger alert with every
+							-- repeat banner, so the vignette +
+							-- flashing text + alarm stay live the
+							-- whole time the thief is inside.
 							Remotes.thiefAlertEvent():FireClient(victim, rival.name)
 						end
 					end
@@ -1634,20 +1582,19 @@ function RivalService.start()
 		end
 	end)
 	task.spawn(function()
-		-- Base-grab heat watcher (fix round 12, item 3): a player
-		-- who picks a Brainrot up inside their OWN base arms the
-		-- heat (State.baseHeat, set in carryRotling) instead of
-		-- unleashing it — the chase must not spawn and instantly
-		-- despawn on a safe base, and it must not punish standing
-		-- in your own base. Every 0.5s, any armed carrier who has
-		-- stepped OUTSIDE their own base interior engages: the
-		-- Guardian wakes (onGrab) and the nearest rivals give
-		-- chase (notifyBrainrotCarrier). Engages once per carry —
-		-- the isChasing guards keep it from re-firing every tick
-		-- while the carrier is out. The flag clears when the
-		-- player stops carrying (removeCarried, or here), and it
-		-- stays set while carrying, so re-exiting the base after
-		-- a safe return re-engages the heat.
+		-- Base-grab heat watcher: a player who picks a Brainrot up
+		-- inside their OWN base arms the heat (State.baseHeat, set
+		-- in carryRotling) instead of unleashing it — the chase
+		-- must not spawn and instantly despawn on a safe base, and
+		-- it must not punish standing in your own base. Every
+		-- 0.5s, any armed carrier who has stepped OUTSIDE their own
+		-- base platform engages: the Guardian wakes (onGrab) and
+		-- the nearest rivals give chase (notifyBrainrotCarrier).
+		-- Engages once per carry — the isChasing guards keep it
+		-- from re-firing every tick while the carrier is out. The
+		-- flag clears when the player stops carrying, and it stays
+		-- set while carrying, so re-exiting the base after a safe
+		-- return re-engages the heat.
 		while true do
 			task.wait(0.5)
 			for userId, _ in pairs(State.baseHeat) do
@@ -1660,11 +1607,11 @@ function RivalService.start()
 					local character = player.Character
 					local root = character and character:FindFirstChild("HumanoidRootPart")
 					if baseId and root and not WorldBuilder.isOnBasePlatform(baseId, root.Position) then
-						-- (fix round 13, item 3) The heat engages
-						-- the moment the carrier steps OFF the
-						-- platform + ramp — the ramp is part of the
-						-- base, so carrying down the ramp is still
-						-- safe; stepping onto the ground is not.
+						-- The heat engages the moment the carrier
+						-- steps OFF the platform + ramp — the ramp
+						-- is part of the base, so carrying down the
+						-- ramp is still safe; stepping onto the
+						-- ground is not.
 						local GuardianService = require(script.Parent.GuardianService)
 						if not GuardianService.isChasing(player) and not RivalService.isChasingPlayer(userId) then
 							print("[Heat] " .. player.Name .. " left their base carrying — heat engages")
@@ -1677,14 +1624,14 @@ function RivalService.start()
 		end
 	end)
 	task.spawn(function()
-		-- Steal clock (fix round 7, item 2): the 0.35 idle roll plus a
-		-- 60-90s rival cycle made steals too rare to ever see — about
-		-- one attempt per rival every 2-3 minutes, only if the player
-		-- had placed Rotlings. Every 75s, force the idlest rival to
-		-- attempt a steal if any victim exists, so a steal is
-		-- guaranteed on a regular beat instead of left to the roll.
-		-- A steal still needs a victim with Rotlings on an unlocked
-		-- base; with no victim the clock just waits for the next beat.
+		-- Steal clock: the 0.35 idle roll plus a 60-90s rival cycle
+		-- made steals too rare to ever see — about one attempt per
+		-- rival every 2-3 minutes, only if the player had placed
+		-- Rotlings. Every 75s, force the idlest rival to attempt a
+		-- steal if any victim exists, so a steal is guaranteed on
+		-- a regular beat instead of left to the roll. A steal still
+		-- needs a victim with Rotlings on an unlocked base; with no
+		-- victim the clock just waits for the next beat.
 		while true do
 			task.wait(75)
 			local best: State.Rival? = nil
