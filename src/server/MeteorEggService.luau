@@ -122,10 +122,19 @@ end
 local function buildEgg(position: Vector3): Model
 	local model = Instance.new("Model")
 	model.Name = "Meteor Egg"
+	-- Ovoid shell: not a ball (fix round 12, item 4) — a real egg
+	-- is taller than it is wide (3.2 wide, 4.8 tall), so it reads
+	-- as an egg at a glance instead of a plain orange ball. The
+	-- shell is the weld root: every detail below is welded to it,
+	-- so the speckles, cracks and nest travel with the egg when it
+	-- falls, is carried, or sits in the incubator. The shell
+	-- recolors the whole egg for rarity (legendary gold) and for
+	-- the hatch flash — the details stay dark, so a gold egg
+	-- still reads as gold with dark detail.
 	local shell = Instance.new("Part")
 	shell.Name = "Shell"
 	shell.Shape = Enum.PartType.Ball
-	shell.Size = Vector3.new(3.4, 4.2, 3.4)
+	shell.Size = Vector3.new(3.2, 4.8, 3.2)
 	shell.Color = Color3.fromRGB(255, 140, 50)
 	shell.Material = Enum.Material.Neon
 	shell.Anchored = true
@@ -133,6 +142,88 @@ local function buildEgg(position: Vector3): Model
 	shell.CFrame = CFrame.new(position + Vector3.new(0, 100, 0))
 	shell.Parent = model
 	model.PrimaryPart = shell
+	-- Detail, all FIXED (same for every egg — the mystery rule:
+	-- no egg on the ground ever hints at its rarity): 10 dark
+	-- speckles on the shell, 4 crack lines zigzagging near the
+	-- top, and a twig nest the egg sits in. Welded to the shell
+	-- (Anchored=false + WeldConstraint), never Anchored — an
+	-- anchored detail part would stay floating in the air when
+	-- the shell is carried.
+	local function weldDetail(part: Part)
+		part.Anchored = false
+		part.CanCollide = false
+		part.CastShadow = false
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = shell
+		weld.Part1 = part
+		weld.Parent = part
+		part.Parent = model
+	end
+	-- Speckle offsets are fixed points on the ellipsoid surface
+	-- (radii 1.6, 2.4, 1.6): each sits on or just inside the
+	-- shell, so it reads as a spot ON the egg, never floating.
+	local speckleOffsets = {
+		{ 1.35, 0.72, 0.53, 0.45 }, { -1.28, 1.2, 0.6, 0.4 }, { 0.6, -0.72, 1.35, 0.5 },
+		{ -0.75, -1.44, -1.13, 0.4 }, { 0.3, 1.92, -0.9, 0.35 }, { -0.45, 0.24, -1.43, 0.45 },
+		{ 1.43, -1.2, -0.3, 0.4 }, { -1.35, -0.48, 0.53, 0.5 }, { 0.75, 1.44, 1.13, 0.35 },
+		{ -0.3, -2.04, 0.75, 0.4 },
+	}
+	for _, s in ipairs(speckleOffsets) do
+		local speckle = Instance.new("Part")
+		speckle.Name = "EggSpeckle"
+		speckle.Shape = Enum.PartType.Ball
+		speckle.Size = Vector3.new(s[4], s[4], s[4])
+		speckle.Color = Color3.fromRGB(120, 70, 30)
+		speckle.Material = Enum.Material.SmoothPlastic
+		speckle.CFrame = shell.CFrame * CFrame.new(s[1], s[2], s[3])
+		weldDetail(speckle)
+	end
+	-- Crack lines near the top: thin dark boxes straddling the
+	-- shell surface, each yawed to face outward with a zigzag
+	-- tilt, so they read as cracks in the shell, not stripes.
+	-- (Offsets sit just outside the ellipsoid so the 0.12-thick
+	-- box straddles the surface; tops stay under the shell top
+	-- at y=2.4.)
+	local crackOffsets = {
+		{ 0.73, 1.67, 0.97, 36, 25 }, { -0.71, 2.05, 0.71, -45, -30 },
+		{ 0.24, 2.05, -0.76, 162, 20 }, { -1.1, 1.4, -0.83, -126, -25 },
+	}
+	for _, c in ipairs(crackOffsets) do
+		local crack = Instance.new("Part")
+		crack.Name = "EggCrack"
+		crack.Shape = Enum.PartType.Block
+		crack.Size = Vector3.new(0.5, 0.7, 0.12)
+		crack.Color = Color3.fromRGB(90, 50, 25)
+		crack.Material = Enum.Material.SmoothPlastic
+		crack.CFrame = shell.CFrame * CFrame.new(c[1], c[2], c[3]) * CFrame.Angles(0, math.rad(c[4]), math.rad(c[5]))
+		weldDetail(crack)
+	end
+	-- The nest: a flat twig disc the egg sits in. The shell's rest
+	-- centre is 2.4 above the ground (half-height 2.4), so the nest
+	-- disc sits at local y -2.15 and the shell bottom rests inside
+	-- it. A Cylinder's axis is Y, so size (0.5, 5.6, 5.6) is already
+	-- a flat disc — no rotation.
+	local nest = Instance.new("Part")
+	nest.Name = "EggNest"
+	nest.Shape = Enum.PartType.Cylinder
+	nest.Size = Vector3.new(0.5, 5.6, 5.6)
+	nest.Color = Color3.fromRGB(120, 85, 50)
+	nest.Material = Enum.Material.SmoothPlastic
+	nest.CFrame = shell.CFrame * CFrame.new(0, -2.15, 0)
+	weldDetail(nest)
+	for i = 1, 6 do
+		local ang = math.rad((i - 1) * 60)
+		local twigPos = shell.CFrame * Vector3.new(math.cos(ang) * 2.5, -1.95, math.sin(ang) * 2.5)
+		local tangent = Vector3.new(-math.sin(ang), 0, math.cos(ang))
+		local twig = Instance.new("Part")
+		twig.Name = "EggNestTwig"
+		twig.Shape = Enum.PartType.Block
+		twig.Size = Vector3.new(0.25, 0.25, 1.4)
+		twig.Color = Color3.fromRGB(90, 60, 35)
+		twig.Material = Enum.Material.SmoothPlastic
+		twig.CFrame = CFrame.lookAt(twigPos, twigPos + tangent)
+		weldDetail(twig)
+	end
 	-- (v74, mystery eggs) The ground egg is a MYSTERY: every egg
 	-- looks identical — "🥚 METEOR EGG", same gold label, same
 	-- orange glow — no rarity name, no rarity-tinted colour. A
@@ -141,10 +232,12 @@ local function buildEgg(position: Vector3): Model
 	-- (see spawnEggsForStorm) and revealed in the incubator
 	-- (placeEgg names it + the live countdown) — any egg could be
 	-- Legendary, so normal eggs stay worth grabbing.
+	-- Soft glow (was Brightness 3, Range 20 — too hot for an egg
+	-- that is supposed to sit quietly in the field until grabbed).
 	local light = Instance.new("PointLight")
 	light.Color = Color3.fromRGB(255, 140, 50)
-	light.Brightness = 3
-	light.Range = 20
+	light.Brightness = 2
+	light.Range = 16
 	light.Parent = shell
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "EggLabel"
@@ -203,7 +296,7 @@ function MeteorEggService.spawnEggsForStorm()
 		local shell = model.PrimaryPart
 		if shell then
 			local tween = TweenService:Create(shell, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-				CFrame = CFrame.new(target + Vector3.new(0, 2.2, 0)),
+				CFrame = CFrame.new(target + Vector3.new(0, 2.4, 0)),
 			})
 			tween:Play()
 			tween.Completed:Connect(function()
@@ -296,7 +389,7 @@ local function spawnLegendaryEgg()
 	}
 	if shell then
 		local tween = TweenService:Create(shell, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			CFrame = CFrame.new(target + Vector3.new(0, 2.2, 0)),
+			CFrame = CFrame.new(target + Vector3.new(0, 2.4, 0)),
 		})
 		tween:Play()
 		tween.Completed:Connect(function()
@@ -411,7 +504,7 @@ function MeteorEggService.dropEgg(player: Player)
 		end
 		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 		local pos = if root then root.Position + Vector3.new(0, 0, 3) else Vector3.new(0, 0, 0)
-		model:PivotTo(CFrame.new(pos + Vector3.new(0, 2.2, 0)))
+		model:PivotTo(CFrame.new(pos + Vector3.new(0, 2.4, 0)))
 	end
 	BoostService.applyWalkSpeed(player)
 end
@@ -463,7 +556,7 @@ function MeteorEggService.placeEgg(player: Player)
 			weld:Destroy()
 		end
 		shell.Anchored = true
-		model:PivotTo(incubatorCf * CFrame.new(0, 2.2, 0))
+		model:PivotTo(incubatorCf * CFrame.new(0, 2.4, 0))
 	end
 	-- (fix round 7, item 6) The hatch was rolled at SPAWN, so the
 	-- egg already knows its rarity — use the stored result. A fresh

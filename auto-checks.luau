@@ -5881,6 +5881,89 @@ do
 	end
 end
 
+-- -- (egg-shape) fix round 12, item 4: eggs are ovoid and detailed
+-- ---------------------------------------------------------------------
+-- Playtest 11: "eggs could be better — more detailed, more egg
+-- shaped." The shell was a near-ball (3.4 x 4.2 x 3.4) with no
+-- detail — it read as a plain orange Neon ball. Now: a real ovoid
+-- (3.2 wide, 4.8 tall, ratio 1.5), 10 fixed dark speckles on the
+-- shell, 4 crack lines zigzagging near the top, and a twig nest
+-- the egg sits in — all welded to the shell, so they travel with
+-- it when it falls, is carried, or sits in the incubator. The
+-- mystery rule is intact: every ground egg is identical (same
+-- shape, same "🥚 METEOR EGG" label, no rarity on the ground) —
+-- the detail is fixed, never rolled. The legendary crater egg
+-- keeps its gold look on the same shape.
+do
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	if not eggSrc then
+		check("egg-shape", false, "could not verify the egg redesign — MeteorEggService.luau missing")
+	else
+		local problems: { string } = {}
+		-- Ovoid: height 4.8 vs width 3.2 (ratio 1.5), not a ball.
+		if not eggSrc:find('shell%.Size = Vector3%.new%(3%.2, 4%.8, 3%.2%)') then
+			table.insert(problems, "the egg shell is not ovoid (3.2 x 4.8 x 3.2)")
+		end
+		-- Speckles: 10 fixed offsets, welded to the shell.
+		if not eggSrc:find("EggSpeckle") or not eggSrc:find("speckleOffsets") then
+			table.insert(problems, "no fixed speckle pattern on the shell")
+		else
+			local specStart = eggSrc:find("local speckleOffsets = {")
+			local _, specEnd = eggSrc:find("\n\t}\n", specStart or 1)
+			local specBody = eggSrc:sub(specStart or 1, specEnd or #eggSrc)
+			local _, rows = specBody:gsub("{ [%d%.%-]+,", "")
+			if rows < 10 then
+				table.insert(problems, "the speckle pattern has " .. tostring(rows) .. " offsets, not 10")
+			end
+		end
+		-- Cracks: 4 fixed zigzag lines near the top, welded.
+		if not eggSrc:find("EggCrack") or not eggSrc:find("crackOffsets") then
+			table.insert(problems, "no fixed crack lines on the shell")
+		else
+			local crackStart = eggSrc:find("local crackOffsets = {")
+			local _, crackEnd = eggSrc:find("\n\t}\n", crackStart or 1)
+			local crackBody = eggSrc:sub(crackStart or 1, crackEnd or #eggSrc)
+			local _, rows = crackBody:gsub("{ [%d%.%-]+,", "")
+			if rows < 4 then
+				table.insert(problems, "the crack pattern has " .. tostring(rows) .. " offsets, not 4")
+			end
+		end
+		-- Nest: a twig disc under the shell, welded.
+		if not eggSrc:find("EggNest") or not eggSrc:find("EggNestTwig") then
+			table.insert(problems, "no twig nest under the egg")
+		end
+		-- Welded, never anchored: an anchored detail part would
+		-- stay floating when the shell is carried.
+		if not eggSrc:find("WeldConstraint") then
+			table.insert(problems, "egg detail is not welded to the shell")
+		end
+		-- Rest height matches the taller shell (half-height 2.4),
+		-- so the shell bottom sits on the ground / incubator.
+		local _, restCount = eggSrc:gsub("Vector3%.new%(0, 2%.4, 0%)", "")
+		if restCount < 3 then
+			table.insert(problems, "the egg rest height is not 2.4 (taller shell would sink)")
+		end
+		-- Mystery rule intact: the ground label is still the plain
+		-- "🥚 METEOR EGG", and buildEgg never names a rarity.
+		if not eggSrc:find('"🥚 METEOR EGG"') then
+			table.insert(problems, "the ground egg label is not the plain mystery label")
+		end
+		local buildStart = eggSrc:find("local function buildEgg")
+		if buildStart then
+			local _, buildEnd = eggSrc:find("\nend\n", buildStart)
+			local body = eggSrc:sub(buildStart, buildEnd or #eggSrc)
+			if body:find("RarityConfig") or body:find("hatchDef") then
+				table.insert(problems, "buildEgg leaks rarity onto the ground egg")
+			end
+		end
+		if #problems > 0 then
+			check("egg-shape", false, "the egg redesign is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau")
+		else
+			check("egg-shape", true, "eggs are ovoid (3.2 x 4.8, ratio 1.5) with 10 fixed speckles, 4 crack lines and a twig nest, all welded to the shell; mystery rule intact; rest height 2.4")
+		end
+	end
+end
+
 -- (cu) Uniform placed size (rev 75; measure fixed fix round 9, item
 -- 5): every Brainrot on a pedestal stands at one BODY height
 -- (Config.PLACED_DISPLAY_HEIGHT), so the base reads as a tidy display
