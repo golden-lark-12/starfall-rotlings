@@ -2,19 +2,22 @@
 -- Starfall Rotlings: the Crater Guardian (THE CHASE — the core of the game).
 -- When anyone grabs a Brainrot from the crater, a space rock monster
 -- (glowing red eyes) climbs out and chases them. Rarer Brainrot =
--- faster guardian: every tier is faster than a walking player
--- (Common 19 to Cosmic 24 — fix round 8, item 1). If it catches you,
--- it SMASHES you: 40 HP damage + knocked down + you drop the
--- Brainrot back (fix round 8, item 2 — two catches kill you, so a
--- catch is a real threat, not a free reset). Reach your base or the
--- Safe Dome and it gives up.
+-- faster guardian: CAT-FAST at every tier (Common 28 to Cosmic 34 —
+-- fix round 9, item 1), faster than a sprint, so a walking player
+-- cannot outrun it and even a sprinter only escapes by reaching the
+-- base. If it catches you, it SMASHES you: 40 HP damage + knocked
+-- down + you drop the Brainrot back (fix round 8, item 2 — two
+-- catches kill you, so a catch is a real threat, not a free reset).
+-- Reach your base interior and it gives up. The chase is NOT bounded
+-- to the crater: it follows the target anywhere on the map (fix round
+-- 9, item 2) — the only approved stops are the base interior, the
+-- dropped carry, and the 25s timeout.
 -- Raider bots also grab from the crater, so the guardian chases them
 -- too — and a player can slap/bonk a raider to steal its Brainrot.
 -- The Cosmic Corn Dog is the final index entry: rarest spawn, and the
 -- fastest guardian in the game chases whoever grabs it.
 
 local Players = game:GetService("Players")
-local PathfindingService = game:GetService("PathfindingService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -38,6 +41,14 @@ type Guardian = {
 	targetPlayer: Player?,
 	speed: number,
 	bornAt: number,
+	-- Chase telemetry (fix round 9, item 1): the proof the chase is
+	-- real — total distance actually moved, closest approach, farthest
+	-- radius reached (did it leave the crater?), and whether it ever
+	-- got out of the crater at all. The despawn summary prints these.
+	totalMoved: number,
+	minDist: number,
+	maxRadius: number,
+	leftCrater: boolean,
 }
 local active: { [Model]: Guardian } = {}
 -- Players currently being chased (for the HUD red-edge warning).
@@ -271,7 +282,15 @@ function GuardianService.despawnGuardian(model: Model, reason: string?)
 		chasedPlayers[guardian.targetPlayer.UserId] = nil
 	end
 	local targetName = if guardian.targetPlayer then guardian.targetPlayer.Name else "raider"
-	print("[Guardian] despawn (" .. tostring(reason or "?") .. ") — chased " .. targetName .. " for " .. tostring(math.floor(time() - guardian.bornAt)) .. "s")
+	local lived = math.max(0.1, time() - guardian.bornAt)
+	local avgSpeed = guardian.totalMoved / lived
+	-- Chase summary (fix round 9, item 1): the proof, in one line —
+	-- how long it chased, how close it got, its average REAL speed
+	-- (not WalkSpeed), and whether it ever left the crater. If the
+	-- average real speed is under 26, the chase is broken no matter
+	-- what Config says; if max radius stayed under 40, it never left
+	-- the crater (item 2).
+	print("[Guardian] chase summary — " .. tostring(reason or "?") .. " — chased " .. targetName .. " for " .. tostring(math.floor(lived)) .. "s, min distance " .. string.format("%.1f", guardian.minDist) .. " studs, avg real speed " .. string.format("%.1f", avgSpeed) .. " studs/s, max radius " .. string.format("%.0f", guardian.maxRadius) .. " (left crater: " .. tostring(guardian.leftCrater) .. ")")
 	model:Destroy()
 end
 
@@ -312,27 +331,30 @@ local function catchRaider(guardian: Model, raiderModel: Model)
 	GuardianService.despawnGuardian(guardian, "caught-raider")
 end
 
--- Chase loop: follow a path to the target's LIVE position, waypoint
--- by waypoint, on a fast tick — so the guardian flows continuously
--- instead of hopping in blocks.
+-- Chase loop: steer DIRECTLY at the target's live position, every
+-- 0.1s tick — so the guardian flows continuously instead of hopping
+-- in blocks.
 -- Ends on catch, on give-up (safe base / nothing carried / timeout),
 -- or when the target is gone. The chase is NOT bounded to the crater:
 -- it follows the target anywhere on the map (Malek: "he has to chase
 -- me even outside his spawning circle").
--- (fix round 7, item 1) The round-6 loop re-pathed to the live target
--- every 0.5s and issued ONE MoveTo to the first waypoint >2 studs
--- away, then waited 0.5s. The guardian reached a 2-4 stud waypoint
--- in ~0.2s and then STOOD STILL until the next tick — ~50% duty
--- cycle, half its WalkSpeed, moving in short hops ("in blocks").
--- At that effective speed it never closed on a walking player (16),
--- never got inside the 5-stud catch radius, and the catch — knock
--- down + drop the Brainrot — never fired: "no dmg, no drops, no
--- deaths, nothing". The fix: a 0.1s tick that keeps the Humanoid
--- moving (advance to the next waypoint as soon as it is close, never
--- wait for a repath), repaths only every 1.5s or when the target has
--- moved far, and a touch-catch on the body ball so a touch can never
--- slip between ticks. Speeds beat a walk at every tier (19 -> 24,
--- fix round 8 item 1).
+-- (fix round 9, item 1) WHY IT STILL READ SLOW — three causes, all
+-- proven from the old code: (1) the chase steered on a PATHFINDER
+-- route that detoured through the crater's entrance gap (+Z), so the
+-- guardian's route was far longer than the player's straight line
+-- home — at WalkSpeed 19-24 along a 2x detour, its closing speed was
+-- ~10-12, BELOW a walk (16); (2) the loop re-pathed every 1.5s and
+-- re-issued MoveTo to a new first waypoint each time, so the heading
+-- snapped on every repath — the jerky "in blocks" motion; (3) the
+-- give-up fired at the base DOOR (radius 17), so the guardian quit
+-- ~15 studs before the player was even on the platform. The fix:
+-- direct steering (MoveTo at the live target, no pathfinding at
+-- all — the crater floor and the open field have nothing to route
+-- around, and the rim tiers are jumpable), a fast stuck-hop (0.8s,
+-- not 3s) that jumps the tiers, CAT-FAST speeds (28-34, every tier
+-- beats sprint 26), and a lunge inside 14 studs (+12 speed burst +
+-- jump, every 4s). The climb-out teleport stays as the last resort
+-- if direct steering ever stalls for a full 3s.
 local function chaseLoop(guardian: Model)
 	local entry = active[guardian]
 	if not entry then
@@ -344,29 +366,20 @@ local function chaseLoop(guardian: Model)
 		GuardianService.despawnGuardian(guardian, "no-humanoid")
 		return
 	end
-	-- Sized for the guardian's 5.5-stud rock ball, not a player.
-	local path = PathfindingService:CreatePath({
-		AgentRadius = 3,
-		AgentHeight = 5.5,
-		AgentCanJump = true,
-		AgentJumpHeight = 7,
-		AgentMaxSlope = 45,
-	})
-	local waypoints: { PathWaypoint } = {}
-	local wpIndex = 1
-	local pathTarget: Vector3? = nil
-	local lastRepathAt = 0
 	local lastChasePos = root.Position
 	local noProgressTime = 0
-	-- Chase telemetry (fix round 8, item 1): the guardian's speed is
-	-- a NUMBER, not a feeling — every 2s the loop logs the real
-	-- studs/s the guardian actually moved (not its WalkSpeed, which
-	-- is what it is TOLD to move at) plus the distance to the target.
-	-- That is the proof the speed fix works: a real speed above 16
-	-- means it gains on a walking player, and the distance should
-	-- shrink tick by tick. Malek reads it in F9.
+	-- Chase telemetry (fix round 8, item 1; extended fix round 9,
+	-- item 1): the guardian's speed is a NUMBER, not a feeling —
+	-- every 2s the loop logs the real studs/s the guardian actually
+	-- moved (not its WalkSpeed, which is what it is TOLD to move at)
+	-- plus the distance to the target. That is the proof the speed
+	-- fix works: a real speed above 26 means it gains even on a
+	-- sprinter, and the distance should shrink tick by tick. Malek
+	-- reads it in F9. The per-chase totals feed the despawn summary.
 	local lastTelemetryAt = time()
 	local lastTelemetryPos = root.Position
+	local lastLungeAt = 0
+	local lungeUntil = 0
 	while guardian.Parent and active[guardian] do
 		local target = entry.target
 		local targetRoot = target:FindFirstChild("HumanoidRootPart") or target.PrimaryPart
@@ -398,7 +411,8 @@ local function chaseLoop(guardian: Model)
 		end
 		-- Caught? Checked every 0.1s tick, so a fast guardian cannot
 		-- step over the catch radius between ticks.
-		if (root.Position - targetRoot.Position).Magnitude <= Config.GUARDIAN_CATCH_RADIUS then
+		local distToTarget = (root.Position - targetRoot.Position).Magnitude
+		if distToTarget <= Config.GUARDIAN_CATCH_RADIUS then
 			if entry.targetPlayer then
 				catchPlayer(guardian, entry.targetPlayer)
 			else
@@ -406,81 +420,76 @@ local function chaseLoop(guardian: Model)
 			end
 			return
 		end
-		-- Steer: repath rarely (every 1.5s, or when the target has
-		-- moved far from where the path leads), then walk the path
-		-- waypoint by waypoint — advancing the moment the guardian
-		-- is close to one, so it never stops to wait for a repath.
-		-- The path routes over/around the rim through the entrance
-		-- gap; direct MoveTo is only the fallback when no path
-		-- computes. The chase follows the target anywhere on the
-		-- map, inside or outside the crater.
-		local targetPos = targetRoot.Position
+		-- Track the chase totals for the despawn summary.
+		entry.minDist = math.min(entry.minDist, distToTarget)
+		local guardianRadius = Vector3.new(root.Position.X, 0, root.Position.Z).Magnitude
+		entry.maxRadius = math.max(entry.maxRadius, guardianRadius)
+		if not entry.leftCrater and guardianRadius > Config.CRATER_RADIUS + 12 then
+			entry.leftCrater = true
+			print("[Guardian] LEFT THE CRATER — chasing at radius " .. string.format("%.0f", guardianRadius) .. ", target " .. string.format("%.0f", distToTarget) .. " studs away")
+		end
+		-- Lunge (fix round 9, item 1): inside 14 studs, the guardian
+		-- pounces — +12 speed for 0.6s plus a jump toward the target,
+		-- at most once every 4s. The pounce is what makes a close
+		-- guardian feel like a cat, not a rolling rock.
 		local now = time()
-		if #waypoints == 0 or now - lastRepathAt >= 1.5 or (pathTarget and (targetPos - pathTarget).Magnitude > 12) then
-			local computed = pcall(function()
-				path:ComputeAsync(root.Position, targetPos)
-			end)
-			if computed and path.Status == Enum.PathStatus.Success then
-				waypoints = path:GetWaypoints()
-				wpIndex = 2
-				pathTarget = targetPos
-				lastRepathAt = now
-			else
-				waypoints = {}
-				pathTarget = nil
-			end
+		if distToTarget <= Config.GUARDIAN_LUNGE_RANGE and now - lastLungeAt >= Config.GUARDIAN_LUNGE_COOLDOWN then
+			lastLungeAt = now
+			lungeUntil = now + 0.6
+			humanoid.Jump = true
+			print("[Guardian] LUNGE at " .. string.format("%.1f", distToTarget) .. " studs!")
 		end
-		local steered = false
-		while wpIndex <= #waypoints do
-			local wp = waypoints[wpIndex]
-			if (wp.Position - root.Position).Magnitude <= 3 then
-				wpIndex += 1
-			else
-				if wp.Action == Enum.PathWaypointAction.Jump then
-					humanoid.Jump = true
-				end
-				humanoid:MoveTo(wp.Position)
-				steered = true
-				break
-			end
+		if now < lungeUntil then
+			humanoid.WalkSpeed = entry.speed + Config.GUARDIAN_LUNGE_BONUS
+		else
+			humanoid.WalkSpeed = entry.speed
 		end
-		if not steered then
-			humanoid:MoveTo(targetPos)
-		end
+		-- Steer: DIRECTLY at the target's live position, every tick.
+		-- No pathfinding, no waypoints, no repaths — the heading
+		-- never snaps, so the motion is smooth and continuous, and
+		-- the guardian's full speed goes toward closing the distance
+		-- instead of along a detour. The rim tiers (2.5 / 4 / 5.5
+		-- studs) are cleared by the stuck-hop below, and the 3s
+		-- climb-out is the last resort if steering ever stalls.
+		humanoid:MoveTo(targetRoot.Position)
 		task.wait(0.1)
 		if not guardian.Parent then
 			return
 		end
-		-- Truly stuck? The pathfinder + jumps should keep it moving;
-		-- if it has not moved in 3s, climb it out onto open ground
-		-- past the rim (outer ring ends at 39; 42 is clear) on the
-		-- target's side, so the chase never dies in the middle.
+		-- Stuck? Hop — fast (0.8s, not 3s): MoveTo never jumps, so a
+		-- guardian pushing against a rim tier or the belt edge hops
+		-- over it instead of grinding there. The jump clears up to
+		-- ~7 studs; the tallest rim tier is 5.5.
 		if (root.Position - lastChasePos).Magnitude < 0.5 then
 			noProgressTime += 0.1
-			if noProgressTime >= 3 then
-				local flat = Vector3.new(targetPos.X, 0, targetPos.Z)
+			if noProgressTime >= 0.8 and noProgressTime < 3 then
+				humanoid.Jump = true
+				noProgressTime = 0
+			elseif noProgressTime >= 3 then
+				local flat = Vector3.new(targetRoot.Position.X, 0, targetRoot.Position.Z)
 				local dir = if flat.Magnitude > 1 then flat.Unit else Vector3.new(1, 0, 0)
 				local outPos = dir * (Config.CRATER_RADIUS + 14)
 				guardian:PivotTo(CFrame.new(Vector3.new(outPos.X, 3.2, outPos.Z)))
 				print("[Guardian] climbed out of the crater (stuck " .. tostring(noProgressTime) .. "s) — chasing from the rim")
 				noProgressTime = 0
 				lastChasePos = root.Position
-				waypoints = {}
 			end
 		else
 			noProgressTime = 0
 			lastChasePos = root.Position
 		end
-		-- Telemetry (fix round 8, item 1): real speed over the last
+		-- Telemetry (fix round 9, item 1): real speed over the last
 		-- sample, so a slow guardian cannot hide behind its WalkSpeed
-		-- setting — if this number is under 16, the chase is broken
-		-- no matter what Config says.
+		-- setting — if this number is under 26, the chase is broken
+		-- no matter what Config says. The distance should shrink
+		-- every sample while the target runs.
 		local telemetryNow = time()
 		if telemetryNow - lastTelemetryAt >= 2 then
 			local moved = (root.Position - lastTelemetryPos).Magnitude
 			local realSpeed = moved / math.max(0.1, telemetryNow - lastTelemetryAt)
-			local distToTarget = (root.Position - targetRoot.Position).Magnitude
-			print("[Guardian] chase telemetry — real speed " .. string.format("%.1f", realSpeed) .. " studs/s (WalkSpeed " .. tostring(entry.speed) .. "), distance to target " .. string.format("%.1f", distToTarget) .. " studs")
+			entry.totalMoved += moved
+			local distNow = (root.Position - targetRoot.Position).Magnitude
+			print("[Guardian] chase telemetry — real speed " .. string.format("%.1f", realSpeed) .. " studs/s (WalkSpeed " .. tostring(entry.speed) .. "), distance to target " .. string.format("%.1f", distNow) .. " studs")
 			lastTelemetryAt = telemetryNow
 			lastTelemetryPos = root.Position
 		end
@@ -501,11 +510,12 @@ end
 -- instantly, the Brainrot dropped straight back into the crater, and
 -- pressing E read as "does nothing". A rim spawn is always >= 14 studs
 -- away (Config.GUARDIAN_SPAWN_DISTANCE), so the player gets a real
--- head start to run home — and the escape is the base/dome (or the
--- 25s timeout): even the SLOWEST guardian (Common 19) gains 3
--- studs/s on a walker at 16, so it closes 14 studs in ~5s and
--- catches a straight-line runner; sprint (26) still outruns it
--- while stamina lasts.
+-- head start to run home — and the escape is the base interior (or
+-- the 25s timeout): even the SLOWEST guardian (Common 28) gains 12
+-- studs/s on a walker at 16, so it closes on a straight-line runner
+-- in ~2s; a sprinter (26) is still slower than the guardian, so
+-- sprinting only buys time to reach the base — full Speed Boots
+-- (walk 26, sprint 36) are the outrun answer.
 local function guardianSpawnPos(targetPos: Vector3): Vector3
 	local flat = Vector3.new(targetPos.X, 0, targetPos.Z)
 	local dir: Vector3
@@ -532,6 +542,10 @@ local function spawnGuardian(target: Model, targetPlayer: Player?, rarity: strin
 		targetPlayer = targetPlayer,
 		speed = speed,
 		bornAt = time(),
+		totalMoved = 0,
+		minDist = math.huge,
+		maxRadius = 0,
+		leftCrater = false,
 	}
 	-- Touch-catch (fix round 7, item 1): the catch radius is checked
 	-- every 0.1s tick, but a touch is instant — if the target's

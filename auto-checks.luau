@@ -4542,10 +4542,10 @@ end
 -- ("Index 14/20" in the HUD), Cosmic Corn Dog last, celebration per
 -- completed rarity tier. Verified against the code after items 1-8 —
 -- nothing here needed a change, so this check locks the mechanics in:
--- guardian speed by rarity (19 -> 24, fix round 8 item 1: every tier
--- beats walk 16 — Cosmic 24 is 8 faster, but the escape is the
--- sprint (26), the base/dome or the 25s timeout, and a 14-stud head
--- start still gets out), catch radius 5, give-up 25s, rim
+-- guardian speed by rarity (28 -> 34, fix round 9 item 1: CAT-FAST,
+-- every tier beats sprint 26 — the escape is the base interior, the
+-- 25s timeout, or full Speed Boots, and a 14-stud head start still
+-- gets out), catch radius 5, give-up 25s, rim
 -- spawn (fix 1, so the catch is not instant), safe-base give-up, the
 -- AWAKE banner + edge flash; raiders do crater grabs on half their
 -- raids; 20 defs with exactly one Cosmic (Cosmic Corn Dog, weight 1,
@@ -4562,8 +4562,8 @@ do
 		check("ca", false, "could not verify the competition — Config.luau, GuardianService.luau, RaiderService.luau, RotlingCatalog.luau, RarityConfig.luau, IndexService.luau or HUDController.client.luau missing")
 	else
 		local problems: { string } = {}
-		if not configSrc:find("GUARDIAN_SPEED = { %[1%] = 19, %[2%] = 20, %[3%] = 21, %[4%] = 22, %[5%] = 23, %[6%] = 24 }") then
-			table.insert(problems, "guardian speed is not 19 -> 24 by rarity")
+		if not configSrc:find("GUARDIAN_SPEED = { %[1%] = 28, %[2%] = 29, %[3%] = 30, %[4%] = 31, %[5%] = 32, %[6%] = 34 }") then
+			table.insert(problems, "guardian speed is not 28 -> 34 by rarity")
 		end
 		if not configSrc:find("GUARDIAN_CATCH_RADIUS = 5") then
 			table.insert(problems, "guardian catch radius is not 5")
@@ -4912,20 +4912,25 @@ do
 end
 
 -- -- (ch) the guardian chases smoothly, fast, and actually catches
--- (fix round 7, item 1)
+-- (fix round 7, item 1; steering rewritten fix round 9, item 1)
 -- The round-6 chase re-pathed every 0.5s and issued ONE MoveTo to the
 -- first waypoint >2 studs away, then waited — the guardian reached a
 -- 2-4 stud waypoint in ~0.2s and stood still until the next tick, so
 -- it moved in blocks at half speed, never closed on a walking player,
 -- and the catch never fired ("no dmg, no drops, no deaths, nothing").
--- The chase now ticks every 0.1s, walks its path waypoint by waypoint
--- (advancing the moment it is close, never waiting for a repath),
--- repaths only every 1.5s or when the target moved far, and a touch
--- on the body ball catches instantly. HipHeight matches the build
--- (3.2, the root's height above the floor — the default 2 pushed the
--- model into the floor while it walked). Speeds beat a walk at every
--- tier (19 -> 24, fix round 8 item 1). The chase follows the target anywhere on the map,
--- inside or outside the crater, until catch / safe base / timeout.
+-- The round-7 fix kept pathfinding (waypoints, repaths every 1.5s) —
+-- but the path detoured through the entrance gap, so the guardian's
+-- real closing speed stayed below a walk and every repath snapped its
+-- heading: still slow, still jerky in playtests 9 and 10. The chase
+-- now steers DIRECTLY at the live target every 0.1s tick (no
+-- pathfinding at all — the crater floor and open field have nothing
+-- to route around), hops fast when stuck (0.8s, clearing the 2.5 /
+-- 4 / 5.5 rim tiers), and lunges inside 14 studs. HipHeight matches
+-- the build (3.2, the root's height above the floor — the default 2
+-- pushed the model into the floor while it walked). Speeds are
+-- CAT-FAST at every tier (28 -> 34, fix round 9 item 1). The chase
+-- follows the target anywhere on the map, inside or outside the
+-- crater, until catch / safe base / timeout.
 do
 	local guardianSrc = read("src/server/GuardianService.luau")
 	local configSrc = read("src/shared/Config.luau")
@@ -4933,23 +4938,23 @@ do
 		check("ch", false, "could not verify the guardian chase fix — GuardianService.luau or Config.luau missing")
 	else
 		local problems: { string } = {}
-		if not guardianSrc:find("PathfindingService") or not guardianSrc:find("ComputeAsync") then
-			table.insert(problems, "the chase does not pathfind — straight-line MoveTo still pushes it into the rim")
+		if guardianSrc:find("PathfindingService") or guardianSrc:find("ComputeAsync") then
+			table.insert(problems, "the chase still pathfinds — the detour is what ate the speed and snapped the heading")
 		end
-		if not guardianSrc:find("AgentRadius = 3") then
-			table.insert(problems, "the path is not sized for the guardian's 5.5-stud ball — it can route through gaps it cannot fit")
+		if not guardianSrc:find("humanoid:MoveTo%(targetRoot%.Position%)") then
+			table.insert(problems, "the chase does not steer directly at the target's live position")
 		end
 		if not guardianSrc:find("climbed out of the crater") then
 			table.insert(problems, "no stuck climb-out — a guardian that cannot move still dies in the middle")
 		end
-		if not guardianSrc:find("chased .+ for ") then
-			table.insert(problems, "despawn does not log who was chased and for how long — the chase trail has no ending")
+		if not guardianSrc:find("chase summary") then
+			table.insert(problems, "despawn does not print the chase summary — the chase trail has no ending")
 		end
 		if not guardianSrc:find("task%.wait%(0%.1%)") then
 			table.insert(problems, "the chase tick is not 0.1s — the 0.5s repath wait is what made it move in blocks")
 		end
-		if not guardianSrc:find("wpIndex") or not guardianSrc:find("lastRepathAt") then
-			table.insert(problems, "the chase does not follow waypoints in sequence with rare repaths — it still issues one short MoveTo per repath")
+		if not guardianSrc:find("noProgressTime >= 0%.8") then
+			table.insert(problems, "no fast stuck-hop (0.8s) — the guardian still grinds against rim tiers")
 		end
 		if not guardianSrc:find("HipHeight = 3%.2") then
 			table.insert(problems, "HipHeight does not match the build (3.2) — the Humanoid still pushes the model into the floor while walking")
@@ -4960,13 +4965,13 @@ do
 		if not guardianSrc:find("caught .+ — smashed for .+ HP %(now .+ HP%), knocked down, dropped") then
 			table.insert(problems, "the catch does not log the damage + remaining HP + knockdown + drop — the catch trail has no proof")
 		end
-		if not configSrc:find("%[1%] = 19") or not configSrc:find("%[6%] = 24") then
-			table.insert(problems, "guardian speeds are not 19 -> 24 (every tier must beat walk 16)")
+		if not configSrc:find("%[1%] = 28") or not configSrc:find("%[6%] = 34") then
+			table.insert(problems, "guardian speeds are not 28 -> 34 (every tier must beat sprint 26)")
 		end
 		if #problems > 0 then
 			check("ch", false, "the guardian chase fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: GuardianService.luau, Config.luau")
 		else
-			check("ch", true, "the guardian chases smoothly and catches: 0.1s tick, waypoint-by-waypoint following with repaths only every 1.5s, HipHeight 3.2 matching the build, touch-catch on the body ball, catch logs the knockdown + drop, speeds 19 -> 24, chase follows the target anywhere on the map")
+			check("ch", true, "the guardian chases smoothly and catches: 0.1s tick, direct steering at the live target (no pathfinding), 0.8s stuck-hop, lunge inside 14 studs, HipHeight 3.2 matching the build, touch-catch on the body ball, catch logs the knockdown + drop, speeds 28 -> 34, chase follows the target anywhere on the map")
 		end
 	end
 end
@@ -6273,13 +6278,15 @@ do
 	end
 end
 
--- (df) GUARDIAN SPEED (fix round 8, item 1): the guardian must be
--- faster than a walking player at every tier, or the chase is
--- decorative — Malek proved it in playtest 9 (Common 10 vs walk 16
--- can never catch). Every GUARDIAN_SPEED tier must beat 16, the
--- spawn must be close (14 studs, not 24), and the chase loop must
--- log its REAL studs/s + distance to the target every 2s, so a slow
--- guardian cannot hide behind its WalkSpeed setting.
+-- (df) GUARDIAN SPEED (fix round 8, item 1; tightened fix round 9,
+-- item 1): the guardian must be CAT-FAST at every tier — faster than
+-- a SPRINTING player (26), not just a walk (16) — or the chase is
+-- decorative. Malek proved it in playtests 9 and 10 (the old 19-24
+-- only just beat a walk, and the pathfinder detour ate the rest).
+-- Every GUARDIAN_SPEED tier must beat 26, the spawn must be close
+-- (14 studs, not 24), and the chase loop must log its REAL studs/s +
+-- distance to the target every 2s, so a slow guardian cannot hide
+-- behind its WalkSpeed setting.
 do
 	local configSrc = read("src/shared/Config.luau")
 	local guardianSrc = read("src/server/GuardianService.luau")
@@ -6295,8 +6302,8 @@ do
 			for n in speedLine:gmatch("= (%d+%.?%d*)") do
 				count += 1
 				local v = tonumber(n)
-				if v and v <= 16 then
-					table.insert(problems, "guardian speed tier " .. tostring(count) .. " is " .. tostring(v) .. " — at or under walk 16, it can never catch a walking player")
+				if v and v <= 26 then
+					table.insert(problems, "guardian speed tier " .. tostring(count) .. " is " .. tostring(v) .. " — at or under sprint 26, it cannot catch a sprinter")
 				end
 			end
 			if count ~= 6 then
@@ -6318,7 +6325,7 @@ do
 		if #problems > 0 then
 			check("df", false, "the guardian speed fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, GuardianService.luau")
 		else
-			check("df", true, "guardian speed: every tier beats walk 16 (Common 19 to Cosmic 24, sprint 26 still escapes), spawns 14 studs away, and the chase loop logs real studs/s + distance every 2s")
+			check("df", true, "guardian speed: every tier beats sprint 26 (Common 28 to Cosmic 34), spawns 14 studs away, and the chase loop logs real studs/s + distance every 2s")
 		end
 	end
 end
@@ -6542,8 +6549,9 @@ end
 -- (dl) SPEED PURCHASE (fix round 8, item 10): Speed Boots already
 -- existed (3 tiers) — Malek asked to buy speed, so the ladder is
 -- extended to 5 tiers (200/800/4000/12000/30000). Max +10 WalkSpeed
--- (walk 26, sprint 36) outruns even a Cosmic guardian (24) and a
--- chasing rival (19).
+-- (walk 26, sprint 36): the sprint outruns even a Cosmic guardian
+-- (34, fix round 9 item 1) and a chasing rival (19) — boots are the
+-- escape, not a free pass: walk 26 still loses to the guardian.
 do
 	local shopSrc = read("src/server/ShopService.luau")
 	local shopUiSrc = read("src/client/ShopController.client.luau")
@@ -6563,7 +6571,52 @@ do
 		if #problems > 0 then
 			check("dl", false, "the speed purchase is incomplete — " .. table.concat(problems, "; ") .. ". Parts: ShopService.luau, ShopController.client.luau")
 		else
-			check("dl", true, "Speed Boots: 5 tiers (200/800/4000/12000/30000), max +10 WalkSpeed — walk 26 outruns a Cosmic guardian (24) and a chasing rival (19)")
+			check("dl", true, "Speed Boots: 5 tiers (200/800/4000/12000/30000), max +10 WalkSpeed — sprint 36 outruns a Cosmic guardian (34) and a chasing rival (19)")
+		end
+	end
+end
+
+-- (dm) GUARDIAN CAT-FAST (fix round 9, item 1): speeds alone did not
+-- fix the chase — the old loop steered on a pathfinder detour through
+-- the entrance gap, so the guardian's real closing speed was below a
+-- walk, and every repath snapped its heading (the jerky "in blocks"
+-- motion). The chase must steer DIRECTLY at the live target (no
+-- pathfinding in the chase loop at all), hop fast when stuck (0.8s),
+-- lunge inside 14 studs, and prove it: the despawn summary prints
+-- the chase duration, min distance, average REAL speed and max
+-- radius, and the loop logs the moment it leaves the crater.
+do
+	local guardianSrc = read("src/server/GuardianService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not guardianSrc or not configSrc then
+		check("dm", false, "could not verify the cat-fast chase — GuardianService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if guardianSrc:find("PathfindingService") then
+			table.insert(problems, "the chase still uses PathfindingService (the detour that ate the speed)")
+		end
+		if not guardianSrc:find("humanoid:MoveTo%(targetRoot%.Position%)") then
+			table.insert(problems, "the chase does not steer directly at the target's live position")
+		end
+		if not guardianSrc:find("GUARDIAN_LUNGE_RANGE") then
+			table.insert(problems, "no lunge range in the chase loop")
+		end
+		if not guardianSrc:find("LUNGE at ") then
+			table.insert(problems, "the lunge is not logged")
+		end
+		if not guardianSrc:find("LEFT THE CRATER") then
+			table.insert(problems, "the loop does not log leaving the crater")
+		end
+		if not guardianSrc:find("chase summary") then
+			table.insert(problems, "no chase summary on despawn (no proof the chase was real)")
+		end
+		if not configSrc:find("GUARDIAN_LUNGE_BONUS = 12") then
+			table.insert(problems, "no GUARDIAN_LUNGE_BONUS = 12 in Config")
+		end
+		if #problems > 0 then
+			check("dm", false, "the cat-fast chase is incomplete — " .. table.concat(problems, "; ") .. ". Parts: GuardianService.luau, Config.luau")
+		else
+			check("dm", true, "guardian cat-fast: direct steering (no pathfinding), 0.8s stuck-hop, lunge inside 14 studs (+12 speed), LEFT THE CRATER log + chase summary with avg real speed")
 		end
 	end
 end

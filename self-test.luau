@@ -1245,8 +1245,8 @@ do
 			for n in speedLine:gmatch("= (%d+%.?%d*)") do
 				i += 1
 				local v = tonumber(n)
-				if v and v <= 16 then
-					table.insert(problems, "tier " .. tostring(i) .. " speed " .. tostring(v) .. " <= walk 16")
+				if v and v <= 26 then
+					table.insert(problems, "tier " .. tostring(i) .. " speed " .. tostring(v) .. " <= sprint 26")
 				end
 			end
 			if i ~= 6 then
@@ -1264,7 +1264,7 @@ do
 		if #problems > 0 then
 			step("guardian-speed", false, table.concat(problems, "; "))
 		else
-			step("guardian-speed", true, "every guardian tier beats walk 16 (19-24), spawns 14 studs away, chase logs real studs/s + distance every 2s")
+			step("guardian-speed", true, "every guardian tier beats sprint 26 (28-34), spawns 14 studs away, chase logs real studs/s + distance every 2s")
 		end
 	end
 end

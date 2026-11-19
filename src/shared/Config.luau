@@ -180,21 +180,28 @@ Config.RAIDER_WALK_SPEED = 14
 
 -- Crater Guardian (THE CHASE): a space rock monster that chases
 -- anyone who grabs a Brainrot from the crater. Speed by the grabbed
--- Brainrot's rarity tier. THE NUMBERS HAVE TO BEAT THE PLAYER: a
--- walking player moves 16 studs/s, sprinting is 26. The guardian is
--- FASTER than a walk at EVERY tier (Common 19 up to Cosmic 24) — it
--- gains on a walker and can actually catch one, and a sprinter
--- still outruns it while stamina lasts. The old speeds (Common 10,
--- Cosmic 18.5) were SLOWER than a walk, so the guardian could never
--- catch anyone who just kept walking home — Malek proved it in
--- playtest 9, three rounds in a row. It spawns 14 studs from the
--- grabber (close enough to be a threat the moment it wakes, far
--- enough that it is not an instant catch — the old 24-stud head
--- start plus the slow speed meant it never arrived at all). If a
--- future tweak ever drops a tier back under 16, the guardian is
--- decorative again — the auto-check (df) proves every tier beats
--- the walk speed.
-Config.GUARDIAN_SPEED = { [1] = 19, [2] = 20, [3] = 21, [4] = 22, [5] = 23, [6] = 24 } -- per rarity tier (fix round 8, item 1: every tier beats walk 16; sprint 26 still escapes while stamina lasts)
+-- Brainrot's rarity tier. THE NUMBERS HAVE TO BEAT THE PLAYER, CLEARLY:
+-- a walking player moves 16 studs/s, sprinting is 26. The guardian is
+-- CAT-FAST at EVERY tier (Common 28 up to Cosmic 34 — fix round 9,
+-- item 1): it gains 12 studs/s on a walker and still gains on a
+-- sprinter, so the only escapes are the base (or the 25s timeout) and
+-- Speed Boots at full tilt (walk 26, sprint 36). The old speeds
+-- (Common 19, Cosmic 24) were only just above a walk — and the chase
+-- steered on a pathfinder route through the crater's entrance gap,
+-- so the guardian's real speed along that detour was BELOW a walk:
+-- Malek proved it in playtests 9 and 10, three rounds in a row.
+-- The chase now steers DIRECTLY at the target (no pathfinding detour)
+-- and jumps the rim tiers when stuck, with a lunge inside 14 studs.
+-- It spawns 14 studs from the grabber (close enough to be a threat
+-- the moment it wakes, far enough that it is not an instant catch —
+-- the old 24-stud head start plus the slow speed meant it never
+-- arrived at all). If a future tweak ever drops a tier back under 26,
+-- the guardian is decorative again — the auto-check (df) proves every
+-- tier beats the sprint speed.
+Config.GUARDIAN_SPEED = { [1] = 28, [2] = 29, [3] = 30, [4] = 31, [5] = 32, [6] = 34 } -- per rarity tier (fix round 9, item 1: CAT-FAST — every tier beats sprint 26; the escape is the base, the 25s timeout, or full Speed Boots)
+Config.GUARDIAN_LUNGE_BONUS = 12 -- studs/s burst while lunging (fix round 9, item 1)
+Config.GUARDIAN_LUNGE_RANGE = 14 -- studs: this close, the guardian lunges
+Config.GUARDIAN_LUNGE_COOLDOWN = 4 -- seconds between lunges
 Config.GUARDIAN_SPAWN_DISTANCE = 14 -- studs from the grabber, on the opposite rim
 Config.GUARDIAN_CATCH_RADIUS = 5 -- studs: this close and it catches you
 Config.GUARDIAN_CATCH_DAMAGE = 40 -- HP lost when it catches you (fix round 8, item 2: the catch used to only drop the Brainrot — Malek: "all it does is him getting dropped the brainrot". 40 HP + a knockdown means two catches kill you, so a catch is a real threat, not a free reset)
