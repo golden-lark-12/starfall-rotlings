@@ -48,8 +48,9 @@ function IncomeService.stormBoostActive(player: Player): boolean
 	if not root then
 		return false
 	end
-	local flat = Vector3.new(root.Position.X - cf.Position.X, 0, root.Position.Z - cf.Position.Z)
-	return flat.Magnitude <= Config.STORM_BASE_SAFE_RADIUS
+	-- (fix round 9, item 4) the 2x storm income is for sheltering
+	-- INSIDE the base — standing in the doorway does not count.
+	return WorldBuilder.isOnBaseInterior(baseId, root.Position)
 end
 
 -- Player income multiplier: rebirths and shop income tiers stack, and

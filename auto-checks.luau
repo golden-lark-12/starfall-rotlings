@@ -3035,8 +3035,8 @@ do
 			if not incomeSrc:find("BaseService%.getPlayerBase%(player%.UserId%)") then
 				table.insert(problems, "stormBoostActive does not check the player's own base")
 			end
-			if not incomeSrc:find("STORM_BASE_SAFE_RADIUS") then
-				table.insert(problems, "stormBoostActive does not use STORM_BASE_SAFE_RADIUS")
+			if not incomeSrc:find("WorldBuilder%.isOnBaseInterior%(baseId, root%.Position%)") then
+				table.insert(problems, "stormBoostActive does not use isOnBaseInterior (the doorway still counts as sheltered)")
 			end
 		end
 		-- The multiplier applies the dome boost, and the normal rate
@@ -6716,6 +6716,47 @@ do
 			check("do", false, "the thief steal is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, State.luau")
 		else
 			check("do", true, "thief actually steals: storm-proof walk, ramp-top waypoint in both legs, pad re-picked on arrival, STEAL COMPLETE logged when the loot is placed and earning")
+		end
+	end
+end
+
+-- (dp) STORM SAFE ZONE IS THE INTERIOR ONLY (fix round 9, item 4):
+-- Malek corrected the brief: getting to his base IS safe — he does
+-- NOT want damage on his base. The problem is only the boundary:
+-- standing in the doorway he was still not damaged, because the safe
+-- zone was a 17-stud radius from the centre that covered the door.
+-- The dome now protects the base INTERIOR only (the same shared
+-- helper the guardian give-up uses): inside = safe, door = exposed.
+-- Storm damage, storm targeting exclusion, and the 2x shelter income
+-- all use the interior rule, and meteors can target the doorway ring
+-- (12-20 studs from the centre) so the door is genuinely dangerous.
+do
+	local starfallSrc = read("src/server/StarfallService.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not starfallSrc or not incomeSrc or not worldSrc then
+		check("dp", false, "could not verify the storm safe zone — StarfallService.luau, IncomeService.luau or WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find("function WorldBuilder%.isOnBaseInterior") then
+			table.insert(problems, "no WorldBuilder.isOnBaseInterior helper")
+		end
+		if not starfallSrc:find("WorldBuilder%.isOnBaseInterior%(baseId, position%)") then
+			table.insert(problems, "the storm damage / targeting check does not use isOnBaseInterior (still the radial door check?)")
+		end
+		if starfallSrc:find("flat%.Magnitude <= Config%.STORM_BASE_SAFE_RADIUS") then
+			table.insert(problems, "the storm code still uses the radial STORM_BASE_SAFE_RADIUS check")
+		end
+		if not starfallSrc:find("local dist = 12 %+ math%.random%(0, 8%)") then
+			table.insert(problems, "meteors do not target the doorway ring (12-20 studs from the centre)")
+		end
+		if not incomeSrc:find("WorldBuilder%.isOnBaseInterior%(baseId, root%.Position%)") then
+			table.insert(problems, "the 2x shelter income does not use isOnBaseInterior (doorway still earns the boost)")
+		end
+		if #problems > 0 then
+			check("dp", false, "the storm safe zone is incomplete — " .. table.concat(problems, "; ") .. ". Parts: StarfallService.luau, IncomeService.luau, WorldBuilder.luau")
+		else
+			check("dp", true, "storm safe zone is the interior only: damage, targeting and 2x shelter income all use isOnBaseInterior, meteors target the doorway ring, inside = safe and door = exposed")
 		end
 	end
 end

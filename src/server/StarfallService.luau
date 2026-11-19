@@ -205,16 +205,16 @@ local function lightningFlash()
 	end
 end
 
--- Is a position on a base platform (a safe zone)? Bases are never
--- targeted and never hurt: a player standing on their base is safe.
+-- Is a position on a base INTERIOR (a safe zone)? The dome protects
+-- the platform top only (fix round 9, item 4 — Malek: "safe INSIDE
+-- the base, no damage there; the problem is only the door"). A player
+-- standing in the doorway/ramp is OUTSIDE the safe zone, so a storm
+-- still hurts there and meteors can still target it. The old radial
+-- check (17 studs from the centre) counted the doorway as safe.
 local function onBase(position: Vector3): boolean
 	for baseId = 1, Config.BASE_COUNT do
-		local cf = WorldBuilder.baseCFrame(baseId)
-		if cf then
-			local flat = Vector3.new(position.X - cf.Position.X, 0, position.Z - cf.Position.Z)
-			if flat.Magnitude <= Config.STORM_BASE_SAFE_RADIUS then
-				return true
-			end
+		if WorldBuilder.isOnBaseInterior(baseId, position) then
+			return true
 		end
 	end
 	return false
@@ -387,12 +387,16 @@ local function pickTarget(): Vector3
 				end
 			end
 		elseif roll < Config.STORM_NEAR_PLAYER_CHANCE + 0.2 then
-			-- Near a random base: just outside the safe ring.
+			-- Near a random base: the doorway ring (fix round 9, item
+			-- 4) — meteors can land at the door now, because the
+			-- doorway is outside the safe zone. The `not
+			-- onBase(candidate)` filter below keeps interior targets
+			-- out, so the platform top is still never hit.
 			local baseId = math.random(1, Config.BASE_COUNT)
 			local cf = WorldBuilder.baseCFrame(baseId)
 			if cf then
 				local angle = math.random() * math.pi * 2
-				local dist = Config.STORM_BASE_SAFE_RADIUS + math.random(4, 14)
+				local dist = 12 + math.random(0, 8)
 				candidate = Vector3.new(
 					cf.Position.X + math.cos(angle) * dist,
 					Config.CRATER_FLOOR_Y,
