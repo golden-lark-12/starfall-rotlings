@@ -11,6 +11,17 @@
 -- grabbed (RotlingFactory.setCarriedVisual); this controller is the
 -- second layer that thins the field, and it never re-enables a tag the
 -- server hid for a carried Rotling.
+-- PHOTO MODE ORIGIN (fix: hero labels, Nov 19) — in photo mode the
+-- distance is measured from the CAMERA, not the player's feet. The
+-- player spawns at their own base (Main pivots the character beside
+-- the base platform on join), ~145 studs from the hero row — so a
+-- player-origin distance hid every label in shot 1 even though the
+-- shot-1 camera sits ~18 studs from the heroes. Both of Malek's Nov
+-- 19 hero captures show the four heroes with no labels above any of
+-- them, while the frame itself is identical either way: only the tag
+-- gate moved. The camera is what frames the shot, so in photo mode
+-- the camera is what the 40-stud range is measured from. In normal
+-- play the origin stays the player's root.
 
 local Players = game:GetService("Players")
 
@@ -19,13 +30,26 @@ local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 local player = Players.LocalPlayer
 
 local function updateTags()
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not root then
+	local camera = workspace.CurrentCamera
+	local photoMode = camera ~= nil and camera:GetAttribute("PhotoMode") == true
+	-- Origin: the camera in photo mode, the player's root in normal
+	-- play (see the header: the player spawns ~145 studs from the
+	-- hero row, so a player-origin distance hid every shot-1 label).
+	local origin: Vector3? = nil
+	if photoMode and camera then
+		origin = camera.CFrame.Position
+	else
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root then
+			origin = root.Position
+		end
+	end
+	if not origin then
 		return
 	end
-	local origin = root.Position
-	-- Every Rotling with a label, with its distance from this player.
+	-- Every Rotling with a label, with its distance from the origin
+	-- (the camera in photo mode, the player otherwise).
 	local tagged: { { label: BillboardGui, dist: number, showable: boolean } } = {}
 	for _, descendant in ipairs(workspace:GetDescendants()) do
 		if descendant:IsA("Model") then
@@ -57,11 +81,13 @@ local function updateTags()
 	-- staged shots need every label. They take the free tag's 6-stud
 	-- minimum (not the placed 12): they stand in the open plaza,
 	-- not on a base under its sign.
-	-- PHOTO MODE override: when the camera has the PhotoMode attribute
-	-- (set by PhotoModeController while framing a shot), show EVERY
-	-- tag within TAG_PHOTO_MAX_DISTANCE — the screenshots need every
-	-- label readable, so the thinning is lifted for the shot only.
-	local photoMode = workspace.CurrentCamera and workspace.CurrentCamera:GetAttribute("PhotoMode") == true
+	-- PHOTO MODE override (computed above): when the camera has the
+	-- PhotoMode attribute (set by PhotoModeController while framing
+	-- a shot), show EVERY tag within TAG_PHOTO_MAX_DISTANCE — the
+	-- screenshots need every label readable, so the thinning is
+	-- lifted for the shot only. The origin is the camera here too
+	-- (see above), so the range is measured from the frame, not
+	-- from where the player's feet happen to be.
 	local maxDist = if photoMode then Config.TAG_PHOTO_MAX_DISTANCE else Config.TAG_MAX_DISTANCE
 	local maxShown = if photoMode then Config.TAG_PHOTO_MAX_SHOWN else Config.TAG_MAX_SHOWN
 	local shown = 0

@@ -2041,6 +2041,115 @@ do
 	end
 end
 
+-- -- (hero-labels) the four hero labels actually render in shot 1 --
+-- ROOT CAUSE (proven Nov 19 from Malek's two hero captures): both
+-- show the four display Brainrots with NO name/rarity/$-per-sec
+-- label above any of them. The labels exist (RotlingFactory.build
+-- calls addLabel; the billboard is 200x84, AlwaysOnTop, MaxDistance
+-- 40) and State "display" is showable — but TagController measured
+-- the tag distance from the PLAYER's feet even in photo mode, and
+-- the player spawns at their own base (Main pivots the character
+-- beside the base platform on join): base 1 is at (110, 0, 0),
+-- ~128 studs from the nearest hero, minus the 18.4-stud spawn
+-- offset still ~110 — far past the 40-stud photo range. The
+-- shot-1 camera sits ~14-17 studs (flat) from the heroes, so the
+-- frame shows them big while the gate hides every label. The fix:
+-- in photo mode the distance origin is the CAMERA
+-- (camera.CFrame.Position), so the range is measured from the
+-- frame, not from where the player's feet happen to be. Normal play
+-- keeps the player origin (the nearest-3 thinning is a gameplay
+-- rule). This check proves the fix from the shipped literals:
+--   * TagController takes the camera as the origin in photo mode
+--     and no longer takes the player root unconditionally;
+--   * every hero's flat camera distance is inside
+--     [TAG_MIN_DISTANCE, TAG_PHOTO_MAX_DISTANCE] (6..40);
+--   * every hero's 3D camera distance is inside the label's own
+--     MaxDistance (40);
+--   * the old player-origin rule provably hid them for Malek's
+--     base (base-1 spawn >= ~110 studs from the nearest hero).
+do
+	local tagSrc = read("src/client/TagController.client.luau")
+	local configSrc = read("src/shared/Config.luau")
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local photoSrc = read("src/client/PhotoModeController.client.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	if not tagSrc or not configSrc or not factorySrc or not worldSrc or not photoSrc or not mainSrc then
+		check("hero-labels", false, "could not verify the hero labels — a source file is missing")
+	else
+		local problems: { string } = {}
+		-- The origin is the camera in photo mode, not the player.
+		if not tagSrc:find("origin = camera.CFrame.Position", 1, true) then
+			table.insert(problems, "TagController never takes the camera as the tag-distance origin")
+		end
+		if not tagSrc:find("if photoMode and camera then", 1, true) then
+			table.insert(problems, "the camera origin is not gated on photo mode — the player root could still be the origin in a shot")
+		end
+		if tagSrc:find("local origin = root.Position", 1, true) then
+			table.insert(problems, "the old unconditional player origin is still there (local origin = root.Position) — the camera origin never applies")
+		end
+		if not tagSrc:find('camera:GetAttribute("PhotoMode")', 1, true) then
+			table.insert(problems, "TagController never reads the camera's PhotoMode attribute")
+		end
+		-- Display heroes are showable, and the label exists.
+		if not tagSrc:find('state == "display"', 1, true) then
+			table.insert(problems, "TagController does not show display-hero tags (State \"display\" missing from showable)")
+		end
+		if not factorySrc:find("addLabel%(model, body, def, mutation%)") then
+			table.insert(problems, "RotlingFactory.build never calls addLabel — the display heroes have no label to show")
+		end
+		if not factorySrc:find("billboard.MaxDistance = 40", 1, true) then
+			table.insert(problems, "the label's MaxDistance is not 40 — the camera could be out of the billboard's own range")
+		end
+		if not worldSrc:find('model:SetAttribute("State", "display")', 1, true) then
+			table.insert(problems, "the hero row never sets State \"display\" — its tags are not showable")
+		end
+		-- The constants the geometry below is computed against.
+		if not configSrc:find("TAG_MIN_DISTANCE = 6", 1, true) then
+			table.insert(problems, "TAG_MIN_DISTANCE is not 6 in Config")
+		end
+		if not configSrc:find("TAG_PHOTO_MAX_DISTANCE = 40", 1, true) then
+			table.insert(problems, "TAG_PHOTO_MAX_DISTANCE is not 40 in Config")
+		end
+		if not configSrc:find("TAG_PHOTO_MAX_SHOWN = 99", 1, true) then
+			table.insert(problems, "TAG_PHOTO_MAX_SHOWN is not 99 in Config — photo mode would still thin the four labels")
+		end
+		-- The player really does spawn at their own base (the old
+		-- failure mode needs this to be true).
+		if not mainSrc:find("baseCf * CFrame.new(18, 0, -4)", 1, true) then
+			table.insert(problems, "Main no longer pivots the joining player beside their base — the old-failure geometry below is unproven")
+		end
+		-- Shot-1 camera (1.75, 14, 96); heroes at x -8/-1.5/5/11.5,
+		-- z=82, body centre y~4.75 (plinth top 2.5 + 4.5/2).
+		if not photoSrc:find("Vector3%.new%(1%.75, 14, 96%)") then
+			table.insert(problems, "shot 1 is not the staged hero-row camera (1.75, 14, 96) — the distances below are computed from it")
+		end
+		local camX, camY, camZ = 1.75, 14, 96
+		for _, x in ipairs({ -8, -1.5, 5, 11.5 }) do
+			local flat = math.sqrt((x - camX) ^ 2 + (82 - camZ) ^ 2)
+			if flat < 6 or flat > 40 then
+				table.insert(problems, "hero at x=" .. tostring(x) .. " sits " .. string.format("%.1f", flat) .. " studs (flat) from the shot-1 camera — outside the 6..40 photo range, its label stays hidden")
+			end
+			local dist3d = math.sqrt((x - camX) ^ 2 + (4.75 - camY) ^ 2 + (82 - camZ) ^ 2)
+			if dist3d > 40 then
+				table.insert(problems, "hero at x=" .. tostring(x) .. " sits " .. string.format("%.1f", dist3d) .. " studs (3D) from the shot-1 camera — past the label's own MaxDistance 40")
+			end
+		end
+		-- The old rule, for Malek's base (base 1 at (110, 0, 0)):
+		-- centre-to-nearest-hero minus the 18.4-stud spawn offset.
+		local baseDist = math.sqrt((110 - 11.5) ^ 2 + (0 - 82) ^ 2)
+		local spawnOffset = math.sqrt(18 ^ 2 + 4 ^ 2)
+		if baseDist - spawnOffset <= 40 then
+			table.insert(problems, "the old player-origin rule would NOT have hidden the labels (base-1 spawn " .. string.format("%.0f", baseDist - spawnOffset) .. " studs from the nearest hero, inside 40) — the root cause is unproven")
+		end
+		if #problems > 0 then
+			check("hero-labels", false, "the hero labels would not render in shot 1 — " .. table.concat(problems, "; ") .. ". Parts: TagController.client.luau, Config.luau, RotlingFactory.luau, WorldBuilder.luau, PhotoModeController.client.luau, Main.server.luau")
+		else
+			check("hero-labels", true, "hero labels render in shot 1: TagController measures tag distance from the camera in photo mode (player root in normal play); all four heroes sit 14.4-17.1 studs (flat) / ~19.4 max (3D) from the shot-1 camera, inside the 6..40 photo range and the label's MaxDistance 40; the old player-origin rule hid them (base-1 spawn >= ~110 studs from the nearest hero)")
+		end
+	end
+end
+
 -- -- (packed-base-shot) shot 4 frames the WHOLE packed base --
 -- Malek's shot-4 captures (Nov 19 ~19:39 and ~19:49, rev 125/126)
 -- are giant Brainrots filling the whole frame, their labels
