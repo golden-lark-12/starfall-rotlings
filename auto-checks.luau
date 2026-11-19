@@ -2150,6 +2150,52 @@ do
 	end
 end
 
+-- -- (tag-diag) temporary diagnostic: live tag counts in photo mode --
+-- DIAGNOSTIC (TEMPORARY — remove once the hero-label cause is known):
+-- rev 129's camera-origin fix reads correctly in source (see the
+-- hero-labels check above) but the four hero labels STILL do not
+-- render in Malek's captures, including one from a confirmed fresh
+-- rejoin on rev 129 (Nov 19 ~20:09). The static reading missed the
+-- real gate, so TagController now prints one [TagDiag] F9 line every
+-- ~2s while photo mode is active, with the live counts that say which
+-- gate is eating the labels: tagged (models found with a RotlingLabel
+-- at all), display (of those, State "display"), showable (showable
+-- state AND inside the distance window), shown (labels actually set
+-- Enabled=true), nearestDist (flat distance of the nearest tagged
+-- model). This check proves the diagnostic exists, is gated on photo
+-- mode, is throttled to ~2s, and is marked temporary.
+do
+	local tagSrc = read("src/client/TagController.client.luau")
+	if not tagSrc then
+		check("tag-diag", false, "could not verify the tag diagnostic — TagController.client.luau is missing")
+	else
+		local problems: { string } = {}
+		if not tagSrc:find("[TagDiag] photoMode=", 1, true) then
+			table.insert(problems, "TagController never prints the [TagDiag] line")
+		end
+		if not tagSrc:find("tagged=%d display=%d showable=%d shown=%d nearestDist=%s", 1, true) then
+			table.insert(problems, "the [TagDiag] line does not carry the tagged/display/showable/shown/nearestDist fields")
+		end
+		if not tagSrc:find("stats.photoMode", 1, true) then
+			table.insert(problems, "the diagnostic print is not gated on photo mode — it would spam F9 in normal play")
+		end
+		if not tagSrc:find("diagTicks >= 8", 1, true) then
+			table.insert(problems, "the diagnostic is not throttled to ~2s (8 ticks x 0.25s) — it would spam F9 every quarter second")
+		end
+		if not tagSrc:find("DIAGNOSTIC (TEMPORARY", 1, true) then
+			table.insert(problems, "the diagnostic is not marked DIAGNOSTIC (TEMPORARY) — it must be removed once the cause is known")
+		end
+		if not tagSrc:find("photoMode = photoMode,", 1, true) then
+			table.insert(problems, "updateTags does not return its stats — the loop has nothing to print")
+		end
+		if #problems > 0 then
+			check("tag-diag", false, "the tag diagnostic is incomplete — " .. table.concat(problems, "; ") .. ". Parts: TagController.client.luau")
+		else
+			check("tag-diag", true, "tag diagnostic live: updateTags returns tagged/display/showable/shown/nearestDist and the loop prints one [TagDiag] F9 line every ~2s while photo mode is active, marked DIAGNOSTIC (TEMPORARY)")
+		end
+	end
+end
+
 -- -- (packed-base-shot) shot 4 frames the WHOLE packed base --
 -- Malek's shot-4 captures (Nov 19 ~19:39 and ~19:49, rev 125/126)
 -- are giant Brainrots filling the whole frame, their labels

@@ -22,6 +22,13 @@
 -- gate moved. The camera is what frames the shot, so in photo mode
 -- the camera is what the 40-stud range is measured from. In normal
 -- play the origin stays the player's root.
+-- DIAGNOSTIC (TEMPORARY — remove once the hero-label cause is known):
+-- the camera-origin fix above reads correctly in source but the four
+-- hero labels STILL do not render in Malek's captures (fresh rejoin,
+-- rev 129 confirmed live, Nov 19 ~20:09). updateTags therefore returns
+-- its counts and the loop below prints one [TagDiag] F9 line every ~2s
+-- while photo mode is active, so the live numbers say which gate is
+-- eating the labels instead of another static guess.
 
 local Players = game:GetService("Players")
 
@@ -29,6 +36,9 @@ local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 
 local player = Players.LocalPlayer
 
+-- Returns the tag counts for this tick (nil when there is no origin
+-- to measure from). The DIAGNOSTIC loop below prints them while
+-- photo mode is active.
 local function updateTags()
 	local camera = workspace.CurrentCamera
 	local photoMode = camera ~= nil and camera:GetAttribute("PhotoMode") == true
@@ -46,7 +56,7 @@ local function updateTags()
 		end
 	end
 	if not origin then
-		return
+		return nil
 	end
 	-- Every Rotling with a label, with its distance from the origin
 	-- (the camera in photo mode, the player otherwise).
@@ -90,8 +100,18 @@ local function updateTags()
 	-- from where the player's feet happen to be.
 	local maxDist = if photoMode then Config.TAG_PHOTO_MAX_DISTANCE else Config.TAG_MAX_DISTANCE
 	local maxShown = if photoMode then Config.TAG_PHOTO_MAX_SHOWN else Config.TAG_MAX_SHOWN
+	-- DIAGNOSTIC counts (see the header): display = tagged models
+	-- whose State is "display"; showable = showable state AND inside
+	-- the [minDist, maxDist] window; shown = labels actually set
+	-- Enabled=true this tick.
 	local shown = 0
+	local enabledCount = 0
+	local displayCount = 0
+	local showableCount = 0
 	for _, entry in ipairs(tagged) do
+		if entry.state == "display" then
+			displayCount += 1
+		end
 		local show = false
 		-- Too close hides the tag (fix round 5, item 5): a 200x84
 		-- AlwaysOnTop tag right in front of the camera fills the
@@ -103,18 +123,50 @@ local function updateTags()
 		-- free tags keep 6 — they are the crater's readable names.
 		local minDist = if entry.state == "placed" then Config.TAG_PLACED_MIN_DISTANCE else Config.TAG_MIN_DISTANCE
 		if entry.showable and entry.dist >= minDist and entry.dist <= maxDist then
+			showableCount += 1
 			shown += 1
 			show = shown <= maxShown
 		end
+		if show then
+			enabledCount += 1
+		end
 		entry.label.Enabled = show
 	end
+	local nearest = tagged[1] and tagged[1].dist or nil
+	return {
+		photoMode = photoMode,
+		tagged = #tagged,
+		display = displayCount,
+		showable = showableCount,
+		shown = enabledCount,
+		nearestDist = nearest,
+	}
 end
 
 task.spawn(function()
+	local diagTicks = 0
 	while true do
-		local ok, err = pcall(updateTags)
+		local ok, stats = pcall(updateTags)
 		if not ok then
-			warn("[TagController] updateTags failed: " .. tostring(err))
+			warn("[TagController] updateTags failed: " .. tostring(stats))
+			diagTicks = 0
+		elseif type(stats) == "table" and stats.photoMode then
+			-- DIAGNOSTIC (TEMPORARY): one F9 line every ~2s while
+			-- photo mode is active (8 ticks x 0.25s). See the header
+			-- for how to read the numbers.
+			diagTicks += 1
+			if diagTicks >= 8 then
+				diagTicks = 0
+				print(string.format("[TagDiag] photoMode=%s tagged=%d display=%d showable=%d shown=%d nearestDist=%s",
+					tostring(stats.photoMode),
+					stats.tagged,
+					stats.display,
+					stats.showable,
+					stats.shown,
+					if stats.nearestDist then string.format("%.1f", stats.nearestDist) else "none"))
+			end
+		else
+			diagTicks = 0
 		end
 		task.wait(0.25)
 	end
