@@ -115,6 +115,16 @@ Config.SPRINT_FOV_BASE = 70
 Config.LOCK_DURATION = 120 -- seconds a base lock holds (fix round 6, item 3: Malek — "add more time for the lockups"; was 60, too short to stop a thief)
 Config.LOCK_COOLDOWN = 90 -- seconds before the lock can be used again
 Config.LOCK_DURATION_PER_TIER = 30 -- +30s lock per shop lock tier
+
+-- Emergency LOCKDOWN (fix round 13, item 4 — Malek, playtest 12):
+-- a second, shorter seal on top of the regular lock. 30s sealed,
+-- 60s cooldown, FIXED (no shop tiers — it is an emergency button,
+-- not an upgrade). Distinct from the L lock: its own key (K), its
+-- own button, its own opaque red gate. Works on top of the regular
+-- lock: sealing while locked keeps the lock underneath, and the
+-- lockdown ending never opens a lock that is still running.
+Config.LOCKDOWN_DURATION = 30 -- seconds a lockdown seals a base
+Config.LOCKDOWN_COOLDOWN = 60 -- seconds before the lockdown can be used again
 -- Carrying: the Rotling rides IN FRONT OF THE CHEST at arm height,
 -- never above the head and never over the face. Forward is -Z off the
 -- HumanoidRootPart, so a negative Z puts it in front of the player.

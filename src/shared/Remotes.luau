@@ -33,6 +33,8 @@ export type HudData = {
 	carriedName: string?, -- name of the Rotling being carried (for the CARRYING banner)
 	lockRemaining: number,
 	lockCooldown: number,
+	lockdownRemaining: number, -- emergency lockdown seal left (fix round 13, item 4)
+	lockdownCooldown: number, -- lockdown recharge left (fix round 13, item 4)
 	stormPhase: string,
 	stormSeconds: number,
 	danger: number, -- 0..1 "Meteor Danger" meter: fills as the next storm approaches
@@ -83,6 +85,13 @@ end
 
 function Remotes.lockEvent(): RemoteEvent
 	return Remotes.getFolder():WaitForChild("ToggleLock") :: RemoteEvent
+end
+
+-- Emergency lockdown (fix round 13, item 4): its own remote, its own
+-- key (K) and button — never the L lock's remote, so the two seals
+-- stay independent server-side.
+function Remotes.lockdownEvent(): RemoteEvent
+	return Remotes.getFolder():WaitForChild("ToggleLockdown") :: RemoteEvent
 end
 
 function Remotes.buyFunction(): RemoteFunction

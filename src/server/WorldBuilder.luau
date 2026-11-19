@@ -220,6 +220,24 @@ function WorldBuilder.setShieldLabel(baseId: number, seconds: number, stormActiv
 	end
 end
 
+-- Shield label: "🔒 LOCKDOWN (Ns)" while a lockdown seals the base
+-- (fix round 13, item 4). Red text, distinct from the lock's blue
+-- "🛡️ SAFE (Ns)" — the seal reads as an emergency at a glance.
+-- The dome shows too (the income broadcast keeps this label live
+-- every tick; when the lockdown ends the broadcast falls back to
+-- setShieldLabel, which restores the lock label or clears it).
+function WorldBuilder.setShieldLockdown(baseId: number, seconds: number)
+	local label = shieldLabels[baseId]
+	local dome = shieldDomes[baseId]
+	if label then
+		label.Text = "🔒 LOCKDOWN (" .. tostring(math.ceil(seconds)) .. "s)"
+		label.TextColor3 = Color3.fromRGB(255, 80, 80)
+	end
+	if dome then
+		dome.Transparency = 0.9
+	end
+end
+
 function WorldBuilder.setBaseSign(baseId: number, text: string)
 	local label = signLabels[baseId]
 	if label then

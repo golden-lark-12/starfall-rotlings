@@ -128,6 +128,14 @@ State.carried = {} :: { [number]: { Model } }
 -- stay solid forever, blocking the owner and every thief).
 State.locks = {} :: { [number]: { lockedUntil: number, cooldownUntil: number, gateShown: boolean } }
 
+-- Emergency lockdowns: [baseId] = { endsAt = number, cooldownUntil = number, gateShown = boolean }.
+-- A lockdown is a second, shorter seal on top of the regular lock
+-- (fix round 13, item 4): 30s sealed, 60s cooldown, fixed, no tiers.
+-- gateShown tracks whether the LOCKDOWN gate (the opaque red slab)
+-- is currently shown, so the income broadcast can fall it back to
+-- the regular lock's shimmer (or hide it) the moment it ends.
+State.lockdowns = {} :: { [number]: { endsAt: number, cooldownUntil: number, gateShown: boolean } }
+
 -- Pads a base has unlocked: [baseId] = count (6 open, up to 8).
 State.unlockedPads = {} :: { [number]: number }
 

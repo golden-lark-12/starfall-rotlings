@@ -113,6 +113,9 @@
     "ToggleLock": {
      "$className": "RemoteEvent"
     },
+    "ToggleLockdown": {
+     "$className": "RemoteEvent"
+    },
     "UpdateHud": {
      "$className": "RemoteEvent"
     },

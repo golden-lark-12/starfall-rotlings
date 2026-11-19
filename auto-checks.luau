@@ -6196,6 +6196,113 @@ do
 	end
 end
 
+-- -- (lockdown) fix round 13, item 4: emergency lockdown --------
+-- Playtest 12: "add a lockdown for locking the base" — an emergency
+-- seal, distinct from the regular L lock. 30s sealed, 60s recharge,
+-- FIXED (no shop tiers — it is an emergency button, not an upgrade).
+-- Its own key (K), its own button under the Lock button, its own
+-- remote (ToggleLockdown), its own opaque red gate (Transparency 0,
+-- not the lock's faint 0.9 shimmer) and its own red "🔒 LOCKDOWN
+-- (Ns)" shield label. Works on top of the regular lock: isLocked is
+-- the OR of the two seals, so every enforcement point (steal, thief
+-- pickVictim, raider, place prompts) respects the lockdown with no
+-- second check — and the lockdown ending falls back to the regular
+-- lock's look instead of opening a lock still running.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local stateSrc = read("src/server/State.luau")
+	local baseSrc = read("src/server/BaseService.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	local projectSrc = read("default.project.json")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	if not configSrc or not stateSrc or not baseSrc or not worldSrc or not incomeSrc or not remotesSrc or not projectSrc or not hudSrc then
+		check("lockdown", false, "could not verify the lockdown — Config.luau, State.luau, BaseService.luau, WorldBuilder.luau, IncomeService.luau, Remotes.luau, default.project.json or HUDController.client.luau missing")
+	else
+		local problems: { string } = {}
+		-- Fixed durations: 30s seal, 60s recharge, no tiers.
+		if not configSrc:find("LOCKDOWN_DURATION = 30") then
+			table.insert(problems, "no LOCKDOWN_DURATION = 30 in Config")
+		end
+		if not configSrc:find("LOCKDOWN_COOLDOWN = 60") then
+			table.insert(problems, "no LOCKDOWN_COOLDOWN = 60 in Config")
+		end
+		if not stateSrc:find("State%.lockdowns = {}") then
+			table.insert(problems, "no State.lockdowns table")
+		end
+		-- Server: the seal is the OR of the two locks, so every
+		-- enforcement point respects it with no second check.
+		if not baseSrc:find("function BaseService%.isLockdown") then
+			table.insert(problems, "no BaseService.isLockdown")
+		end
+		if not baseSrc:find("function BaseService%.lockdownBase") then
+			table.insert(problems, "no BaseService.lockdownBase")
+		end
+		if not baseSrc:find("function BaseService%.setGateLockdown") then
+			table.insert(problems, "no BaseService.setGateLockdown")
+		end
+		if not baseSrc:find("isLockRegular%(baseId%) or BaseService%.isLockdown%(baseId%)") then
+			table.insert(problems, "isLocked is not the OR of the regular lock and the lockdown")
+		end
+		if not baseSrc:find("LOCKDOWN_DURATION") or not baseSrc:find("LOCKDOWN_COOLDOWN") then
+			table.insert(problems, "lockdownBase does not use the Config durations")
+		end
+		-- The gate: opaque red wall (Transparency 0), distinct from
+		-- the lock's faint shimmer (0.9), and setGateVisible can
+		-- never downgrade it while a lockdown holds.
+		if not baseSrc:find("descendant%.Transparency = 0\n") then
+			table.insert(problems, "the lockdown gate is not opaque (Transparency 0)")
+		end
+		if not baseSrc:find("if BaseService%.isLockdown%(baseId%) then\n\t\tBaseService%.setGateLockdown%(baseId, true%)") then
+			table.insert(problems, "setGateVisible has no lockdown guard (an L press could downgrade the seal)")
+		end
+		if not baseSrc:find('Remotes%.lockdownEvent%(%)%.OnServerEvent:Connect') then
+			table.insert(problems, "ToggleLockdown is not wired on the server")
+		end
+		-- The shield label: red LOCKDOWN countdown, not the lock's
+		-- blue SAFE label.
+		if not worldSrc:find("function WorldBuilder%.setShieldLockdown") then
+			table.insert(problems, "no WorldBuilder.setShieldLockdown")
+		end
+		if not worldSrc:find('"🔒 LOCKDOWN %("') then
+			table.insert(problems, "the lockdown shield label is not the red LOCKDOWN countdown")
+		end
+		-- The broadcast: lockdown label wins while sealed, and the
+		-- gate falls back (never opens a running lock) on expiry.
+		if not incomeSrc:find("WorldBuilder%.setShieldLockdown%(baseId, BaseService%.lockdownRemaining%(baseId%)%)") then
+			table.insert(problems, "the income broadcast does not show the lockdown shield label")
+		end
+		if not incomeSrc:find("BaseService%.setGateLockdown%(baseId, false%)") then
+			table.insert(problems, "the income broadcast has no lockdown-gate expiry")
+		end
+		if not incomeSrc:find("not BaseService%.isLockdown%(baseId%)") then
+			table.insert(problems, "the regular-lock expiry can hide the gate while a lockdown seals the base")
+		end
+		-- The remote + the Rojo declaration + the HUD button/key.
+		if not remotesSrc:find('WaitForChild%("ToggleLockdown"%)') then
+			table.insert(problems, "no Remotes.lockdownEvent (ToggleLockdown)")
+		end
+		if not projectSrc:find('"ToggleLockdown"') then
+			table.insert(problems, "no ToggleLockdown RemoteEvent in default.project.json")
+		end
+		if not hudSrc:find('"LockdownButton"') then
+			table.insert(problems, "no Lockdown button in the HUD")
+		end
+		if not hudSrc:find("Enum%.KeyCode%.K") then
+			table.insert(problems, "no K keybinding for the lockdown")
+		end
+		if not hudSrc:find("hud%.lockdownRemaining") then
+			table.insert(problems, "the HUD does not show the lockdown countdown")
+		end
+		if #problems > 0 then
+			check("lockdown", false, "the emergency lockdown is incomplete — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, State.luau, BaseService.luau, WorldBuilder.luau, IncomeService.luau, Remotes.luau, default.project.json, HUDController.client.luau")
+		else
+			check("lockdown", true, "emergency lockdown: 30s seal / 60s recharge (fixed, no tiers), own K key + button + ToggleLockdown remote; isLocked is lock OR lockdown (every steal/thief check respects it); opaque red gate + red LOCKDOWN shield label; ending falls back to the regular lock, never opens it")
+		end
+	end
+end
+
 -- -- (egg-layered) fix round 13, item 2: eggs are layered ovoids
 -- ---------------------------------------------------------------------
 -- Playtest 12: "the new egg still doesn't look like an egg, looks

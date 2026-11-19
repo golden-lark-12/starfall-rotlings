@@ -223,6 +223,11 @@ rebirthButtonFillCorner.Parent = rebirthButtonFill
 local rebirthButtonStroke = rebirthButton:FindFirstChildOfClass("UIStroke")
 local lockButton = GuiKit.makeButton(gui, "LockButton", "🔓 Lock Base (L)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -184, 0, 196), GuiKit.COLORS.Red)
 
+-- Emergency LOCKDOWN button (fix round 13, item 4): its own button
+-- under the Lock button, its own key (K) — never the L lock's
+-- button, so the two seals stay independent. 30s seal, 60s recharge.
+local lockdownButton = GuiKit.makeButton(gui, "LockdownButton", "🔒 Lockdown (K)", UDim2.new(0, 160, 0, 48), UDim2.new(1, -184, 0, 252), GuiKit.COLORS.Red)
+
 -- Hint line, bottom-centre, anchored so it never clips at the sides.
 -- Widened to 760 so the buddy name fits on the same line.
 local hintLabel = GuiKit.makeLabel(gui, "Hint", "Grab a Brainrot in the crater!", UDim2.new(0, 760, 0, 30), UDim2.new(0.5, 0, 1, -44), 22, GuiKit.COLORS.White)
@@ -326,6 +331,8 @@ local hud = {
 	carriedName = nil,
 	lockRemaining = 0,
 	lockCooldown = 0,
+	lockdownRemaining = 0,
+	lockdownCooldown = 0,
 	stormPhase = "calm",
 	stormSeconds = 0,
 	danger = 0,
@@ -385,6 +392,9 @@ end)
 lockButton.MouseButton1Click:Connect(function()
 	Remotes.lockEvent():FireServer()
 end)
+lockdownButton.MouseButton1Click:Connect(function()
+	Remotes.lockdownEvent():FireServer()
+end)
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then
@@ -394,6 +404,10 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		toggleRebirth()
 	elseif input.KeyCode == Enum.KeyCode.L then
 		Remotes.lockEvent():FireServer()
+	elseif input.KeyCode == Enum.KeyCode.K then
+		-- Emergency lockdown (fix round 13, item 4): its own key,
+		-- distinct from the L lock — 30s seal, 60s recharge.
+		Remotes.lockdownEvent():FireServer()
 	elseif input.KeyCode == Enum.KeyCode.G then
 		-- Drop a carried meteor egg (fix round 7, item 8). The
 		-- server only acts if the player is actually carrying one.
@@ -460,6 +474,8 @@ local function onHudData(data: Remotes.HudData)
 	refreshPlacePrompts()
 	hud.lockRemaining = data.lockRemaining
 	hud.lockCooldown = data.lockCooldown
+	hud.lockdownRemaining = data.lockdownRemaining or 0
+	hud.lockdownCooldown = data.lockdownCooldown or 0
 	hud.stormPhase = data.stormPhase
 	hud.stormSeconds = data.stormSeconds
 	hud.danger = data.danger or 0
@@ -577,6 +593,19 @@ local function onHudData(data: Remotes.HudData)
 	else
 		lockButton.Text = "🔓 Lock Base (L)"
 		lockButton.BackgroundColor3 = GuiKit.COLORS.Red
+	end
+
+	-- Emergency lockdown button (fix round 13, item 4): its own
+	-- countdown / recharge, independent of the L lock above.
+	if hud.lockdownRemaining > 0 then
+		lockdownButton.Text = "🔒 LOCKDOWN " .. tostring(math.ceil(hud.lockdownRemaining)) .. "s"
+		lockdownButton.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
+	elseif hud.lockdownCooldown > 0 then
+		lockdownButton.Text = "Lockdown (" .. tostring(math.ceil(hud.lockdownCooldown)) .. "s)"
+		lockdownButton.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
+	else
+		lockdownButton.Text = "🔒 Lockdown (K)"
+		lockdownButton.BackgroundColor3 = GuiKit.COLORS.Red
 	end
 
 	if hud.carried > 0 then

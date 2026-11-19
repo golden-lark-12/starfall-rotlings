@@ -193,7 +193,26 @@ function IncomeService.broadcastHud()
 					-- The base level sign: 1 + Rotlings placed here.
 					-- The shield label: "SAFE (Ns)" while locked, "SAFE DOME"
 					-- in green while the storm passes (every base is safe).
-					WorldBuilder.setShieldLabel(baseId, BaseService.lockRemaining(baseId), storm.phase == "storm")
+					-- (fix round 13, item 4) A lockdown shows its own red
+					-- "🔒 LOCKDOWN (Ns)" label instead — the regular lock's
+					-- countdown would read 0 while the seal holds, and
+					-- the blue SAFE label would hide the emergency.
+					if BaseService.isLockdown(baseId) then
+						WorldBuilder.setShieldLockdown(baseId, BaseService.lockdownRemaining(baseId))
+					else
+						WorldBuilder.setShieldLabel(baseId, BaseService.lockRemaining(baseId), storm.phase == "storm")
+					end
+					-- Lockdown-gate expiry (fix round 13, item 4): the
+					-- opaque red gate falls back to the regular lock's
+					-- shimmer if the L lock is still on, or hides if
+					-- it is not — the seal must never outstay its 30s,
+					-- and it must never open a lock still running.
+					local lockdown = State.lockdowns[baseId]
+					if lockdown and lockdown.gateShown and BaseService.lockdownRemaining(baseId) <= 0 then
+						BaseService.setGateLockdown(baseId, false)
+						lockdown.gateShown = false
+						print("[BaseService] lockdown expired on base " .. tostring(baseId) .. " — gate back to lock / hidden")
+					end
 					-- Lock-gate expiry (rev 76): the red gate is solid
 					-- while locked and MUST vanish the moment the lock
 					-- ends, or it blocks the owner and every thief
@@ -202,9 +221,12 @@ function IncomeService.broadcastHud()
 					-- already clears via setShieldLabel above; the gate
 					-- had no expiry path at all. Only touch it on the
 					-- locked -> unlocked transition (gateShown flag),
-					-- not every tick.
+					-- not every tick. (fix round 13, item 4) Never hide
+					-- the gate while a lockdown seals the base — the
+					-- regular lock expiring underneath must not open
+					-- the seal.
 					local lock = State.locks[baseId]
-					if lock and lock.gateShown and BaseService.lockRemaining(baseId) <= 0 then
+					if lock and lock.gateShown and BaseService.lockRemaining(baseId) <= 0 and not BaseService.isLockdown(baseId) then
 						BaseService.setGateVisible(baseId, false)
 						lock.gateShown = false
 						print("[BaseService] lock expired on base " .. tostring(baseId) .. " — gate hidden")
@@ -271,6 +293,8 @@ function IncomeService.broadcastHud()
 					carriedName = carriedName,
 					lockRemaining = if baseId then BaseService.lockRemaining(baseId) else 0,
 					lockCooldown = if baseId then BaseService.lockCooldownRemaining(baseId) else 0,
+					lockdownRemaining = if baseId then BaseService.lockdownRemaining(baseId) else 0,
+					lockdownCooldown = if baseId then BaseService.lockdownCooldownRemaining(baseId) else 0,
 					stormPhase = storm.phase,
 					stormSeconds = storm.secondsLeft,
 					danger = storm.danger,

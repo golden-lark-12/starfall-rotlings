@@ -1430,6 +1430,7 @@ function RivalService.start()
 		State.playerBase[-i] = baseId
 		State.placed[baseId] = {}
 		State.locks[baseId] = { lockedUntil = 0, cooldownUntil = 0, gateShown = false }
+		State.lockdowns[baseId] = { endsAt = 0, cooldownUntil = 0, gateShown = false }
 		State.unlockedPads[baseId] = Config.PADS_OPEN
 		WorldBuilder.setBaseSign(baseId, name .. "'s Base")
 		WorldBuilder.setBaseCoins(baseId, 0)

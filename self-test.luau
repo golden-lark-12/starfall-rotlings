@@ -1802,6 +1802,50 @@ do
 	end
 end
 
+-- Fix round 13, item 4 — emergency lockdown: 30s seal / 60s
+-- recharge (fixed, no tiers), own K key + button + ToggleLockdown
+-- remote; isLocked is lock OR lockdown; opaque red gate + red
+-- LOCKDOWN shield label; ending falls back to the regular lock.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local baseSrc = read("src/server/BaseService.luau")
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local incomeSrc = read("src/server/IncomeService.luau")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	if not configSrc or not baseSrc or not worldSrc or not incomeSrc or not remotesSrc or not hudSrc then
+		step("lockdown", false, "Config.luau, BaseService.luau, WorldBuilder.luau, IncomeService.luau, Remotes.luau or HUDController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not configSrc:find("LOCKDOWN_DURATION = 30") or not configSrc:find("LOCKDOWN_COOLDOWN = 60") then
+			table.insert(problems, "lockdown durations are not 30s seal / 60s recharge")
+		end
+		if not baseSrc:find("function BaseService%.isLockdown") or not baseSrc:find("function BaseService%.lockdownBase") or not baseSrc:find("function BaseService%.setGateLockdown") then
+			table.insert(problems, "lockdown server functions missing (isLockdown / lockdownBase / setGateLockdown)")
+		end
+		if not baseSrc:find("isLockRegular%(baseId%) or BaseService%.isLockdown%(baseId%)") then
+			table.insert(problems, "isLocked is not the OR of the regular lock and the lockdown")
+		end
+		if not worldSrc:find("function WorldBuilder%.setShieldLockdown") then
+			table.insert(problems, "no setShieldLockdown (red LOCKDOWN label)")
+		end
+		if not incomeSrc:find("BaseService%.setGateLockdown%(baseId, false%)") or not incomeSrc:find("not BaseService%.isLockdown%(baseId%)") then
+			table.insert(problems, "lockdown expiry / regular-expiry guard missing in the broadcast")
+		end
+		if not remotesSrc:find('WaitForChild%("ToggleLockdown"%)') then
+			table.insert(problems, "no ToggleLockdown remote")
+		end
+		if not hudSrc:find('"LockdownButton"') or not hudSrc:find("Enum%.KeyCode%.K") then
+			table.insert(problems, "no Lockdown button / K keybinding in the HUD")
+		end
+		if #problems > 0 then
+			step("lockdown", false, table.concat(problems, "; "))
+		else
+			step("lockdown", true, "30s seal / 60s recharge, own K key + button + remote; isLocked is lock OR lockdown; opaque red gate + red LOCKDOWN label; ending falls back to the regular lock")
+		end
+	end
+end
+
 -- Fix round 13, item 2 — layered eggs: a clean cream ovoid (3.2 x
 -- 4.8) with two smooth bands (purple +0.8, teal -0.9), welded; no
 -- speckles, cracks or nest; mystery rule intact; legendary gold all
