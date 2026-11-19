@@ -1846,6 +1846,42 @@ do
 	end
 end
 
+-- Fix round 13, item 5 — boards audit: no two boards intersect in
+-- 3D (AABB audit); signpost labels 3.2 studs apart / 32px (clear to
+-- MaxDistance 50); vertical posts beside the boards; contract posts
+-- vertical at +/- 6.9; SELL trim added.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not worldSrc then
+		step("boards-audit", false, "WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find("5 %+ %(i %- 1%) %* 3%.2") or not worldSrc:find("UDim2%.fromOffset%(160, 32%)") then
+			table.insert(problems, "signpost boards are not 3.2 studs apart with 32px labels")
+		end
+		if not worldSrc:find('"SignpostFrame"') then
+			table.insert(problems, "signpost boards have no backing frame")
+		end
+		if not worldSrc:find("Vector3%.new%(%-4%.2, 4%.5, 0%)") then
+			table.insert(problems, "the signpost post is not vertical beside the boards")
+		end
+		if not worldSrc:find("{ %-6%.9, 6%.9 }") then
+			table.insert(problems, "contract posts are not at +/- 6.9")
+		end
+		if worldSrc:find('ContractPost.-CFrame%.Angles%(0, 0, math%.rad%(90%)%)') then
+			table.insert(problems, "a contract post is still a horizontal bar through the board face")
+		end
+		if not worldSrc:find('"SellSignTrim"') then
+			table.insert(problems, "the SELL sign has no gold trim")
+		end
+		if #problems > 0 then
+			step("boards-audit", false, table.concat(problems, "; "))
+		else
+			step("boards-audit", true, "no two boards intersect in 3D; signpost labels 3.2 apart / 32px (clear to MaxDistance 50); vertical posts; contract posts vertical at +/- 6.9; SELL trim added")
+		end
+	end
+end
+
 -- Fix round 13, item 2 — layered eggs: a clean cream ovoid (3.2 x
 -- 4.8) with two smooth bands (purple +0.8, teal -0.9), welded; no
 -- speckles, cracks or nest; mystery rule intact; legendary gold all

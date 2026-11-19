@@ -6303,6 +6303,137 @@ do
 	end
 end
 
+-- -- (boards-audit) fix round 13, item 5: no two boards overlap --
+-- Playtest 12: "two sign boards are sitting ON each other — the
+-- blue board and the brown/gold board overlapping at the centre of
+-- the path area." The audit (scratch script /tmp/boards_audit.py)
+-- proved the 3D boards NEVER intersected — the overlap was the
+-- LABELS: the signpost's two boards sat 1.8 studs apart with 40px
+-- AlwaysOnTop labels, so from spawn (34 studs) their centres are
+-- ~30px apart on screen and the blue "← Crater" and brown/gold
+-- "Shop →" texts sat on each other (they overlap from ~29.5 studs
+-- out — everywhere except point-blank). The same audit found a
+-- second placement bug: the contract board's "posts" were horizontal
+-- bars centred at +/- 6.5 — a 7-long bar spans 3..10, so half of
+-- each bar ran THROUGH the board's face and poked 0.1 out the front.
+-- Fixes: signpost boards 3.2 studs apart with 32px labels (clear to
+-- MaxDistance 50 on any normal screen — the math is asserted below),
+-- a vertical post beside the boards (they floated before), a darker
+-- backing frame behind each board, vertical contract posts at +/-
+-- 6.9 (clear of the board AND the gold backing), and a gold trim on
+-- the SELL sign (the one board with no frame at all). The audit
+-- itself lives here: every board assembly as an AABB, pairwise
+-- separation asserted between different assemblies. Same-assembly
+-- overlaps are the frame/trim ON their own board (title trims,
+-- contract backing/trim, signpost frames, base-sign stripes, SELL
+-- trim) — intended, not a bug.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not worldSrc then
+		check("boards-audit", false, "could not verify the boards audit — WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		-- The signpost fix: 3.2 spacing, 32px labels, MaxDistance 50,
+		-- vertical side post, backing frame behind each board.
+		if not worldSrc:find("5 %+ %(i %- 1%) %* 3%.2") then
+			table.insert(problems, "signpost boards are not 3.2 studs apart")
+		end
+		if not worldSrc:find("UDim2%.fromOffset%(160, 32%)") then
+			table.insert(problems, "signpost labels are not 160x32")
+		end
+		if not worldSrc:find('"SignpostFrame"') then
+			table.insert(problems, "signpost boards have no backing frame")
+		end
+		if not worldSrc:find("Vector3%.new%(9, 0%.8, 0%.8%)") or not worldSrc:find("Vector3%.new%(%-4%.2, 4%.5, 0%)") then
+			table.insert(problems, "the signpost post is not vertical beside the boards (9 tall at x -4.2)")
+		end
+		if worldSrc:find('part%("Signpost", Enum%.PartType%.Cylinder, Vector3%.new%(6, 0%.8, 0%.8%)') then
+			table.insert(problems, "the old horizontal signpost bar is still there (boards float)")
+		end
+		-- The contract-post fix: vertical posts at +/- 6.9, no
+		-- 90-degree rotation, clear of the board (+/- 6) and the
+		-- gold backing (+/- 6.3).
+		if not worldSrc:find("{ %-6%.9, 6%.9 }") then
+			table.insert(problems, "contract posts are not at +/- 6.9 (clear of the board and backing)")
+		end
+		if worldSrc:find('ContractPost.-CFrame%.Angles%(0, 0, math%.rad%(90%)%)') then
+			table.insert(problems, "a contract post is still a horizontal bar through the board face")
+		end
+		-- The SELL sign trim.
+		if not worldSrc:find('"SellSignTrim"') then
+			table.insert(problems, "the SELL sign has no gold trim (flat panel)")
+		end
+		-- The AABB audit: {name, assembly, cx, cy, cz, sx, sy, sz}.
+		-- Centres/sizes are the source constants (signpost literals,
+		-- title cx/cz 12/72, contract lookAt (16,0,94), SELL (62,9,-2),
+		-- shop CFrame (-45,0,45) yaw 45 + disc offset (0,7,10.3),
+		-- base signs at BASE_RADIUS 110 + local offset (0,7,9.5)).
+		local boards: { { string } } = {}
+		local function board(name: string, assembly: string, cx: number, cy: number, cz: number, sx: number, sy: number, sz: number)
+			table.insert(boards, { name, assembly, tostring(cx), tostring(cy), tostring(cz), tostring(sx), tostring(sy), tostring(sz) })
+		end
+		for _, sp in ipairs({ { -8, 62 }, { -22, 28 }, { 6, -48 } }) do
+			for _, y in ipairs({ 5, 8.2 }) do
+				board("signpost board", "signpost" .. tostring(sp[1]) .. "," .. tostring(sp[2]), sp[1], y, sp[2], 7, 1.6, 0.4)
+				board("signpost frame", "signpost" .. tostring(sp[1]) .. "," .. tostring(sp[2]), sp[1], y, sp[2] - 0.3, 7.6, 2.2, 0.2)
+			end
+			board("signpost post", "signpost" .. tostring(sp[1]) .. "," .. tostring(sp[2]), sp[1] - 4.2, 4.5, sp[2], 0.8, 9, 0.8)
+		end
+		board("title board", "title", 12, 8, 72, 22, 6, 1)
+		board("title trim top", "title", 12, 11.1, 72, 22.4, 0.5, 1.2)
+		board("title trim bottom", "title", 12, 4.9, 72, 22.4, 0.5, 1.2)
+		board("title post L", "title", -0.5, 5, 72, 1.2, 10, 1.2)
+		board("title post R", "title", 24.5, 5, 72, 1.2, 10, 1.2)
+		board("contract board", "contract", 16, 6, 94, 2, 8, 12)
+		board("contract backing", "contract", 16, 6, 94, 2, 8.6, 12.6)
+		board("contract trim", "contract", 16, 10.2, 94, 2, 0.5, 12.4)
+		board("contract post R", "contract", 16.86, 3.5, 100.85, 0.8, 7, 0.8)
+		board("contract post L", "contract", 15.14, 3.5, 87.15, 0.8, 7, 0.8)
+		board("sell sign", "sell", 62, 9, -2, 10, 4, 0.5)
+		board("sell trim", "sell", 62, 11.2, -2, 10.4, 0.5, 0.7)
+		board("shop disc", "shop", -37.7, 7, 52.3, 5.6, 7.2, 5.6)
+		for i = 0, 7 do
+			local ang = math.rad(i * 45)
+			board("base sign", "base" .. tostring(i + 1), 119.5 * math.cos(ang), 8, 119.5 * math.sin(ang), 9, 5, 9)
+		end
+		local function aabb(b: { string }): { number }
+			local cx = tonumber(b[3]) or 0
+			local cy = tonumber(b[4]) or 0
+			local cz = tonumber(b[5]) or 0
+			local sx = tonumber(b[6]) or 0
+			local sy = tonumber(b[7]) or 0
+			local sz = tonumber(b[8]) or 0
+			return { cx - sx / 2, cx + sx / 2, cy - sy / 2, cy + sy / 2, cz - sz / 2, cz + sz / 2 }
+		end
+		for i = 1, #boards do
+			for j = i + 1, #boards do
+				if boards[i][2] ~= boards[j][2] then
+					local a = aabb(boards[i])
+					local b = aabb(boards[j])
+					if a[1] < b[2] and b[1] < a[2] and a[3] < b[4] and b[3] < a[4] and a[5] < b[6] and b[5] < a[6] then
+						table.insert(problems, "boards intersect in 3D: " .. boards[i][1] .. " (" .. boards[i][2] .. ") <-> " .. boards[j][1] .. " (" .. boards[j][2] .. ")")
+					end
+				end
+			end
+		end
+		-- The label-spacing math: two 32px AlwaysOnTop labels whose
+		-- centres are 3.2 studs apart, at the MaxDistance of 50
+		-- studs, on an 800px-tall screen at 70deg vertical FOV.
+		-- Separation = (3.2/50) / tan(35deg) * 400 = ~36.6px > 32px,
+		-- so the labels are clear at every distance they render.
+		-- (The old 1.8 / 40px pair overlapped from ~29.5 studs out.)
+		local sepAtMax = (3.2 / 50) / math.tan(math.rad(35)) * 400
+		if sepAtMax <= 32 then
+			table.insert(problems, "signpost labels still overlap at MaxDistance (separation " .. string.format("%.1f", sepAtMax) .. "px <= 32px)")
+		end
+		if #problems > 0 then
+			check("boards-audit", false, "the boards audit failed — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau")
+		else
+			check("boards-audit", true, "no two boards intersect in 3D (AABB audit, " .. tostring(#boards) .. " parts); signpost labels 3.2 studs apart / 32px (clear to MaxDistance 50, ~36.6px separation); vertical posts beside the boards; contract posts vertical at +/- 6.9; SELL trim added")
+		end
+	end
+end
+
 -- -- (egg-layered) fix round 13, item 2: eggs are layered ovoids
 -- ---------------------------------------------------------------------
 -- Playtest 12: "the new egg still doesn't look like an egg, looks

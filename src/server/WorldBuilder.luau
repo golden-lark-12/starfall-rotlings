@@ -846,6 +846,13 @@ local function buildSellArea()
 	local sellSign = part("SellSign", Enum.PartType.Block, Vector3.new(10, 4, 0.5), Color3.fromRGB(20, 15, 40), CFrame.new(62, 9, -2) * CFrame.Angles(0, math.rad(180), 0))
 	sellSign.CanCollide = false
 	sellSign.CastShadow = false
+	-- Gold trim on top (fix round 13, item 5): the SELL sign was
+	-- the one board with no frame at all — a flat dark panel. The
+	-- trim sits on its top edge like the contract board's, so it
+	-- reads as a designed sign.
+	local sellTrim = part("SellSignTrim", Enum.PartType.Block, Vector3.new(10.4, 0.5, 0.7), Color3.fromRGB(255, 215, 0), CFrame.new(62, 11.2, -2), Enum.Material.Neon)
+	sellTrim.CanCollide = false
+	sellTrim.CastShadow = false
 	local sign = Instance.new("BillboardGui")
 	sign.Name = "SellSign"
 	sign.Size = UDim2.fromOffset(200, 64)
@@ -1409,17 +1416,38 @@ end
 -- purple), so no two signposts read the same — and no board is a
 -- plain dark panel with white text (fix round 12, item 1).
 local function signpost(position: Vector3, lines: { { text: string, color: Color3, board: Color3 } })
-	local post = part("Signpost", Enum.PartType.Cylinder, Vector3.new(6, 0.8, 0.8), Color3.fromRGB(120, 85, 50), CFrame.new(position + Vector3.new(0, 3, 0)) * CFrame.Angles(0, 0, math.rad(90)))
+	-- (fix round 13, item 5) The old signpost was a placement bug
+	-- twice over: (a) its two boards sat 1.8 studs apart with
+	-- 40px AlwaysOnTop labels — from spawn (34 studs) the two
+	-- labels' centres are ~30px apart on screen, so the blue
+	-- "← Crater" and brown/gold "Shop →" labels sat ON each other
+	-- (Malek's playtest-12 screenshot); (b) the post was a
+	-- horizontal bar at y=3 that never reached the boards — they
+	-- floated. Now: boards 3.2 studs apart with 32px labels
+	-- (clear to MaxDistance on any normal screen — see the
+	-- boards-audit check for the math), a VERTICAL post beside
+	-- the boards (offset -4.2 in x, clear of the 7-wide boards,
+	-- running from the ground to the top board), and a darker
+	-- backing frame behind each board so it reads as a designed
+	-- sign, not a flat panel.
+	local post = part("Signpost", Enum.PartType.Cylinder, Vector3.new(9, 0.8, 0.8), Color3.fromRGB(120, 85, 50), CFrame.new(position + Vector3.new(-4.2, 4.5, 0)))
 	post.CanCollide = false
 	for i, line in ipairs(lines) do
-		local board = part("SignpostBoard", Enum.PartType.Block, Vector3.new(7, 1.6, 0.4), line.board, CFrame.new(position + Vector3.new(0, 5 + (i - 1) * 1.8, 0)))
+		local boardY = 5 + (i - 1) * 3.2
+		-- The frame: a darker shade of the board colour, slightly
+		-- larger, sitting just behind the board — it peeks out
+		-- around all four edges from the front, and reads as the
+		-- sign's back from behind.
+		local frame = part("SignpostFrame", Enum.PartType.Block, Vector3.new(7.6, 2.2, 0.2), Color3.new(line.board.R * 0.55, line.board.G * 0.55, line.board.B * 0.55), CFrame.new(position + Vector3.new(0, boardY, -0.3)))
+		frame.CanCollide = false
+		local board = part("SignpostBoard", Enum.PartType.Block, Vector3.new(7, 1.6, 0.4), line.board, CFrame.new(position + Vector3.new(0, boardY, 0)))
 		board.CanCollide = false
 		local gui = Instance.new("BillboardGui")
 		gui.Name = "SignpostLabel"
-		gui.Size = UDim2.fromOffset(180, 40)
+		gui.Size = UDim2.fromOffset(160, 32)
 		gui.AlwaysOnTop = true
 		gui.LightInfluence = 0
-		gui.MaxDistance = 60
+		gui.MaxDistance = 50
 		gui.Parent = board
 		local label = Instance.new("TextLabel")
 		label.Size = UDim2.new(1, 0, 1, 0)
@@ -1712,11 +1740,17 @@ local function buildContractBoard()
 	-- NO wrapping) clipped mid-word — "Finish one, cla..." — and
 	-- the board read as an empty dark panel. Now: a 12x8 board
 	-- with a gold backing (a gold border around the dark face),
-	-- posts OUTSIDE the board at +/- 6.5, a 260x140 GUI, wrapped
+	-- posts OUTSIDE the board at +/- 6.9, a 260x140 GUI, wrapped
 	-- text that fits, and a footer line — so the board reads as a
 	-- reward board with content, never as an empty panel.
-	for _, x in ipairs({ -6.5, 6.5 }) do
-		local post = part("ContractPost", Enum.PartType.Cylinder, Vector3.new(7, 0.8, 0.8), Color3.fromRGB(120, 85, 50), boardCf * CFrame.new(x, 3.5, 0) * CFrame.Angles(0, 0, math.rad(90)))
+	-- (fix round 13, item 5) The posts were horizontal bars
+	-- (rotated 90° about Z) centred at +/- 6.5 — a 7-long bar
+	-- spans 3..10, so half of each bar ran THROUGH the board's
+	-- face and poked 0.1 out the front. They are VERTICAL now,
+	-- standing on the ground at +/- 6.9 — clear of the board
+	-- (+/- 6) AND of the gold backing (+/- 6.3).
+	for _, x in ipairs({ -6.9, 6.9 }) do
+		local post = part("ContractPost", Enum.PartType.Cylinder, Vector3.new(7, 0.8, 0.8), Color3.fromRGB(120, 85, 50), boardCf * CFrame.new(x, 3.5, 0))
 		post.CanCollide = false
 	end
 	local backing = part("ContractBoardBacking", Enum.PartType.Block, Vector3.new(12.6, 8.6, 0.4), Color3.fromRGB(255, 215, 0), boardCf * CFrame.new(0, 6, -0.3), Enum.Material.Neon)
