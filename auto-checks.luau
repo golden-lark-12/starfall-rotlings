@@ -116,6 +116,10 @@
 --   (ca) the competition is broken (guardian speed/catch/give-up/rim
 --       spawn/AWAKE warning wrong, raiders never crater-grab, or the
 --       20-index / Cosmic Corn Dog / tier celebrations missing)
+--   (photo-bar-hide) the photo-mode bar stays in the screenshots
+--       (no auto-hide timer after a shot frames, the fade does not
+--       cover the bar's text/strokes, or the bar does not come back
+--       on the next shot)
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -9134,6 +9138,82 @@ do
 			check("divine-tier", false, "the Divine tier is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RarityConfig.luau, RotlingCatalog.luau, RotlingFactory.luau, Config.luau, MeteorEggService.luau")
 		else
 			check("divine-tier", true, "Divine tier live: 7 tiers, Divine last (royal blue 70,120,255, weight 1, 500 cps); Archangel Alfredo (angel-noodle, halo + wings + robe) and Pope Pineapple (pineapple-pope, leaf crown + mitre + cross); guardian 36, hatch 360s, eggs can roll Divine")
+		end
+	end
+end
+
+-- -- (photo-bar-hide) the photo-mode bar auto-hides before capture --
+-- Malek, Nov 19 ~19:40: the bottom text in his screenshots "isnt the
+-- best thing" — he is right. Every capture (⋯ menu → Screenshot)
+-- included the photo-mode bottom bar ("Photo N/4 — <name>", the shot
+-- detail, "Capture it: ... menu → Screenshot (saves to Photos). P =
+-- next shot.", Exit / Next ▶ buttons) plus the hint line under it.
+-- The bar is a tool artifact and must NEVER be in a submission
+-- screenshot; the normal HUD (top bar, buttons, leaderboard, BONK)
+-- stays and is fine. So the bar fades out BAR_HIDE_DELAY seconds
+-- after a shot frames and stays hidden until the next P / Next /
+-- Exit re-shows it. This check proves the mechanism structurally:
+--   * a hide delay constant exists and is 4s (long enough to read
+--     which shot is framed, short enough to wait out);
+--   * showShot arms the hide (hideBarSoon called) and restores the
+--     bar first (showBar called — the fade must be reversible);
+--   * the hide waits on the delay, then hides the bar
+--     (task.wait(BAR_HIDE_DELAY) + bar.Visible = false);
+--   * a token cancels a stale hide (barToken bumped on show/exit,
+--     compared before hiding) so pressing P mid-fade cannot hide
+--     the fresh shot's bar;
+--   * the fade covers text and strokes (applyBarFade touches
+--     TextTransparency + TextStrokeTransparency), not just the
+--     panel background — otherwise the words would hang in the air
+--     after the panel vanished;
+--   * the capture instruction still exists (the bar still tells the
+--     player how to capture while it is up).
+do
+	local photoSrc = read("src/client/PhotoModeController.client.luau")
+	if not photoSrc then
+		check("photo-bar-hide", false, "could not verify the photo bar hide — PhotoModeController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not photoSrc:find("BAR_HIDE_DELAY = 4", 1, true) then
+			table.insert(problems, "no BAR_HIDE_DELAY = 4 (the bar must hide ~4s after a shot frames)")
+		end
+		if not photoSrc:find("hideBarSoon()", 1, true) then
+			table.insert(problems, "hideBarSoon is never called — no shot arms the auto-hide")
+		end
+		if not photoSrc:find("local function hideBarSoon", 1, true) then
+			table.insert(problems, "hideBarSoon is not defined")
+		end
+		if not photoSrc:find("showBar()", 1, true) then
+			table.insert(problems, "showBar is never called — the bar is not restored on the next shot")
+		end
+		if not photoSrc:find("task.wait%(BAR_HIDE_DELAY%)") then
+			table.insert(problems, "the hide does not wait on BAR_HIDE_DELAY")
+		end
+		if not photoSrc:find("bar.Visible = false", 1, true) then
+			table.insert(problems, "nothing ever hides the bar (no bar.Visible = false)")
+		end
+		if not photoSrc:find("barToken", 1, true) then
+			table.insert(problems, "no barToken — a stale hide could kill a fresh shot's bar")
+		end
+		if not photoSrc:find("token ~= barToken", 1, true) then
+			table.insert(problems, "the pending hide never checks its token before hiding")
+		end
+		if not photoSrc:find("applyBarFade", 1, true) then
+			table.insert(problems, "no applyBarFade — the bar would vanish instantly instead of fading")
+		end
+		if not photoSrc:find("TextTransparency", 1, true) then
+			table.insert(problems, "the fade never touches TextTransparency — the words would outlive the panel")
+		end
+		if not photoSrc:find("TextStrokeTransparency", 1, true) then
+			table.insert(problems, "the fade never touches TextStrokeTransparency — the text outline would outlive the panel")
+		end
+		if not photoSrc:find("Capture it:", 1, true) then
+			table.insert(problems, "the bar no longer tells the player how to capture")
+		end
+		if #problems > 0 then
+			check("photo-bar-hide", false, "the photo bar would stay in the screenshots — " .. table.concat(problems, "; ") .. ". Parts: PhotoModeController.client.luau (showBar / hideBarSoon / applyBarFade)")
+		else
+			check("photo-bar-hide", true, "photo bar auto-hides: shows on every shot (showBar restores it), fades out after BAR_HIDE_DELAY = 4s (0.5s fade over text + strokes + panel), token-cancelled on P/Next/Exit so a fresh shot's bar survives; capture instruction still on the bar while it is up; normal HUD untouched")
 		end
 	end
 end

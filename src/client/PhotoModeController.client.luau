@@ -21,7 +21,11 @@
 -- CAPTURED by the player: the bar at the bottom of each shot says so.
 -- Open the ⋯ menu → Screenshot and it saves to the device's
 -- Photos/Pictures, ready to send back. On desktop the same button is
--- in the in-game menu (Esc).
+-- in the in-game menu (Esc). The bar auto-hides 4 seconds after a
+-- shot frames (fade, then invisible) so it is NEVER in the capture —
+-- it comes straight back the moment the player presses P / Next /
+-- Exit or the shot changes. The normal HUD stays up the whole time;
+-- only the photo bar goes.
 --
 -- CameraFX shakes the camera during storms; it checks the camera's
 -- "PhotoMode" attribute and never shakes while a shot is framed, so
@@ -126,12 +130,97 @@ gui.Parent = player:WaitForChild("PlayerGui")
 
 -- Bottom bar: shot name on top, capture instruction under it. It sits
 -- above the HUD hint line, so it covers no HUD element.
+-- AUTO-HIDE (Malek, Nov 19 ~19:40): the bar is a tool artifact — it
+-- was in every screenshot he captured ("the text showing down isnt
+-- the best thing"). It fades out BAR_HIDE_DELAY seconds after a shot
+-- frames and stays hidden until the next P / Next / Exit, so the
+-- capture is a clean game frame. The normal HUD is untouched.
+local BAR_HIDE_DELAY = 4 -- seconds the bar stays up after a shot frames
+local BAR_FADE_STEPS = 10 -- 10 x 0.05s = 0.5s fade
+local BAR_FADE_STEP_WAIT = 0.05
+local barToken = 0 -- bumped on every show/exit; a pending hide whose token no longer matches is dead
 local bar = GuiKit.makePanel(gui, "PhotoBar", UDim2.new(0, 620, 0, 56), UDim2.new(0.5, -310, 1, -108))
 bar.Visible = false
 local titleLabel = GuiKit.makeLabel(bar, "PhotoTitle", "", UDim2.new(1, -16, 0, 26), UDim2.new(0, 8, 0, 2), 22, GuiKit.COLORS.Gold)
 local helpLabel = GuiKit.makeLabel(bar, "PhotoHelp", "", UDim2.new(1, -16, 0, 24), UDim2.new(0, 8, 0, 28), 17, GuiKit.COLORS.White)
 local nextButton = GuiKit.makeButton(bar, "NextShot", "Next ▶", UDim2.new(0, 110, 0, 40), UDim2.new(1, -122, 0, 8), GuiKit.COLORS.Blue)
 local exitButton = GuiKit.makeButton(bar, "ExitPhoto", "Exit ✕", UDim2.new(0, 110, 0, 40), UDim2.new(0, 12, 0, 8), GuiKit.COLORS.Close)
+
+-- Snapshot of the bar's designed transparency values, taken once, so
+-- the fade can interpolate back to them exactly (labels start at
+-- BackgroundTransparency 1, the panel at 0.15, strokes at 0.5/0.7 —
+-- a blind "set everything to 0" restore would paint label
+-- backgrounds solid and flatten the panel stroke).
+local barOriginals: { [Instance]: { [string]: number } }? = nil
+local function snapshotBar()
+	if barOriginals then
+		return
+	end
+	local snapped: { [Instance]: { [string]: number } } = {}
+	local function snap(inst: Instance)
+		local props: { [string]: number } = {}
+		if inst:IsA("GuiObject") then
+			props.BackgroundTransparency = inst.BackgroundTransparency
+		end
+		if inst:IsA("TextLabel") or inst:IsA("TextButton") then
+			props.TextTransparency = inst.TextTransparency
+			props.TextStrokeTransparency = inst.TextStrokeTransparency
+		end
+		if inst:IsA("UIStroke") then
+			props.Transparency = inst.Transparency
+		end
+		if next(props) ~= nil then
+			snapped[inst] = props
+		end
+	end
+	snap(bar)
+	for _, descendant in bar:GetDescendants() do
+		snap(descendant)
+	end
+	barOriginals = snapped
+end
+
+local function applyBarFade(alpha: number)
+	-- alpha 0 = as designed, 1 = fully invisible
+	if not barOriginals then
+		return
+	end
+	for inst, props in barOriginals do
+		for prop, original in props do
+			(inst :: any)[prop] = original + (1 - original) * alpha
+		end
+	end
+end
+
+local function showBar()
+	snapshotBar()
+	applyBarFade(0)
+	bar.Visible = true
+end
+
+local function hideBarSoon()
+	-- Any later show/exit bumps the token and cancels this hide.
+	barToken += 1
+	local token = barToken
+	task.spawn(function()
+		task.wait(BAR_HIDE_DELAY)
+		if token ~= barToken or shotIndex == 0 then
+			return
+		end
+		for step = 1, BAR_FADE_STEPS do
+			task.wait(BAR_FADE_STEP_WAIT)
+			if token ~= barToken or shotIndex == 0 then
+				-- A new shot (or exit) took over mid-fade: leave the
+				-- bar exactly as the new state set it.
+				return
+			end
+			applyBarFade(step / BAR_FADE_STEPS)
+		end
+		if token == barToken and shotIndex ~= 0 then
+			bar.Visible = false
+		end
+	end)
+end
 
 -- Base centres ring the crater: base id 1 at angle 0, the rest every
 -- 360/BASE_COUNT degrees. The nearest one to the player is their base.
@@ -182,6 +271,8 @@ end
 
 local function exitPhotoMode()
 	shotIndex = 0
+	-- Cancel any pending auto-hide; the bar is gone with the mode.
+	barToken += 1
 	bar.Visible = false
 	local camera = workspace.CurrentCamera
 	if camera then
@@ -207,7 +298,10 @@ local function showShot(index: number)
 	titleLabel.Text = "📷 Photo " .. shot.name .. " — " .. shot.detail
 	helpLabel.Text = "Capture it: ⋯ menu → Screenshot (saves to Photos). P = next shot."
 	nextButton.Text = if index == #SHOTS then "Exit ✕" else "Next ▶"
-	bar.Visible = true
+	-- Bar up (restored to full opacity), then gone again in 4s so
+	-- the capture is clean. P / Next / Exit re-shows it via showShot.
+	showBar()
+	hideBarSoon()
 end
 
 local function advanceShot()
