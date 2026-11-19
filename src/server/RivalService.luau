@@ -224,6 +224,73 @@ local function walkTo(model: Model, target: Vector3, timeout: number, shouldCanc
 	return done
 end
 
+-- Walk a rival to a point on a COMPUTED path (fix round 14, item 4):
+-- PathfindingService:ComputeAsync around solid parts, following the
+-- waypoints with MoveTo and jumping on jump waypoints — the same
+-- parameters steerChase uses (AgentRadius 3, AgentHeight 5,
+-- AgentCanJump true, AgentMaxSlope 45). A straight MoveTo cannot
+-- see the base front wall, the pads, or a placed Brainrot: it
+-- pushes against them until the timeout, and the stuck-hop only
+-- fires when the rival is fully stopped, not when it is sliding
+-- sideways along a wall. The pathfinder routes AROUND them. One
+-- repath on failure (the navmesh can lag a just-placed part), then
+-- fall back to walkTo so a path failure never strands the rival.
+-- shouldCancel is optional (nil = storm-proof, like the steal).
+local function walkPath(model: Model, target: Vector3, timeout: number, shouldCancel: (() -> boolean)?): boolean
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not humanoid or not root then
+		return false
+	end
+	for _ = 1, 2 do
+		local path = PathfindingService:CreatePath({
+			AgentRadius = 3,
+			AgentHeight = 5,
+			AgentCanJump = true,
+			AgentMaxSlope = 45,
+		})
+		local computed = pcall(function()
+			path:ComputeAsync(root.Position, target)
+		end)
+		if computed and path.Status == Enum.PathStatus.Success then
+			local waypoints = path:GetWaypoints()
+			local ok = true
+			local waited = 0
+			local index = 2
+			while index <= #waypoints do
+				if not model.Parent then
+					return false
+				end
+				if shouldCancel and shouldCancel() then
+					return false
+				end
+				local wp = waypoints[index]
+				if (wp.Position - root.Position).Magnitude <= 3 then
+					index += 1
+				else
+					if wp.Action == Enum.PathWaypointAction.Jump then
+						humanoid.Jump = true
+					end
+					humanoid:MoveTo(wp.Position)
+					task.wait(0.2)
+					waited += 0.2
+					if waited >= timeout then
+						ok = false
+						break
+					end
+				end
+			end
+			if ok and (root.Position - target).Magnitude <= 4 then
+				return true
+			end
+		end
+		-- No path, or the path did not arrive: repath once, then
+		-- fall back to the straight walk below.
+		task.wait(0.5)
+	end
+	return walkTo(model, target, timeout, shouldCancel)
+end
+
 -- (fix round 7, item 7) The THIEF sign is also a red Highlight on the
 -- whole model, visible THROUGH walls (DepthMode Occluded) — so the
 -- player can see the thief even when it is behind the base walls or
@@ -304,17 +371,50 @@ end
 -- arc along the ring to the target's angle (shorter way); then walk
 -- straight to the target. Every rival walk uses this — toCrater,
 -- steal, and toBase — so a rival can never stall on the rim again.
-local function walkAround(model: Model, target: Vector3, timeout: number, shouldCancel: (() -> boolean)?): boolean
+local function walkAround(model: Model, target: Vector3, timeout: number, shouldCancel: (() -> boolean)?): (boolean, string?)
 	local root = model:FindFirstChild("HumanoidRootPart")
 	if not root then
-		return false
+		return false, "no-root"
 	end
+	-- (fix round 14, item 4) EXIT FIRST: a rival standing on its
+	-- own base platform walks straight toward the ring point and
+	-- hits its own front wall — the line from an off-centre pad
+	-- spot crosses the wall outside the 6-wide ramp gap. Nova
+	-- proved it live (playtest 13): at local (-4.47, -0.77) on
+	-- base 6, its straight departure hit the left front wall and
+	-- it never left its own base — 200 studs short, leg
+	-- 'unknown'. The round-13 trace started every rival at its
+	-- base CENTRE, where the line happens to clear the ramp, so
+	-- it never saw this. Walk out through the own ramp first
+	-- (ramp top, then the entrance at ground level) on a computed
+	-- path, then join the ring. Any base 1-8: the same exit also
+	-- fixes the steal's RETURN (toBase starts on the victim's
+	-- platform) and the crater run.
 	local start = root.Position
+	for baseId = 1, 8 do
+		local homeCf = WorldBuilder.baseCFrame(baseId)
+		if homeCf and WorldBuilder.isOnBasePlatform(baseId, start) then
+			local rampTop = (homeCf * CFrame.new(0, 2, -10)).Position
+			local exitPos = (homeCf * CFrame.new(0, 0, -15)).Position
+			if not walkPath(model, rampTop, 20) then
+				return false, "exit"
+			end
+			if not walkPath(model, exitPos, 20) then
+				return false, "exit"
+			end
+			break
+		end
+	end
+	root = model:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return false, "no-root"
+	end
+	start = root.Position
 	local startR = Vector3.new(start.X, 0, start.Z).Magnitude
 	if startR < 42 then
 		-- Inside the rim: leave through the entrance gap (+Z).
 		if not walkTo(model, Vector3.new(0, Config.CRATER_FLOOR_Y, 45), timeout, shouldCancel) then
-			return false
+			return false, "departure"
 		end
 	else
 		-- Outside the rim: drop radially to the ring at our angle.
@@ -322,7 +422,7 @@ local function walkAround(model: Model, target: Vector3, timeout: number, should
 		local ringPoint = Vector3.new(math.cos(startAngle) * 45, 0, math.sin(startAngle) * 45)
 		if (Vector3.new(start.X, 0, start.Z) - ringPoint).Magnitude > 4 then
 			if not walkTo(model, ringPoint, timeout, shouldCancel) then
-				return false
+				return false, "departure"
 			end
 		end
 	end
@@ -331,7 +431,7 @@ local function walkAround(model: Model, target: Vector3, timeout: number, should
 	-- gap exit lands at +Z, 90°).
 	local cur = model:FindFirstChild("HumanoidRootPart")
 	if not cur then
-		return false
+		return false, "no-root"
 	end
 	local curPos = (cur :: BasePart).Position
 	local curAngle = math.atan2(curPos.Z, curPos.X)
@@ -351,13 +451,16 @@ local function walkAround(model: Model, target: Vector3, timeout: number, should
 		curAngle += step * (move / math.rad(30))
 		local waypoint = Vector3.new(math.cos(curAngle) * 45, 0, math.sin(curAngle) * 45)
 		if not walkTo(model, waypoint, timeout, shouldCancel) then
-			return false
+			return false, "ring"
 		end
 		remaining -= move
 	end
 	-- Straight in from the ring to the target (never crosses the rim:
 	-- the target is outside the ring, or the gap side is open).
-	return walkTo(model, target, timeout, shouldCancel)
+	if walkTo(model, target, timeout, shouldCancel) then
+		return true, nil
+	end
+	return false, "ring"
 end
 
 -- (fix round 6, item 3) The sneak alert promised a thief at the
@@ -898,8 +1001,12 @@ local function stepRival(rival: State.Rival, model: Model)
 				end
 				reachedPad = walkAround(model, entrancePos, 40, stormRunning)
 					and (not rampTopPos or walkTo(model, rampTopPos, 20, stormRunning))
-					and (not stripPos or walkTo(model, stripPos, 20, stormRunning))
-					and walkTo(model, padCf.Position, 40, stormRunning)
+					-- (fix round 14, item 4) The final leg runs on
+					-- a computed path too — the straight MoveTo
+					-- crossed the pad ledges, the same shape as
+					-- the steal's pad leg. Storm cancel kept.
+					and (not stripPos or walkPath(model, stripPos, 20, stormRunning))
+					and walkPath(model, padCf.Position, 40, stormRunning)
 			elseif padCf then
 				reachedPad = walkAround(model, padCf.Position, 40, stormRunning)
 			end
@@ -1049,7 +1156,8 @@ local function stepRival(rival: State.Rival, model: Model)
 					-- the leg for the diagnostic below.
 					local failedLeg: string? = nil
 					local reachedRamp = false
-					if walkAround(model, around, 40, nil) then
+					local ringOk, ringLeg = walkAround(model, around, 40, nil)
+					if ringOk then
 						if walkTo(model, entrancePos, 20, nil) then
 							if not rampTopPos or walkTo(model, rampTopPos, 20, nil) then
 								reachedRamp = true
@@ -1060,7 +1168,29 @@ local function stepRival(rival: State.Rival, model: Model)
 							failedLeg = "entrance"
 						end
 					else
-						failedLeg = "ring"
+						failedLeg = ringLeg or "ring"
+					end
+					-- (fix round 14, item 4) THE DOOR: Malek watched
+					-- the thief reach the door and stand there doing
+					-- nothing — the final leg was a straight MoveTo
+					-- from the ramp top that crossed the platform
+					-- edge, the CollectPad and the front pads, and
+					-- the rival pushed the first ledge until the
+					-- timeout. Cross the threshold explicitly —
+					-- local (0,2,-11), the line the rival must pass
+					-- to be INSIDE — on a computed path, and log
+					-- it, so the F9 trail shows the thief entering
+					-- instead of vanishing at the door.
+					if reachedRamp then
+						local doorPos = if victimCf then (victimCf * CFrame.new(0, 2, -11)).Position else nil
+						if doorPos then
+							if walkPath(model, doorPos, 20) then
+								print("[Rival] " .. rival.name .. " reached the door of " .. victim.Name .. "'s base — entering")
+							else
+								failedLeg = "door"
+								reachedRamp = false
+							end
+						end
 					end
 					if reachedRamp then
 						local freshPad: number? = nil
@@ -1095,17 +1225,44 @@ local function stepRival(rival: State.Rival, model: Model)
 								stripPos = (victimCf * CFrame.new(localPad.X, 2, -9)).Position
 							end
 							arrived = if padCf
-								then (not stripPos or walkTo(model, stripPos, 20, nil)) and walkTo(model, padCf.Position, 40, nil)
+								then (not stripPos or walkPath(model, stripPos, 20)) and walkPath(model, padCf.Position, 40)
 								else false
+							-- (fix round 14, item 4) The pad leg
+							-- runs on a computed path now (the
+							-- straight MoveTo crossed the pad
+							-- ledges), and gets ONE retry: if the
+							-- path fails, hop the ledge it could
+							-- not clear and walk the path once
+							-- more before the steal aborts. A thief
+							-- that gives up at the pad after
+							-- reaching the door is still a failure
+							-- — the retry is the difference between
+							-- "stood at the door" and "entered and
+							-- grabbed".
+							if not arrived and padCf then
+								local hopHumanoid = model:FindFirstChildOfClass("Humanoid")
+								if hopHumanoid then
+									hopHumanoid.Jump = true
+								end
+								task.wait(0.5)
+								arrived = (not stripPos or walkPath(model, stripPos, 20)) and walkPath(model, padCf.Position, 40)
+							end
 							if not arrived then
 								failedLeg = "pad"
 							end
 						else
+							failedLeg = "pads-emptied"
 							print("[Rival] " .. rival.name .. " reached " .. victim.Name .. "'s base but every pad emptied on the walk — steal aborted")
 						end
 					end
 				elseif padCf then
+					-- No victim angle (victimCf missing): straight
+					-- walk, no ring route. Named "direct" so the
+					-- diagnostic never says "unknown" for it.
 					arrived = walkTo(model, padCf.Position, 60, nil)
+					if not arrived then
+						failedLeg = "direct"
+					end
 				end
 				if arrived then
 					print("[Rival] " .. rival.name .. " arrived at " .. victim.Name .. "'s base")
@@ -1147,7 +1304,14 @@ local function stepRival(rival: State.Rival, model: Model)
 					print("[Rival] " .. rival.name .. " could not reach " .. victim.Name .. "'s base (pad " .. tostring(padIndex) .. ") — steal aborted; rival at " .. tostring(rivalPos) .. ", pad at " .. tostring(padPos) .. ", " .. tostring(math.floor((rivalPos - padPos).Magnitude)) .. " studs short")
 					-- (fix round 13, item 1) Name the blocker: the
 					-- leg + the nearest solid part, in F9.
-					logWalkDiagnostic(rival, model, failedLeg or "unknown", padPos)
+					-- (fix round 14, item 4) 'unknown' is gone:
+					-- every failure path above names its leg
+					-- (exit / departure / ring / entrance / ramp /
+					-- door / pad / pads-emptied / direct). The
+					-- "unlabelled" fallback is defensive only — if
+					-- it ever appears in F9, it is a NEW un-named
+					-- failure path, not a shrug.
+					logWalkDiagnostic(rival, model, failedLeg or "unlabelled", padPos)
 					giveUpBanner(victim, rival.name, "couldn't reach your base")
 					setThiefSign(model, false)
 					rival.phase = "idle"

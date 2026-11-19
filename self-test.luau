@@ -694,6 +694,16 @@ do
 		if not incomeSrc:find("STORM BOUNTY:") then
 			table.insert(problems, "the storm bounty winner is never announced")
 		end
+		-- (fix round 14, item 4) The steal walks on a computed
+		-- path (walkPath) and crosses the door explicitly (logged
+		-- "reached the door") — the thief must enter, grab and run
+		-- home, not stand at the door.
+		if not rivalSrc:find("local function walkPath") then
+			table.insert(problems, "no walkPath (computed-path walk) for the steal")
+		end
+		if not rivalSrc:find("reached the door of") then
+			table.insert(problems, "the steal does not log reaching the door")
+		end
 		if #problems > 0 then
 			step("rivals", false, table.concat(problems, "; "))
 		else

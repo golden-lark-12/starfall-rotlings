@@ -6065,6 +6065,30 @@ end
 --     pad crossing.
 --   * The give-up now logs the leg + nearest solid (F9), so a
 --     live stall names its blocker instead of guessing again.
+--
+-- Playtest 13 (fix round 14, item 4): the thief STILL fails — in a
+-- NEW way. Nova's F9 log: "could not reach 3MAKMAJD's base (pad
+-- 1) — steal aborted; rival at -74.07, 3.70, 80.39, pad at 105.5,
+-- 2.30, 9, 200 studs short" + "STEAL WALK DIAGNOSTIC — leg
+-- 'unknown' failed; nearest solid: Pad at -72.48, 2.30, -76.72".
+-- Two holes, both proven from the numbers: (1) the trace above
+-- started every rival at its base CENTRE, where the straight
+-- departure happens to clear the ramp gap — but Nova stood at
+-- local (-4.47, -0.77) on base 6, and its straight line to the
+-- ring crosses its own front wall at local x ≈ -3.76, outside
+-- the 6-wide ramp gap. The trace below now starts the departure
+-- at Nova's spot and PROVES the straight line hits the wall
+-- (the two F9 anchors pin the frame: Nova decodes to
+-- (-74.07, -80.39) and pad 2 to (-72.48, -76.72)). The walk no
+-- longer takes that line: walkAround exits through the own ramp
+-- first, on a computed path. (2) The diagnostic said 'unknown'
+-- because two failure paths left failedLeg nil (every pad
+-- emptied, the fallback straight walk) — every path names its
+-- leg now, and 'unknown' is gone. The steal also crosses the
+-- door explicitly (local (0,2,-11), logged "reached the door")
+-- and the pad leg runs on a computed path with one hop + retry,
+-- because Malek watched the thief reach the door and stand
+-- there doing nothing.
 do
 	local worldSrc = read("src/server/WorldBuilder.luau")
 	local rivalSrc = read("src/server/RivalService.luau")
@@ -6112,6 +6136,66 @@ do
 		-- The give-up names its leg + nearest solid (F9).
 		if not rivalSrc:find("STEAL WALK DIAGNOSTIC") or not rivalSrc:find("GetPartBoundsInRadius") or not rivalSrc:find("failedLeg") then
 			table.insert(problems, "no give-up diagnostic (leg + nearest solid) on the steal walk")
+		end
+		-- (fix round 14, item 4) THE EXIT + THE DOOR + THE LEGS.
+		-- Playtest 13: Nova's live F9 log proved the walk fails at
+		-- the DEPARTURE — Nova never left its own base (200 studs
+		-- short, at radius 109) — and the diagnostic said leg
+		-- 'unknown', naming nothing. The round-13 trace started
+		-- every rival at its base CENTRE, where the straight
+		-- departure happens to clear the ramp gap, so it could not
+		-- see this. The walk now: (a) walkAround exits through the
+		-- rival's OWN ramp first (walkPath, computed path) before
+		-- joining the ring, and reports the leg; (b) the steal
+		-- crosses the door explicitly (local (0,2,-11)) on a
+		-- computed path and logs "reached the door"; (c) the pad
+		-- leg runs on a computed path with one hop + retry; (d)
+		-- every failure path names its leg — 'unknown' is gone.
+		if not rivalSrc:find("local function walkPath") then
+			table.insert(problems, "no walkPath (computed-path walk) in RivalService")
+		end
+		if not rivalSrc:find("AgentRadius = 3") or not rivalSrc:find("AgentCanJump = true") then
+			table.insert(problems, "walkPath does not use the chase path params (AgentRadius 3, AgentCanJump)")
+		end
+		if not rivalSrc:find("isOnBasePlatform%(baseId, start%)") then
+			table.insert(problems, "walkAround does not test whether the rival starts on a base platform (own-ramp exit)")
+		end
+		if not rivalSrc:find("CFrame%.new%(0, 2, %-10%)") then
+			table.insert(problems, "walkAround has no own-ramp-top waypoint for the exit")
+		end
+		if not rivalSrc:find("CFrame%.new%(0, 0, %-15%)") then
+			table.insert(problems, "walkAround has no own-entrance waypoint for the exit")
+		end
+		if not rivalSrc:find("local ringOk, ringLeg = walkAround") then
+			table.insert(problems, "the steal branch does not capture walkAround's leg")
+		end
+		if not rivalSrc:find("CFrame%.new%(0, 2, %-11%)") then
+			table.insert(problems, "the steal has no explicit door waypoint (local (0,2,-11))")
+		end
+		if not rivalSrc:find("reached the door of") then
+			table.insert(problems, "the steal does not log reaching the door")
+		end
+		if not rivalSrc:find("walkPath%(model, padCf%.Position, 40%)") then
+			table.insert(problems, "the pad leg does not run on a computed path")
+		end
+		if not rivalSrc:find("pads%-emptied") then
+			table.insert(problems, "the every-pad-emptied abort has no leg name")
+		end
+		if not rivalSrc:find('"direct"') then
+			table.insert(problems, "the fallback straight walk has no leg name")
+		end
+		if rivalSrc:find('or "unknown"') then
+			table.insert(problems, "the diagnostic can still say leg 'unknown' — every failure path must name its leg")
+		end
+		if not rivalSrc:find('or "unlabelled"') then
+			table.insert(problems, "the diagnostic has no defensive fallback leg name")
+		end
+		-- The leg names that must exist: exit / departure / ring /
+		-- entrance / ramp / door / pad / pads-emptied / direct.
+		for _, leg in ipairs({ "exit", "departure", "ring", "entrance", "ramp", "door", "pad", "pads-emptied", "direct" }) do
+			if not rivalSrc:find('"' .. leg .. '"', 1, true) then
+				table.insert(problems, "leg '" .. leg .. "' never appears in RivalService")
+			end
 		end
 		-- --- The computed trace: every steal leg as a capsule
 		-- against every solid. Geometry helpers (2D, XZ plane).
@@ -6287,10 +6371,57 @@ do
 				end
 			end
 		end
+		-- (fix round 14, item 4) NOVA'S SPOT: the round-13 trace
+		-- started every rival at its base CENTRE, where the straight
+		-- departure happens to clear the ramp gap — and Nova's live
+		-- F9 log proved the real start is off-centre: Nova stood at
+		-- local (-4.47, -0.77) on base 6 (world -74.07, -80.39 —
+		-- the photo's z read +80.39, but the diagnostic's Pad at
+		-- (-72.48, -76.72) decodes to base 6 pad 2, local (-3,
+		-- -4.5), which only fits z NEGATIVE), between pads 2 and
+		-- 6. Its straight line to the ring crossed its own front
+		-- wall OUTSIDE the 6-wide ramp gap. This trace starts the
+		-- departure at Nova's spot and proves the straight line
+		-- HITS the wall — the regression the old trace could not
+		-- see. The walk no longer takes that line (the exit is
+		-- asserted by the mechanism checks above).
+		local a6 = math.rad(225)
+		local c6x, c6z = math.cos(a6) * 110, math.sin(a6) * 110
+		local lxX, lxZ = math.sin(a6), -math.cos(a6)
+		local lzX, lzZ = math.cos(a6), math.sin(a6)
+		local function toWorld6(lx: number, lz: number): (number, number)
+			return c6x + lx * lxX + lz * lzX, c6z + lx * lxZ + lz * lzZ
+		end
+		local novaX, novaZ = toWorld6(-4.47, -0.77)
+		-- Sanity anchor 1: the computed spot must match the F9 log
+		-- (-74.07, -80.39) to 0.1 studs, or the local frame is
+		-- wrong and the wall test below means nothing.
+		if math.abs(novaX - -74.07) > 0.1 or math.abs(novaZ - -80.39) > 0.1 then
+			table.insert(problems, "Nova's spot does not decode to the F9 position (-74.07, -80.39) — the base-6 local frame is wrong")
+		end
+		-- Sanity anchor 2: the diagnostic's nearest solid, "Pad at
+		-- (-72.48, 2.30, -76.72)", must decode to base 6 pad 2,
+		-- local (-3, -4.5).
+		local pad2X, pad2Z = toWorld6(-3, -4.5)
+		if math.abs(pad2X - -72.48) > 0.1 or math.abs(pad2Z - -76.72) > 0.1 then
+			table.insert(problems, "base 6 pad 2 does not decode to the F9 diagnostic position (-72.48, -76.72) — the base-6 local frame is wrong")
+		end
+		local ring6X, ring6Z = math.cos(a6) * 45, math.sin(a6) * 45
+		local yaw6 = math.atan2(-math.cos(a6), math.sin(a6)) * 180 / math.pi
+		local wallHit = false
+		for _, side in ipairs({ -1, 1 }) do
+			local wx, wz = toWorld6(side * 8, -11)
+			if segHitsObb(novaX, novaZ, ring6X, ring6Z, wx, wz, 5, 0.5, yaw6) then
+				wallHit = true
+			end
+		end
+		if not wallHit then
+			table.insert(problems, "Nova's straight departure from local (-4.47, -0.77) on base 6 does not hit the front wall — the geometry changed, or the F9 position is wrong")
+		end
 		if #problems > 0 then
 			check("steal-route", false, "the steal route is still blocked — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, RivalService.luau")
 		else
-			check("steal-route", true, "steal route traced: ring arc + approach clear of rim/platforms/spawn (computed, all 4 rival bases); meteor-rock worst reach 41 < ring sweep 41.97; SELL pad non-colliding; rocks excluded from corridors; final leg via the clear strip; give-up logs leg + nearest solid")
+			check("steal-route", true, "steal route traced: ring arc + approach clear of rim/platforms/spawn (computed, all 4 rival bases); meteor-rock worst reach 41 < ring sweep 41.97; SELL pad non-colliding; rocks excluded from corridors; final leg via the clear strip; Nova's straight departure from its real off-centre spot hits its own front wall (regression proven from the F9 anchors); walk exits via the own ramp on a computed path, crosses the door explicitly, pad leg on a computed path with one retry; every failure names its leg, 'unknown' gone")
 		end
 	end
 end
