@@ -765,6 +765,19 @@ local function buildSellArea()
 	-- pad is a big glowing square with a tall sign and a beam, and
 	-- selling pays 1 minute of that Rotling's income.
 	local sellPad = part("SellPad", Enum.PartType.Block, Vector3.new(14, 1, 14), Color3.fromRGB(255, 200, 60), CFrame.new(62, 0.5, 0), Enum.Material.Neon)
+	-- (fix round 12, item 2) The pad is NON-colliding ON PURPOSE.
+	-- It sits at (62, 0.5, 0), dead centre on the ONLY approach
+	-- line to base 1 (ring radius 45 -> entrance ramp at radius
+	-- 95, straight along the base's radial line), and part()
+	-- defaults CanCollide=true — so the pad was the one solid a
+	-- stealing rival had to cross. The stuck-hop clears a 2-stud
+	-- platform edge, not a 14-wide 1-tall slab, so the steal walk
+	-- timed out there every time (playtest 11: the thief gave up
+	-- at the base, three rounds running). Every other pad in the
+	-- game is non-colliding; the SELL pad matches them. It still
+	-- reads as a pad (Neon gold, label, prompt, beam) — it just
+	-- stops being a wall on the approach.
+	sellPad.CanCollide = false
 	-- Press E on the pad to sell: the Rotling you carry, or your best
 	-- placed Brainrot on your own base. SellService.sell decides.
 	local sellPrompt = Instance.new("ProximityPrompt")
@@ -898,6 +911,27 @@ local function buildRocks()
 			continue
 		end
 		if math.abs(x - 62) < 14 and math.abs(z) < 14 then
+			continue
+		end
+		-- (fix round 12, item 2) Base approaches stay clear: a
+		-- rock on a base's entrance corridor (radius 40..130 along
+		-- the base's radial line, within 8 studs laterally) is a
+		-- second SELL-pad-style blocker on the steal walk — a
+		-- rival crossing it has to hop a solid boulder, and the
+		-- same 8s MoveTo timeout that killed the SELL-pad leg
+		-- kills this one. Rocks still fill the field everywhere
+		-- else; the corridor is the only exclusion.
+		local onApproach = false
+		for baseId = 1, Config.BASE_COUNT do
+			local ang = math.rad((baseId - 1) * (360 / Config.BASE_COUNT))
+			local along = x * math.cos(ang) + z * math.sin(ang)
+			local lateral = -x * math.sin(ang) + z * math.cos(ang)
+			if along >= 40 and along <= 130 and math.abs(lateral) < 8 then
+				onApproach = true
+				break
+			end
+		end
+		if onApproach then
 			continue
 		end
 		local size = rng:NextNumber(3, 8)
@@ -1473,7 +1507,13 @@ local function buildMeteorRocks()
 		-- Keep the walkways clear: not on the spawn path (x near 0,
 		-- z 39-80) and not on the stone path to the shop (z 36-48,
 		-- x -42..2).
-		if math.abs(x) < 6 and z > 36 then
+		--
+		-- (fix round 12, item 2) The gap exclusion was |x| < 6 —
+		-- a rock at (8, 38) could still sit on the edge of the
+		-- crater-gap mouth every rival walks through to reach
+		-- the crater. Widened to |x| < 10: the whole mouth of
+		-- the gap stays clear for the steal walk.
+		if math.abs(x) < 10 and z > 34 then
 			continue
 		end
 		if z > 36 and z < 48 and x > -42 and x < 2 then

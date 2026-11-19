@@ -1683,6 +1683,32 @@ do
 	end
 end
 
+-- Fix round 12, item 2 — steal route: the SELL pad no longer blocks
+-- base 1's only approach, rocks stay out of every base's entrance
+-- corridor, and the meteor-rock gap at the crater mouth is widened.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not worldSrc then
+		step("steal-route", false, "WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find("sellPad%.CanCollide = false") then
+			table.insert(problems, "SELL pad is still colliding")
+		end
+		if not worldSrc:find("onApproach") or not worldSrc:find("along >= 40 and along <= 130") then
+			table.insert(problems, "no base-approach corridor exclusion in buildRocks")
+		end
+		if not worldSrc:find("math%.abs%(x%) < 10 and z > 34") then
+			table.insert(problems, "meteor-rock gap not widened to |x| < 10")
+		end
+		if #problems > 0 then
+			step("steal-route", false, table.concat(problems, "; "))
+		else
+			step("steal-route", true, "SELL pad non-colliding on base 1's approach; rocks excluded from base corridors (radius 40..130, +/-8); meteor-rock gap |x| < 10")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

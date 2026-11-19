@@ -5758,6 +5758,55 @@ do
 	end
 end
 
+-- -- (steal-route) fix round 12, item 2: the thief can reach the
+-- base ---------------------------------------------------------------
+-- Playtest 11: the thief "still couldn't reach the base and gave
+-- up" — the third round in a row. The root cause is the SELL pad:
+-- it sits at (62, 0.5, 0), dead centre on the ONLY approach line
+-- to base 1 (ring radius 45 -> entrance ramp at radius 95,
+-- straight along the base's radial line), and part() defaults
+-- CanCollide=true — so the pad was the one solid the steal walk
+-- had to cross, and the stuck-hop clears a 2-stud platform edge,
+-- not a 14-wide slab. The pad is now non-colliding, rocks are
+-- excluded from every base's entrance corridor (radius 40..130,
+-- +/-8 studs lateral), and the meteor-rock gap at the crater mouth
+-- is widened to |x| < 10.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not worldSrc then
+		check("steal-route", false, "could not verify the steal route — WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		-- The pad really is on the route: base 1's approach runs
+		-- along +X at z=0 from radius 45 to 95; the pad spans
+		-- x 55..69, z -7..7 — the segment crosses it. So the pad
+		-- MUST be non-colliding, or the steal walk still dies.
+		local padX0, padX1, padZ0, padZ1 = 55, 69, -7, 7
+		local routeX0, routeX1, routeZ = 45, 95, 0
+		local crosses = routeX0 <= padX1 and routeX1 >= padX0 and routeZ >= padZ0 and routeZ <= padZ1
+		if not crosses then
+			table.insert(problems, "the SELL pad is not on base 1's approach line — the geometry changed")
+		end
+		if not worldSrc:find("sellPad%.CanCollide = false") then
+			table.insert(problems, "the SELL pad is still colliding — it blocks the only approach to base 1")
+		end
+		if not worldSrc:find("onApproach") or not worldSrc:find("along >= 40 and along <= 130") or not worldSrc:find("math%.abs%(lateral%) < 8") then
+			table.insert(problems, "buildRocks has no base-approach corridor exclusion (radius 40..130, +/-8 studs)")
+		end
+		if not worldSrc:find("math%.abs%(x%) < 10 and z > 34") then
+			table.insert(problems, "the meteor-rock gap exclusion is not widened to |x| < 10")
+		end
+		if worldSrc:find("math%.abs%(x%) < 6 and z > 36") then
+			table.insert(problems, "the old narrow meteor-rock gap (|x| < 6) is still there")
+		end
+		if #problems > 0 then
+			check("steal-route", false, "the steal route is still blocked — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau")
+		else
+			check("steal-route", true, "steal route clear: SELL pad non-colliding (it sits on base 1's only approach), rocks excluded from every base's entrance corridor (radius 40..130, +/-8 studs), meteor-rock gap widened to |x| < 10")
+		end
+	end
+end
+
 -- (cu) Uniform placed size (rev 75; measure fixed fix round 9, item
 -- 5): every Brainrot on a pedestal stands at one BODY height
 -- (Config.PLACED_DISPLAY_HEIGHT), so the base reads as a tidy display
