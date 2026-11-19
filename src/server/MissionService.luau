@@ -185,6 +185,7 @@ local function markReady(player: Player, slot: ContractState)
 	FeedbackService.playSound(player, 1.8, 0.9)
 	Remotes.bannerEvent():FireClient(player, "📋 Contract ready: " .. def.text .. " — claim " .. Formatting.formatMoney(def.reward) .. " at the Contract Board!", 5)
 	print("[Contract] " .. player.Name .. " finished " .. slot.id .. " (" .. def.text .. ") — ready to claim " .. Formatting.formatMoney(def.reward) .. " (auto-claim in 10s)")
+end
 
 -- Report server-observed progress toward every active contract of
 -- the matching kind. Only the matching kind counts; anything else is
