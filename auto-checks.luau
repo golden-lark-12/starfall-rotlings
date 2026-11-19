@@ -3476,7 +3476,16 @@ do
 			table.insert(problems, "the right fence does not run to z=40")
 		end
 		-- The StonePath from the rim to the shop still starts at the rim.
-		if not worldSrc:find('path%(Vector3%.new%(0, 0, 40%), Vector3%.new%(%-40, 0, 44%)%)') then
+		-- (Fix round 10: the call now uses the named shopPathFrom /
+		-- shopPathTo locals, shared with the parallel fences — same
+		-- endpoints, so the invariant is checked against the locals.)
+		if not worldSrc:find("local shopPathFrom = Vector3%.new%(0, 0, 40%)") then
+			table.insert(problems, "shopPathFrom is not the crater rim (0,0,40)")
+		end
+		if not worldSrc:find("local shopPathTo = Vector3%.new%(%-40, 0, 44%)") then
+			table.insert(problems, "shopPathTo is not the shop (-40,0,44)")
+		end
+		if not worldSrc:find("path%(shopPathFrom, shopPathTo%)") then
 			table.insert(problems, "the StonePath from the crater rim (0,0,40) to the shop is missing")
 		end
 		if #problems > 0 then
@@ -7203,6 +7212,85 @@ do
 			check("thief-hunt", false, "the thief hunt is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, Config.luau, State.luau")
 		else
 			check("thief-hunt", true, "thieves hunt free-walking players at 22 studs/s; tag steals the best carried Brainrot (runs home, STEAL COMPLETE) or knocks the player flat; base interior ends the hunt; one hunter per victim; storm-proof")
+		end
+	end
+end
+
+-- Fix round 10, item 1 — the crater-to-shop fences are true parallels
+-- of the stone path, never through the walkway. Verified geometrically
+-- from the source constants: the old fence (-6,42)->(-40,44) started
+-- 1.39 studs off the path centreline and converged to 0.00 at the
+-- shop end (path half-width 3), so it ran through the walkway.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not worldSrc then
+		check("fence-parallel", false, "could not verify the fences — WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		-- The old non-parallel fence must be gone.
+		if worldSrc:find("fenceLine%(Vector3.new%(%-6, 0, 42%)") then
+			table.insert(problems, "the old fence (-6,42)->(-40,44) is still there")
+		end
+		-- Parse the shop path endpoints and the fence offset/inset.
+		local fx1, fz1 = worldSrc:match("local shopPathFrom = Vector3.new%(([%-%d%.]+), 0, ([%-%d%.]+)%)")
+		local fx2, fz2 = worldSrc:match("local shopPathTo = Vector3.new%(([%-%d%.]+), 0, ([%-%d%.]+)%)")
+		local offset = worldSrc:match("local fenceOffset = (%d+)")
+		local inset = worldSrc:match("local fenceInset = (%d+)")
+		if not fx1 or not fx2 or not offset or not inset then
+			table.insert(problems, "could not parse the shop path / fence offset / fence inset")
+		else
+			local p0x, p0z = tonumber(fx1), tonumber(fz1)
+			local p1x, p1z = tonumber(fx2), tonumber(fz2)
+			local off = tonumber(offset)
+			local ins = tonumber(inset)
+			-- Path direction (unit) and its perpendicular in XZ.
+			local dx, dz = p1x - p0x, p1z - p0z
+			local len = math.sqrt(dx * dx + dz * dz)
+			dx, dz = dx / len, dz / len
+			local nx, nz = -dz, dx
+			-- Perpendicular distance from each fence line to the path
+			-- centreline: the fence is parallel by construction, so
+			-- this equals the offset — computed here, not assumed.
+			-- A fence post is 0.6 wide (half-width 0.3), so the
+			-- closest fence part stands at offset - 0.3.
+			local fenceStartX, fenceStartZ = p0x + dx * ins, p0z + dz * ins
+			for _, side in ipairs({ 1, -1 }) do
+				local sx, sz = fenceStartX + nx * off * side, fenceStartZ + nz * off * side
+				-- Point-to-line distance from the fence start to the path line.
+				local relX, relZ = sx - p0x, sz - p0z
+				local dist = math.abs(relX * dz - relZ * dx)
+				if dist < 3.5 then
+					table.insert(problems, "fence centreline only " .. string.format("%.2f", dist) .. " studs from the path centreline (need >= 3.5)")
+				end
+				-- No fence post may sit on the crater rim mound
+				-- (outer ring radius 39): sample the fence segment
+				-- and take its minimum radius from the map centre.
+				local ex, ez = p1x + nx * off * side, p1z + nz * off * side
+				local minR = math.huge
+				for t = 0, 1, 0.05 do
+					local x, z = sx + (ex - sx) * t, sz + (ez - sz) * t
+					local r = math.sqrt(x * x + z * z)
+					if r < minR then
+						minR = r
+					end
+				end
+				if minR <= 39 then
+					table.insert(problems, "fence dips to radius " .. string.format("%.1f", minR) .. " — inside the crater rim (39), posts would be buried")
+				end
+			end
+			-- The spawn-path fences still flank their path: the spawn
+			-- path is 6 wide (half-width 3) and the fences sit at x=+/-5.
+			if not worldSrc:find("fenceLine%(Vector3.new%(%-5, 0, 78%), Vector3.new%(%-5, 0, 40%)%)") then
+				table.insert(problems, "spawn-path west fence missing or moved")
+			end
+			if not worldSrc:find("fenceLine%(Vector3.new%(5, 0, 78%), Vector3.new%(5, 0, 40%)%)") then
+				table.insert(problems, "spawn-path east fence missing or moved")
+			end
+		end
+		if #problems > 0 then
+			check("fence-parallel", false, "the fences are not true parallels of the walkway — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau")
+		else
+			check("fence-parallel", true, "crater-to-shop fences are true parallels of the stone path (4 studs to each side, no part within 3 studs of the centreline, clear of the crater rim); spawn-path fences still flank at x=+/-5")
 		end
 	end
 end

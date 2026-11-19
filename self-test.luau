@@ -482,7 +482,13 @@ do
 		if not worldSrc:find("fenceLine%(Vector3%.new%(5, 0, 78%), Vector3%.new%(5, 0, 40%)%)") then
 			table.insert(problems, "right fence does not run to z=40")
 		end
-		if not worldSrc:find('path%(Vector3%.new%(0, 0, 40%), Vector3%.new%(%-40, 0, 44%)%)') then
+		if not worldSrc:find("local shopPathFrom = Vector3%.new%(0, 0, 40%)") then
+			table.insert(problems, "shopPathFrom is not the crater rim (0,0,40)")
+		end
+		if not worldSrc:find("local shopPathTo = Vector3%.new%(%-40, 0, 44%)") then
+			table.insert(problems, "shopPathTo is not the shop (-40,0,44)")
+		end
+		if not worldSrc:find("path%(shopPathFrom, shopPathTo%)") then
 			table.insert(problems, "StonePath from the rim to the shop is missing")
 		end
 		if #problems > 0 then
@@ -1530,6 +1536,31 @@ do
 			step("thief-hunt", false, table.concat(problems, "; "))
 		else
 			step("thief-hunt", true, "thieves hunt free-walking players at 22; tag steals the best carried Brainrot or knocks the player flat")
+		end
+	end
+end
+
+-- Fix round 10, item 1 — the crater-to-shop fences are true parallels
+-- of the stone path: 4 studs to each side, never through the walkway.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not worldSrc then
+		step("fence-parallel", false, "WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		if worldSrc:find("fenceLine%(Vector3.new%(%-6, 0, 42%)") then
+			table.insert(problems, "the old fence (-6,42)->(-40,44) is still there")
+		end
+		if not worldSrc:find("local fenceOffset = 4") then
+			table.insert(problems, "no fenceOffset = 4")
+		end
+		if not worldSrc:find("shopPathNormal %* fenceOffset") then
+			table.insert(problems, "fences are not offset along the path normal")
+		end
+		if #problems > 0 then
+			step("fence-parallel", false, table.concat(problems, "; "))
+		else
+			step("fence-parallel", true, "crater-to-shop fences are true parallels of the stone path (4 studs to each side, clear of the rim)")
 		end
 	end
 end

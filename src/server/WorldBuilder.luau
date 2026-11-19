@@ -1295,10 +1295,33 @@ local function buildSignpostsAndFences()
 	signpost(Vector3.new(6, 0, -48), { "Altar ↑", "← Crater" })
 	-- Fences flank the spawn path (fix 5): they used to stop at z=46
 	-- while the path stopped at z=57; now both run to the crater rim
-	-- (z=40), so the walkway is fenced all the way in.
+	-- (z=40), so the walkway is fenced all the way in. The spawn path
+	-- is 6 wide (half-width 3), so fences at x=+/-5 stand 2 studs
+	-- clear of its edge.
 	fenceLine(Vector3.new(-5, 0, 78), Vector3.new(-5, 0, 40))
 	fenceLine(Vector3.new(5, 0, 78), Vector3.new(5, 0, 40))
-	fenceLine(Vector3.new(-6, 0, 42), Vector3.new(-40, 0, 44))
+	-- Crater-to-shop walk (fix round 10, item 1): the old fence
+	-- fenceLine((-6, 42), (-40, 44)) was NOT parallel to the stone
+	-- path — it started 1.39 studs off the centreline and converged
+	-- to 0.00 at the shop end, so it ran THROUGH the walkway (the
+	-- path is 6 wide, half-width 3). The fences are now true
+	-- parallels of the path: same endpoints, offset 4 studs to each
+	-- side along the unit normal, so no fence part comes within 3
+	-- studs of the centreline and nothing blocks the walkway. They
+	-- start 16 studs along the path: the crater-side fence would
+	-- otherwise begin on the rim mound (outer ring radius 35-39,
+	-- 5.5 tall) and its first posts would be buried — at 16 studs
+	-- in, both fences start on flat ground (min radius 41.1 > 39)
+	-- and the crater rim itself borders the first stretch of path.
+	local shopPathFrom = Vector3.new(0, 0, 40)
+	local shopPathTo = Vector3.new(-40, 0, 44)
+	local shopPathDir = (shopPathTo - shopPathFrom).Unit
+	local shopPathNormal = Vector3.new(-shopPathDir.Z, 0, shopPathDir.X)
+	local fenceInset = 16
+	local fenceOffset = 4
+	local fenceStart = shopPathFrom + shopPathDir * fenceInset
+	fenceLine(fenceStart + shopPathNormal * fenceOffset, shopPathTo + shopPathNormal * fenceOffset)
+	fenceLine(fenceStart - shopPathNormal * fenceOffset, shopPathTo - shopPathNormal * fenceOffset)
 	-- Stone paths: crater rim to the shop, and crater to the altar.
 	local function path(from: Vector3, to: Vector3)
 		local dir = to - from
@@ -1310,7 +1333,7 @@ local function buildSignpostsAndFences()
 			tile.CastShadow = false
 		end
 	end
-	path(Vector3.new(0, 0, 40), Vector3.new(-40, 0, 44))
+	path(shopPathFrom, shopPathTo)
 	path(Vector3.new(0, 0, -40), Vector3.new(0, 0, -66))
 end
 
