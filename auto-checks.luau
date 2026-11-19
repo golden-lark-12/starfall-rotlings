@@ -1652,12 +1652,18 @@ do
 		if not photoSrc:find("Vector3.new%(0, 12, 0%)") then
 			table.insert(problems, "shot 3 does not look at the crater + sky (0, 12, 0)")
 		end
-		-- Shot 4 (base): 16 out, 7 up — closer than the old 30/12.
-		if not photoSrc:find("%* 16") then
-			table.insert(problems, "shot 4 is not 16 studs out from the base")
+		-- Shot 4 (base): 26 out, 10 up — pulled back from the old
+		-- 16/7, which framed too tight (giant Brainrots, labels
+		-- occluded, no sign or banked cash in Malek's captures).
+		-- The packed-base-shot check proves the framing.
+		if not photoSrc:find("%* 26") then
+			table.insert(problems, "shot 4 is not 26 studs out from the base")
 		end
-		if not photoSrc:find("Vector3.new%(0, 7, 0%)") then
-			table.insert(problems, "shot 4 is not 7 studs up")
+		if not photoSrc:find("Vector3.new%(0, 10, 0%)") then
+			table.insert(problems, "shot 4 is not 10 studs up")
+		end
+		if photoSrc:find("Vector3.new%(0, 7, 0%)") then
+			table.insert(problems, "the old shot-4 camera (16 out / 7 up) is still there — it framed the base too tight")
 		end
 		-- Shot 5 (icon): the logo stage at (0, 0, 118) — it moved
 		-- there in v74 from (-25, 0, 88) and this camera never
@@ -1692,7 +1698,7 @@ do
 		if #problems > 0 then
 			check("ac", false, "photo-mode cameras are not the 4 bounty shots + icon — " .. table.concat(problems, "; ") .. ". Parts: SHOTS / shotCFrame (PhotoModeController.client.luau)")
 		else
-			check("ac", true, "photo cameras are the 4 bounty shots + icon — staged hero row (1.75, 14, 96) first, belt raised above the rim (41, 11, 8), storm wide (48, 10, 18) looking at the sky, base 16 out / 7 up, icon on the logo stage (0, 4, 100)")
+			check("ac", true, "photo cameras are the 4 bounty shots + icon — staged hero row (1.75, 14, 96) first, belt raised above the rim (41, 11, 8), storm wide (48, 10, 18) looking at the sky, base 26 out / 10 up, icon on the logo stage (0, 4, 100)")
 		end
 	end
 end
@@ -2031,6 +2037,154 @@ do
 			check("hero-shot", false, "the hero shot is not staged — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau (buildHeroRow, buildLogoStage), TagController.client.luau, PhotoModeController.client.luau")
 		else
 			check("hero-shot", true, "shot 1 staged: 4 heroes (gummy, alfredo, bloop, couch) 16-19% of frame, labels 162-194px apart and on-screen, title sign in frame with text clear of the labels, crater rim flanking, contract board out of frame; shot 5: logo-stage heroes 8 apart, labels ~190px apart, 20% of frame, meteor above the centre label; display tags on")
+		end
+	end
+end
+
+-- -- (packed-base-shot) shot 4 frames the WHOLE packed base --
+-- Malek's shot-4 captures (Nov 19 ~19:39 and ~19:49, rev 125/126)
+-- are giant Brainrots filling the whole frame, their labels
+-- occluded behind them, no Lv sign, no banked cash, no sense of
+-- pads full of Brainrots. The old camera (16 out / 7 up, "closer
+-- so the base fills the frame and the tags read") was the cause:
+-- a near-row Brainrot read ~29% of frame height and the sightline
+-- to the far row only just cleared the near row. The camera is now
+-- 26 out / 10 up. This check COMPUTES the framing in base-local
+-- space (camera on the crater side, -Z toward the origin; the
+-- lookAt is the platform centre + 4 up) from the shipped literals
+-- (same atan2 screen angles as the hero-shot check: 70deg vertical
+-- FOV, ~102deg horizontal, 800px wide):
+--   * all 8 pads' feet (y=1.6, pad top), bodies (top y=6.1,
+--     PLACED_DISPLAY_HEIGHT 4.5) and labels (y=7.1, tag offset
+--     body + 1) in frame;
+--   * the sign board (local (0, 7, 9.5), 8x4 — name line 1,
+--     banked cash line 2) fully in frame;
+--   * the collect-pad label (banked cash, (0, 4.3, 0)) in frame;
+--   * the whole 26x22 platform in frame (all four corners);
+--   * near-row bodies 13deg or less (~18% of frame height, not
+--     giants) and far-row labels clear the near-row bodies by 1+
+--     stud, so no label is occluded;
+--   * the farthest pad label is under 40 studs from the camera,
+--     so its tag shows in photo mode (TagController range).
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local photoSrc = read("src/client/PhotoModeController.client.luau")
+	if not worldSrc or not photoSrc then
+		check("packed-base-shot", false, "could not verify the packed-base shot — a source file is missing")
+	else
+		local problems: { string } = {}
+		-- The world geometry the framing below is computed from.
+		if not worldSrc:find("Vector3%.new%(%-9, 0, %-4%.5%)") or not worldSrc:find("Vector3%.new%(9, 0, 4%.5%)") then
+			table.insert(problems, "PAD_OFFSETS are not the 2x4 grid (x -9..9, z -4.5/+4.5)")
+		end
+		if not worldSrc:find("CFrame%.new%(0, 7, 9%.5%)") then
+			table.insert(problems, "the base sign board is not at local (0, 7, 9.5)")
+		end
+		if not worldSrc:find("Vector3%.new%(26, 2, 22%)") then
+			table.insert(problems, "the base platform is not 26 x 2 x 22")
+		end
+		-- The shipped camera must be the pulled-back one.
+		if not photoSrc:find("%* 26") then
+			table.insert(problems, "shot 4 is not 26 studs out from the base")
+		end
+		if not photoSrc:find("Vector3%.new%(0, 10, 0%)") then
+			table.insert(problems, "shot 4 is not 10 studs up")
+		end
+		if photoSrc:find("Vector3%.new%(0, 7, 0%)") then
+			table.insert(problems, "the old shot-4 camera (16 out / 7 up) is still there")
+		end
+		-- Screen angles (same helpers as the hero-shot check).
+		local function vsub(a: { number }, b: { number }): { number }
+			return { a[1] - b[1], a[2] - b[2], a[3] - b[3] }
+		end
+		local function vdot(a: { number }, b: { number }): number
+			return a[1] * b[1] + a[2] * b[2] + a[3] * b[3]
+		end
+		local function vcross(a: { number }, b: { number }): { number }
+			return { a[2] * b[3] - a[3] * b[2], a[3] * b[1] - a[1] * b[3], a[1] * b[2] - a[2] * b[1] }
+		end
+		local function vnorm(a: { number }): { number }
+			local l = math.sqrt(vdot(a, a))
+			return { a[1] / l, a[2] / l, a[3] / l }
+		end
+		local function screenAngles(c: { number }, l: { number }, p: { number }): { number }
+			local fwd = vnorm(vsub(l, c))
+			local right = vnorm(vcross(fwd, { 0, 1, 0 }))
+			local up = vcross(right, fwd)
+			local d = vsub(p, c)
+			local h = math.atan2(vdot(d, right), vdot(d, fwd)) * 180 / math.pi
+			local v = math.atan2(vdot(d, up), vdot(d, fwd)) * 180 / math.pi
+			return { h, v }
+		end
+		local function inFrame(h: number, v: number): boolean
+			return math.abs(h) < 51 and math.abs(v) < 35
+		end
+		-- Base-local camera: 26 out on the crater side (-Z), 10 up,
+		-- looking at the platform centre + 4 up.
+		local cam = { 0, 10, -26 }
+		local look = { 0, 4, 0 }
+		-- All 8 pads: feet, body top, label.
+		local worstBody = 0
+		for _, px in ipairs({ -9, -3, 3, 9 }) do
+			for _, pz in ipairs({ -4.5, 4.5 }) do
+				for _, py in ipairs({ 1.6, 6.1, 7.1 }) do
+					local a = screenAngles(cam, look, { px, py, pz })
+					if not inFrame(a[1], a[2]) then
+						table.insert(problems, string.format("pad (%d, %.1f) at y=%.1f is out of shot 4's frame (h=%.1f, v=%.1f)", px, pz, py, a[1], a[2]))
+					end
+				end
+				local topA = screenAngles(cam, look, { px, 6.1, pz })
+				local botA = screenAngles(cam, look, { px, 1.6, pz })
+				worstBody = math.max(worstBody, topA[2] - botA[2])
+			end
+		end
+		if worstBody > 13 then
+			table.insert(problems, string.format("near-row Brainrots are %.1fdeg tall (over 13deg) — giants again, not a packed base", worstBody))
+		end
+		-- Far-row labels must clear the near-row bodies: the ray
+		-- from the camera to a far label (z=+4.5, y=7.1) at the
+		-- near row (z=-4.5) must pass 1+ studs above the near body
+		-- top (y=6.1), or the label is occluded.
+		for _, px in ipairs({ -9, -3, 3, 9 }) do
+			local t = (cam[3] - -4.5) / (cam[3] - 4.5)
+			local rayY = cam[2] + t * (7.1 - cam[2])
+			if rayY - 6.1 < 1 then
+				table.insert(problems, string.format("far label at x=%d is occluded by the near row (ray clears by only %.2f studs, needs 1+)", px, rayY - 6.1))
+			end
+		end
+		-- Sign board (name + banked cash) fully in frame.
+		for _, sy in ipairs({ 5, 9 }) do
+			for _, sx in ipairs({ -4, 4 }) do
+				local a = screenAngles(cam, look, { sx, sy, 9.5 })
+				if not inFrame(a[1], a[2]) then
+					table.insert(problems, string.format("sign board corner (%d, %d) is out of shot 4's frame (h=%.1f, v=%.1f)", sx, sy, a[1], a[2]))
+				end
+			end
+		end
+		-- Collect-pad label (banked cash) in frame.
+		local collect = screenAngles(cam, look, { 0, 4.3, 0 })
+		if not inFrame(collect[1], collect[2]) then
+			table.insert(problems, string.format("collect-pad banked-cash label is out of shot 4's frame (h=%.1f, v=%.1f)", collect[1], collect[2]))
+		end
+		-- Whole platform in frame (all four corners, top y=2).
+		for _, cx in ipairs({ -13, 13 }) do
+			for _, cz in ipairs({ -11, 11 }) do
+				local a = screenAngles(cam, look, { cx, 2, cz })
+				if not inFrame(a[1], a[2]) then
+					table.insert(problems, string.format("platform corner (%d, %d) is out of shot 4's frame (h=%.1f, v=%.1f)", cx, cz, a[1], a[2]))
+				end
+			end
+		end
+		-- Farthest pad label within TagController's photo-mode
+		-- range (40 studs), or its tag would not show.
+		local farDist = math.sqrt((26 + 4.5) ^ 2 + (10 - 7.1) ^ 2 + 9 ^ 2)
+		if farDist >= 40 then
+			table.insert(problems, string.format("farthest pad label is %.1f studs from the camera — its tag would not show in photo mode (needs < 40)", farDist))
+		end
+		if #problems > 0 then
+			check("packed-base-shot", false, "shot 4 does not frame the packed base — " .. table.concat(problems, "; ") .. ". Parts: shotCFrame index 4 (PhotoModeController.client.luau)")
+		else
+			check("packed-base-shot", true, "shot 4 frames the packed base: camera 26 out / 10 up, all 8 pads (feet, bodies, labels) + sign board (name + banked cash) + collect label + whole platform in frame, near-row bodies ~16% of frame height, far labels clear the near row by ~1.9 studs, farthest tag ~32 studs away")
 		end
 	end
 end

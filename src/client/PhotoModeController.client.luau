@@ -245,13 +245,22 @@ end
 local function shotCFrame(index: number): CFrame
 	local shot = SHOTS[index]
 	if index == 4 then
-		-- My base: 16 studs out on the crater side, 7 up, looking
-		-- back at the platform so the pads and the sign both show.
-		-- Closer than before (30 out / 12 up) so the base fills the
-		-- frame and the tags read.
+		-- My base: 26 studs out on the crater side, 10 up, looking
+		-- back at the platform so the pads, the labels, the sign
+		-- and the banked cash all show. The OLD camera (16 out /
+		-- 7 up, "closer so the base fills the frame and the tags
+		-- read") framed too tight — Malek's shot-4 captures (Nov
+		-- 19 ~19:39 and ~19:49) are giant Brainrots filling the
+		-- whole frame, their labels occluded behind them, no Lv
+		-- sign, no banked cash, no sense of pads full of
+		-- Brainrots. Pulled back: near-row bodies read ~16% of
+		-- frame height (was ~29%), far-row labels clear the
+		-- near-row bodies by ~1.9 studs, the whole 26x22 platform
+		-- and the sign board are in frame. See the packed-base-shot
+		-- check for the computed proof.
 		local center = nearestBaseCenter()
 		local towardCrater = (Vector3.new(0, 0, 0) - center).Unit
-		local position = center + Vector3.new(towardCrater.X, 0, towardCrater.Z) * 16 + Vector3.new(0, 7, 0)
+		local position = center + Vector3.new(towardCrater.X, 0, towardCrater.Z) * 26 + Vector3.new(0, 10, 0)
 		return CFrame.lookAt(position, center + Vector3.new(0, 4, 0))
 	end
 	return CFrame.lookAt(shot.position :: Vector3, shot.lookAt :: Vector3)
