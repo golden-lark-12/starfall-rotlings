@@ -804,15 +804,15 @@ local function buildSellArea()
 end
 
 local function buildPlazaDecor()
-	-- Eight bright flag poles ringing the crater, so the crater reads
+	-- Twelve bright flag poles ringing the crater, so the crater reads
 	-- as the centre of the world from every angle, and two warm
 	-- lanterns flanking the spawn path.
 	-- LAMPS: small and soft. The old lamps were 1.6 studs with a 0.6
 	-- brightness, 14-stud light — blown out white blobs next to the
 	-- crater. Now 1.2 studs, brightness 0.4, range 10: a warm glow, not
 	-- a floodlight.
-	for i = 0, 7 do
-		local angle = math.rad(i * 45 + 22.5)
+	for i = 0, 11 do
+		local angle = math.rad(i * 30 + 15)
 		local x = math.cos(angle) * 92
 		local z = math.sin(angle) * 92
 		local pole = part("PlazaPole", Enum.PartType.Cylinder, Vector3.new(14, 0.8, 0.8), Color3.fromRGB(72, 62, 92), CFrame.new(x, 7, z) * CFrame.Angles(0, 0, math.rad(90)))
@@ -849,7 +849,7 @@ local function buildTrees()
 		Color3.fromRGB(160, 80, 200),
 		Color3.fromRGB(90, 50, 140),
 	}
-	for i = 1, 40 do
+	for i = 1, 60 do
 		local angle = rng:NextNumber(0, math.pi * 2)
 		local radius = rng:NextNumber(120, 210)
 		local x = math.cos(angle) * radius
@@ -876,7 +876,7 @@ local function buildRocks()
 	-- world is the same every server. They break up the ground plane
 	-- and give the map a third dimension beyond the flat field.
 	local rng = Random.new(777)
-	for i = 1, 30 do
+	for i = 1, 45 do
 		local angle = rng:NextNumber(0, math.pi * 2)
 		local radius = rng:NextNumber(100, 200)
 		local x = math.cos(angle) * radius
@@ -938,8 +938,9 @@ local function buildCrystals()
 		Color3.fromRGB(180, 110, 255),
 		Color3.fromRGB(255, 120, 180),
 		Color3.fromRGB(120, 255, 170),
+		Color3.fromRGB(70, 120, 255),
 	}
-	for i = 1, 24 do
+	for i = 1, 36 do
 		local angle = rng:NextNumber(0, math.pi * 2)
 		local radius = rng:NextNumber(35, 95)
 		local x = math.cos(angle) * radius
@@ -1428,6 +1429,76 @@ end
 -- beside the spawn path — three 1.5x Brainrots with huge eyes
 -- blocking the plaza view. Now it sits BEHIND spawn (0, 0, 118),
 -- out of the walkway, heroes facing north toward the path.
+-- Meteor rocks (fix round 11, item 1 — dressing pass): dark-purple
+-- boulders with a glowing orange shard stuck in them, ringing the
+-- crater rim just outside the belt. They are the storm's litter:
+-- space rocks that already landed. Seeded, same every server. Kept
+-- clear of the spawn path and the crater-to-shop stone path.
+local function buildMeteorRocks()
+	local rng = Random.new(31337)
+	for i = 1, 6 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local radius = rng:NextNumber(33, 40)
+		local x = math.cos(angle) * radius
+		local z = math.sin(angle) * radius
+		-- Keep the walkways clear: not on the spawn path (x near 0,
+		-- z 39-80) and not on the stone path to the shop (z 36-48,
+		-- x -42..2).
+		if math.abs(x) < 6 and z > 36 then
+			continue
+		end
+		if z > 36 and z < 48 and x > -42 and x < 2 then
+			continue
+		end
+		local size = rng:NextNumber(4, 6)
+		local boulder = part("MeteorRock", Enum.PartType.Ball, Vector3.new(size, size * 0.75, size), Color3.fromRGB(60, 45, 90), CFrame.new(x, size * 0.3, z) * CFrame.Angles(rng:NextNumber(0, math.pi), rng:NextNumber(0, math.pi), 0), Enum.Material.Slate)
+		boulder.CanCollide = true
+		local shard = part("MeteorShard", Enum.PartType.Wedge, Vector3.new(1.5, 3, 1.5), Color3.fromRGB(255, 140, 50), CFrame.new(x, size * 0.75 + 1, z) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), rng:NextNumber(-0.3, 0.3)), Enum.Material.Neon)
+		shard.CanCollide = false
+	end
+end
+
+-- Big in-world title sign (fix round 11, item 1 — dressing pass): a
+-- proper ground sign near spawn, east of the spawn path at (12, 0,
+-- 72), facing the spawn platform so it reads the moment a player
+-- arrives and in screenshots from spawn toward the crater. Two posts
+-- + a dark-purple board with gold trim + a depth-tested billboard
+-- with the title in gold. This is NOT the old sky billboard (removed
+-- in fix round 2, fix 8): no sky text, no pitch line, nothing
+-- overlapping the SELL pad — the board stands on the ground at the
+-- side of the path, clear of every walkway. The builder and part
+-- names deliberately avoid the old sky-billboard identifiers, so the
+-- old-billboard checks still prove the sky text is gone.
+local function buildWorldTitleSign()
+	local cx, cz = 12, 72
+	for _, side in ipairs({ -1, 1 }) do
+		local post = part("WorldTitlePost", Enum.PartType.Block, Vector3.new(1.2, 10, 1.2), Color3.fromRGB(72, 62, 92), CFrame.new(cx + side * 10, 5, cz))
+		post.CanCollide = false
+	end
+	local board = part("WorldTitleSign", Enum.PartType.Block, Vector3.new(22, 6, 1), Color3.fromRGB(60, 45, 90), CFrame.new(cx, 8, cz))
+	board.CanCollide = false
+	local trimTop = part("WorldTitleTrim", Enum.PartType.Block, Vector3.new(22.4, 0.5, 1.2), Color3.fromRGB(255, 215, 0), CFrame.new(cx, 11.1, cz), Enum.Material.Neon)
+	trimTop.CanCollide = false
+	local trimBottom = part("WorldTitleTrim", Enum.PartType.Block, Vector3.new(22.4, 0.5, 1.2), Color3.fromRGB(255, 215, 0), CFrame.new(cx, 4.9, cz), Enum.Material.Neon)
+	trimBottom.CanCollide = false
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "WorldTitleLabel"
+	gui.Size = UDim2.fromOffset(440, 90)
+	gui.AlwaysOnTop = false
+	gui.LightInfluence = 0
+	gui.MaxDistance = 90
+	gui.Parent = board
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Size = UDim2.new(1, 0, 1, 0)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = "SPACE ROCK BRAINROTS!"
+	titleLabel.Font = Enum.Font.FredokaOne
+	titleLabel.TextScaled = true
+	titleLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+	titleLabel.TextStrokeTransparency = 0.2
+	titleLabel.Parent = gui
+end
+
 local function buildLogoStage()
 	local stageCf = CFrame.new(0, 0, 118)
 	local stage = part("LogoStage", Enum.PartType.Block, Vector3.new(16, 1, 10), Color3.fromRGB(60, 45, 90), stageCf * CFrame.new(0, 0.5, 0))
@@ -1541,6 +1612,7 @@ function WorldBuilder.build()
 	buildPlazaDecor()
 	buildTrees()
 	buildRocks()
+	buildMeteorRocks()
 	buildHills()
 	buildGroundDetail()
 	buildBoundaryWalls()
@@ -1553,6 +1625,7 @@ function WorldBuilder.build()
 	buildSpaceship()
 	buildBackground()
 	buildSignpostsAndFences()
+	buildWorldTitleSign()
 	buildCritters()
 	-- Title billboard REMOVED (fix round 2, fix 8): the giant
 	-- "SPACE ROCK BRAINROTS!" text in the sky filled the screen and
@@ -1561,7 +1634,7 @@ function WorldBuilder.build()
 	-- in the sky.
 	buildLogoStage()
 	buildContractBoard()
-	print("[WorldBuilder] world built: " .. tostring(Config.BASE_COUNT) .. " bases, crater, conveyor, sell area, plaza, trees, rocks, hills, ground detail, boundary walls, crystals, islands, sky, wind, star shop, upgrade machines, rebirth altar, index wall, spaceship, background, signposts, fences, paths, critters, title billboard, logo stage, bounty board.")
+	print("[WorldBuilder] world built: " .. tostring(Config.BASE_COUNT) .. " bases, crater, conveyor, sell area, plaza, trees, rocks, meteor rocks, hills, ground detail, boundary walls, crystals, islands, sky, wind, star shop, upgrade machines, rebirth altar, index wall, spaceship, background, signposts, fences, paths, critters, world title sign, logo stage, bounty board.")
 end
 
 return WorldBuilder

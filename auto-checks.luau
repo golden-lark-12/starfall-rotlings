@@ -3504,9 +3504,11 @@ end
 -- SPACE ROCK BRAINROTS in the HUD and the title screen. The world
 -- billboard was REMOVED in fix round 2 (fix 8) — the giant sky text
 -- filled the screen and its pitch line overlapped the SELL pad — so
--- (bi) proves it is GONE, not present. Two entries changed tier to
--- match the approved roster (penguin Rare -> Legendary, cat Cosmic ->
--- Legendary).
+-- (bi) proves it is GONE, not present. Fix round 11 adds a GROUND
+-- title sign instead (buildWorldTitleSign, a proper sign near spawn,
+-- not sky text): (bi) proves that sign exists and reads the title.
+-- Two entries changed tier to match the approved roster (penguin Rare
+-- -> Legendary, cat Cosmic -> Legendary).
 do
 	local catalogSrc = read("src/shared/RotlingCatalog.luau")
 	local hudSrc = read("src/client/HUDController.client.luau")
@@ -3560,6 +3562,9 @@ do
 		end
 		if not titleSrc:find("SPACE ROCK BRAINROTS") then
 			table.insert(problems, "title screen is not SPACE ROCK BRAINROTS")
+		end
+		if not worldSrc:find("WorldTitleSign") or not worldSrc:find('titleLabel.Text = "SPACE ROCK BRAINROTS!"', 1, true) then
+			table.insert(problems, "no ground title sign near spawn (buildWorldTitleSign, reads SPACE ROCK BRAINROTS!)")
 		end
 		if worldSrc:find("TitleBoard") or worldSrc:find("buildTitleBillboard") then
 			table.insert(problems, "world billboard is still in the sky (must be removed per the playtest)")
@@ -7473,6 +7478,54 @@ do
 			check("boundary-walls", false, "the boundary walls are wrong — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, Config.luau")
 		else
 			check("boundary-walls", true, "4 solid walls + gold trims form a closed square at +/-200, 40 tall: encloses bases, egg field, storm spread and the spaceship (reaches ~192); clears the storm front by 30; inside the 500x500 ground")
+		end
+	end
+end
+
+-- -- (dressing) fix round 11, item 1: dense themed world + title sign ---
+-- The top-10 comparison showed our world reads sparse next to the
+-- leaders (10/10 dense themed worlds, 8/10 a big in-world title).
+-- Dressing counts are raised, meteor rocks ring the rim, and a ground
+-- title sign stands near spawn. What rev 79 removed stays removed:
+-- no floating islands, no mountains, no world Index Wall, no SPAWN
+-- sign, no BELT panel, no XP bar — this is world dressing only.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	if not worldSrc then
+		check("dressing", false, "could not verify the dressing — WorldBuilder.luau missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find("for i = 1, 60 do", 1, true) then
+			table.insert(problems, "trees are not 60")
+		end
+		if not worldSrc:find("for i = 1, 45 do", 1, true) then
+			table.insert(problems, "rocks are not 45")
+		end
+		if not worldSrc:find("for i = 1, 36 do", 1, true) then
+			table.insert(problems, "crystals are not 36")
+		end
+		if not worldSrc:find("for i = 0, 11 do", 1, true) then
+			table.insert(problems, "plaza flag poles are not 12")
+		end
+		if not worldSrc:find("buildMeteorRocks") then
+			table.insert(problems, "no meteor rocks around the crater rim")
+		end
+		if not worldSrc:find("buildWorldTitleSign") then
+			table.insert(problems, "no world title sign builder")
+		end
+		-- Rev 79 removals stay removed: check for the builder/part
+		-- identifiers, not the words (the removal comments mention
+		-- them by name).
+		if worldSrc:find("buildFloatingIslands") or worldSrc:find('part("FloatingIsland"') then
+			table.insert(problems, "floating islands are back (rev 79 removed them)")
+		end
+		if worldSrc:find("buildMountains") or worldSrc:find('part("Mountain"') then
+			table.insert(problems, "mountains are back (rev 79 removed them)")
+		end
+		if #problems > 0 then
+			check("dressing", false, "the dressing pass is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau")
+		else
+			check("dressing", true, "dense world: 60 trees, 45 rocks, 36 crystals, 12 plaza flags, 6 meteor rocks on the rim, ground title sign near spawn; rev-79 removals stay removed")
 		end
 	end
 end
