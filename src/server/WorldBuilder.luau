@@ -1,12 +1,12 @@
 --!strict
--- Starfall Rotlings: builds the world at server start.
+-- Starfall Rotlings: builds the world when the server starts.
 -- The static skeleton (ground, crater, lighting, sky, spawn) lives in
--- default.project.json; everything repetitive or placed by data lives
--- here: the eight bases, their pads, the lock gates, purple alien trees,
--- rocks, mushrooms, stars and clouds. All positions come from Config, so
--- the layout can be re-tuned without touching the project file. The
--- palette is space-sunset on purpose: purple ground, teal crater glow,
--- orange meteors — nothing like a green field.
+-- default.project.json; everything repetitive or placed from data lives
+-- here: the eight bases with their pads, lock gates, purple alien
+-- trees, rocks, mushrooms, stars and clouds. Every position comes from
+-- Config, so the layout can be re-tuned without touching the project
+-- file. The palette is a space sunset on purpose: purple ground, teal
+-- crater glow, orange meteors — nothing like a green field.
 --
 -- ART PASS (Nov 17): the world is built fresh from Part primitives and
 -- built-in materials only — no Toolbox models, no copied assets. Hills,
@@ -1317,7 +1317,6 @@ local function buildRebirthAltar()
 	prompt.Parent = pad
 end
 
--- Index wall: a gallery wall near spawn (28, 0, 80) with one panel
 -- Crashed spaceship: half-buried at the map edge (170, 0, -120), a
 -- tilted saucer with a dome, smoke, and a blinking red light — a
 -- landmark you can see from anywhere, so no horizon is ever empty.
