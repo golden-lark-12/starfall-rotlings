@@ -11,6 +11,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
+local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local GuiKit = require(script.Parent:WaitForChild("GuiKit"))
 
@@ -124,7 +125,11 @@ Remotes.hudEvent().OnClientEvent:Connect(function(data: Remotes.HudData)
 	if data.stormPhase == "warn" then
 		stopPulse()
 		warnBar.Visible = true
-		warnLabel.Text = "⚠ METEOR STORM IN " .. tostring(data.stormSeconds) .. "s — GET HOME! ⚠"
+		-- (fix round 9, item 10) the hazard label lives here now: the
+		-- server storm banner that carried it is gone (it overlapped
+		-- this bar), so the warnBar carries "DANGER: CRATER-WIDE
+		-- FIREBALL RAIN" itself.
+		warnLabel.Text = "⚠ METEOR STORM IN " .. tostring(data.stormSeconds) .. "s — " .. Config.STORM_HAZARD_LABEL .. " — GET HOME! ⚠"
 		-- Big centre countdown + flashing red edges (fix round 2, fix 3).
 		countdownLabel.Text = "SPACE ROCKS IN " .. tostring(data.stormSeconds) .. "…"
 		countdownLabel.Visible = true

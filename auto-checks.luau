@@ -2204,8 +2204,9 @@ end
 do
 	local configSrc = read("src/shared/Config.luau")
 	local stormSrc = read("src/server/StarfallService.luau")
-	if not configSrc or not stormSrc then
-		check("am", false, "could not verify the storm spread — Config.luau or StarfallService.luau missing")
+	local warnSrc = read("src/client/StormWarningController.client.luau")
+	if not configSrc or not stormSrc or not warnSrc then
+		check("am", false, "could not verify the storm spread — Config.luau, StarfallService.luau or StormWarningController.client.luau missing")
 	else
 		local problems: { string } = {}
 		local spread = configValue(configSrc, "STORM_SPREAD_RADIUS")
@@ -2229,8 +2230,8 @@ do
 		if not stormSrc:find("dropAllCarried") then
 			table.insert(problems, "a meteor hit never drops the carried Rotling")
 		end
-		if not stormSrc:find("STORM_HAZARD_LABEL") then
-			table.insert(problems, "the storm banner carries no hazard label")
+		if not stormSrc:find("STORM_HAZARD_LABEL") and not warnSrc:find("STORM_HAZARD_LABEL") then
+			table.insert(problems, "the storm banner carries no hazard label (neither the server banner nor the warning bar shows it)")
 		end
 		if not configSrc:find('STORM_HAZARD_LABEL = "DANGER:') then
 			table.insert(problems, 'Config.STORM_HAZARD_LABEL is not a "DANGER: ..." label')
