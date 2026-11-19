@@ -8237,8 +8237,17 @@ do
 		if not hudSrc:find('UDim2%.new%(0%.9, 0, 0, 44%), UDim2%.new%(0%.5, 0, 0, 232%)') then
 			table.insert(problems, "the banner line is not 90% wide at y=232")
 		end
-		if not hudSrc:find("bannerLabel%.TextScaled = true") then
-			table.insert(problems, "the banner line does not scale its text")
+		-- (fix round 14, item 3) TextScaled is GONE from the banner
+		-- line: it mis-measured the 🚨 emoji and ran the thief
+		-- banner off the right edge on narrow screens. Sizing is
+		-- done by GuiKit.showBanner (TextService measure + shrink
+		-- + wrap — see the banner-fit check); the label keeps
+		-- TextWrapped.
+		if hudSrc:find("bannerLabel%.TextScaled = true") then
+			table.insert(problems, "the banner line still uses TextScaled (it mis-measures the emoji and overflows on narrow screens)")
+		end
+		if not hudSrc:find("bannerLabel%.TextScaled = false") then
+			table.insert(problems, "the banner line does not explicitly turn TextScaled off")
 		end
 		if not hudSrc:find("bannerLabel%.TextWrapped = true") then
 			table.insert(problems, "the banner line does not wrap its text")
@@ -8258,7 +8267,74 @@ do
 		if #problems > 0 then
 			check("dv", false, "the HUD overlap fixes are incomplete — " .. table.concat(problems, "; ") .. ". Parts: StarfallService.luau, HUDController.client.luau, TagController.client.luau, WorldBuilder.luau, Config.luau")
 		else
-			check("dv", true, "HUD overlap fixed: server storm banners removed (warnBar owns the storm voice), banner + carrying banner 90% wide with scaled/wrapped text, placed tags hide until 12 studs, SELL sign 200x64 at MaxDistance 45")
+			check("dv", true, "HUD overlap fixed: server storm banners removed (warnBar owns the storm voice), banner 90% wide at y=232 with TextScaled off + wrapped + sized by showBanner, carrying banner 90% wide, placed tags hide until 12 studs, SELL sign 200x64 at MaxDistance 45")
+		end
+	end
+end
+
+-- (banner-fit) THIEF BANNER FITS (fix round 14, item 3): playtest
+-- 13's screenshot showed "Ziggy is sneaking to you…" cut off at
+-- the right edge of the phone screen. The banner was TextScaled —
+-- and TextScaled mis-measures the 🚨 emoji on a narrow screen, so
+-- the text overflowed instead of wrapping (round 9's 90%-wide fix
+-- was not enough). showBanner now measures the real string with
+-- TextService:GetTextSize, shrinks the size until it fits in at
+-- most 2 lines, and grows the label to the lines it needs; the
+-- label itself is TextScaled=false, TextWrapped=true. The worst
+-- case is the raider line with the longest title, "Grimble the
+-- Grabber" (20 chars, ~98 chars total): at the 14px floor and
+-- ~8px/char it is ~784px, so on a 360px phone (label 324px) it
+-- needs 3 lines — the height formula (lines * size + 16) covers
+-- it at 58px.
+do
+	local guiKitSrc = read("src/client/GuiKit.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	local raiderSrc = read("src/server/RaiderService.luau")
+	if not guiKitSrc or not hudSrc or not rivalSrc or not raiderSrc then
+		check("banner-fit", false, "could not verify the banner fit — GuiKit.luau, HUDController.client.luau, RivalService.luau or RaiderService.luau missing")
+	else
+		local problems: { string } = {}
+		if not hudSrc:find("bannerLabel%.TextScaled = false") then
+			table.insert(problems, "the banner label still uses TextScaled (it mis-measures the emoji and overflows on narrow screens)")
+		end
+		if not hudSrc:find("bannerLabel%.TextWrapped = true") then
+			table.insert(problems, "the banner label does not wrap its text")
+		end
+		if not guiKitSrc:find("TextService:GetTextSize") then
+			table.insert(problems, "showBanner does not measure the text with TextService:GetTextSize")
+		end
+		if not guiKitSrc:find("bounds%.Y <= size %* 2%.2") then
+			table.insert(problems, "showBanner does not shrink the size until the text fits in 2 lines")
+		end
+		if not guiKitSrc:find("lines %* size %+ 16") then
+			table.insert(problems, "showBanner does not grow the label to the lines the text needs")
+		end
+		-- The two thief banner strings, at the longest names.
+		if not rivalSrc:find("is sneaking to your base! Lock it %(L%)!") then
+			table.insert(problems, "the RivalService thief banner string changed — the fit case is gone")
+		end
+		if not raiderSrc:find("is sneaking toward your base! Guard your Brainrots") then
+			table.insert(problems, "the RaiderService thief banner string changed — the fit case is gone")
+		end
+		if not raiderSrc:find("Grimble the Grabber") then
+			table.insert(problems, "the longest raider title (Grimble the Grabber) is gone — the worst-case fit case changed")
+		end
+		-- Worst case, computed: the raider line at the longest
+		-- title is ~98 chars; at the 14px floor and ~8px/char it
+		-- needs 3 lines on a 360px phone (label 324px) — the
+		-- height formula must cover 3 lines.
+		local longest = 98
+		local phoneLabel = 360 * 0.9
+		local linesNeeded = math.ceil(longest * 8 / phoneLabel)
+		local height = linesNeeded * 14 + 16
+		if linesNeeded > 3 or height > 64 then
+			table.insert(problems, "the longest thief banner needs " .. tostring(linesNeeded) .. " lines on a phone (" .. tostring(height) .. "px) — the fit must cover it")
+		end
+		if #problems > 0 then
+			check("banner-fit", false, "the thief banner does not fit — " .. table.concat(problems, "; ") .. ". Parts: GuiKit.luau, HUDController.client.luau, RivalService.luau, RaiderService.luau")
+		else
+			check("banner-fit", true, "thief banner fits: TextScaled off (it mis-measured the emoji), showBanner measures with TextService, shrinks to fit in 2 lines, grows the label to the lines needed; longest line (~98 chars, Grimble the Grabber) needs " .. tostring(linesNeeded) .. " lines on a phone (" .. tostring(height) .. "px)")
 		end
 	end
 end

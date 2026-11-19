@@ -237,11 +237,18 @@ hintLabel.AnchorPoint = Vector2.new(0.5, 0)
 -- warnBar (which ends at y=224). (fix round 9, item 10) the old
 -- 640px fixed-width banner at y=204 was cut off at the edges on
 -- narrow screens ("…se — bonk them!") and overlapped the warnBar —
--- it is 90% of the screen wide now, scales + wraps its text, and
--- sits below the warnBar.
+-- it is 90% of the screen wide now, and sits below the warnBar.
+-- (fix round 14, item 3) TextScaled is gone too: it mis-measured
+-- the emoji and ran the thief banner off the right edge on phones —
+-- GuiKit.showBanner sizes it now (TextService measure + shrink).
 local bannerLabel = GuiKit.makeLabel(gui, "Banner", "", UDim2.new(0.9, 0, 0, 44), UDim2.new(0.5, 0, 0, 232), 30, GuiKit.COLORS.Gold)
 bannerLabel.AnchorPoint = Vector2.new(0.5, 0)
-bannerLabel.TextScaled = true
+-- (fix round 14, item 3) TextScaled is OFF: it mis-measures the 🚨
+-- emoji on a narrow phone screen, so the thief banner ran off the
+-- right edge instead of wrapping ("Ziggy is sneaking to you…",
+-- playtest 13). Sizing is done by GuiKit.showBanner (TextService
+-- measure + shrink + wrap); the label keeps TextWrapped.
+bannerLabel.TextScaled = false
 bannerLabel.TextWrapped = true
 bannerLabel.Visible = false
 

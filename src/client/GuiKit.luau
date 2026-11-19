@@ -5,6 +5,7 @@
 -- Pure construction: no game logic lives here.
 
 local Players = game:GetService("Players")
+local TextService = game:GetService("TextService")
 local TweenService = game:GetService("TweenService")
 
 local GuiKit = {}
@@ -138,6 +139,39 @@ end
 
 local bannerToken = 0
 
+-- Fit the banner text to the label instead of TextScaled: measure
+-- the string with TextService and shrink until it fits in at most
+-- 2 lines, then size the label to the lines it needs. (Fix round
+-- 14, item 3: TextScaled mis-measures the 🚨 emoji on a narrow
+-- phone screen, so the thief banner ran off the right edge instead
+-- of wrapping. TextService measures the real rendered width, emoji
+-- included, so the fit is exact on every screen. The longest banner
+-- is the raider line with "Grimble the Grabber" (~98 chars): at the
+-- 14px floor it needs 3 lines on a 360px phone, and the label
+-- grows to cover them.)
+local function fitBanner(banner: TextLabel, text: string)
+	local width = banner.AbsoluteSize.X
+	if width < 100 then
+		local camera = workspace.CurrentCamera
+		if camera then
+			width = camera.ViewportSize.X * 0.9
+		end
+	end
+	width = math.max(100, width)
+	local size = 24
+	while size > 14 do
+		local bounds = TextService:GetTextSize(text, size, banner.Font, Vector2.new(width, 1000))
+		if bounds.Y <= size * 2.2 then
+			break
+		end
+		size -= 2
+	end
+	banner.TextSize = size
+	local bounds = TextService:GetTextSize(text, size, banner.Font, Vector2.new(width, 1000))
+	local lines = math.max(1, math.ceil(bounds.Y / size))
+	banner.Size = UDim2.new(0.9, 0, 0, lines * size + 16)
+end
+
 -- Show the shared centre banner line for a few seconds.
 function GuiKit.showBanner(gui: ScreenGui, text: string, duration: number)
 	local banner = gui:FindFirstChild("Banner")
@@ -147,6 +181,7 @@ function GuiKit.showBanner(gui: ScreenGui, text: string, duration: number)
 	bannerToken += 1
 	local token = bannerToken
 	banner.Text = text
+	fitBanner(banner, text)
 	banner.Visible = true
 	task.delay(duration, function()
 		if token == bannerToken then
