@@ -69,6 +69,8 @@ export type Rival = {
 	targetBase: number?,
 	lastThiefBannerAt: number, -- last "is IN your base" repeat banner (fix round 7, item 7)
 	bornAt: number,
+	stolenName: string?, -- name of the Brainrot this rival stole (set at the grab, cleared on place/drop) — drives the STEAL COMPLETE log (fix round 9, item 3)
+	stolenFrom: string?, -- victim name for the same log
 	-- Chase path state (fix round 8, item 8): the chase follows a
 	-- computed path to the carrier's live position (waypoints with a
 	-- jump flag), repathed every chase tick — a straight-line MoveTo

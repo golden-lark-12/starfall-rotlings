@@ -6666,6 +6666,53 @@ do
 	end
 end
 
+-- (do) THIEF ACTUALLY STEALS (fix round 9, item 3): "the thief
+-- still does nothing" had three real causes, all in the steal walk.
+-- (a) The walk passed stormRunning as the cancel, so any storm
+-- starting mid-walk aborted the steal — even though stepRival's
+-- header exempts steal/chase from storm cover. The steal walk is
+-- storm-proof now. (b) The final leg ran from the ramp's low end
+-- straight to the pad, crossing the 2-stud platform edge OUTSIDE
+-- the 6-wide ramp for pads 1 and 4 — the rival pushed the edge
+-- until the 40s timeout. A ramp-top waypoint (local (0,2,-10))
+-- routes it up the ramp first, in the steal leg and in the
+-- carry-home leg. (c) The pad picked at the start could empty
+-- during the walk — the thief re-picks the first occupied pad on
+-- arrival. The proof is the STEAL COMPLETE log when the stolen
+-- Brainrot is placed and earning on the thief's base.
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	local stateSrc = read("src/server/State.luau")
+	if not rivalSrc or not stateSrc then
+		check("do", false, "could not verify the steal — RivalService.luau or State.luau missing")
+	else
+		local problems: { string } = {}
+		if not rivalSrc:find("walkAround%(model, around, 40, nil%)") then
+			table.insert(problems, "the steal ring walk is not storm-proof (still passes stormRunning)")
+		end
+		if not rivalSrc:find("walkTo%(model, entrancePos, 20, nil%)") then
+			table.insert(problems, "the steal entrance leg is not storm-proof")
+		end
+		if not rivalSrc:find("rampTopPos") then
+			table.insert(problems, "no ramp-top waypoint in the steal / carry-home legs")
+		end
+		if not rivalSrc:find("freshPad") then
+			table.insert(problems, "the thief does not re-pick a pad on arrival")
+		end
+		if not rivalSrc:find("STEAL COMPLETE") then
+			table.insert(problems, "no STEAL COMPLETE log on placement (no proof the steal worked)")
+		end
+		if not stateSrc:find("stolenName: string%?") then
+			table.insert(problems, "no stolenName on the Rival type")
+		end
+		if #problems > 0 then
+			check("do", false, "the thief steal is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, State.luau")
+		else
+			check("do", true, "thief actually steals: storm-proof walk, ramp-top waypoint in both legs, pad re-picked on arrival, STEAL COMPLETE logged when the loot is placed and earning")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

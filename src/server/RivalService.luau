@@ -384,6 +384,11 @@ function RivalService.dropCarried(rival: State.Rival)
 		return
 	end
 	rival.carried = nil
+	-- A dropped carry is a failed steal: clear the stolen flag, or a
+	-- later crater grab placed on the base would log a false STEAL
+	-- COMPLETE (fix round 9, item 3).
+	rival.stolenName = nil
+	rival.stolenFrom = nil
 	local body = model.PrimaryPart
 	if body then
 		local weld = body:FindFirstChild("CarryWeld")
@@ -647,9 +652,15 @@ local function stepRival(rival: State.Rival, model: Model)
 			-- end first (the only way up), then to the pad. Same
 			-- geometry as the steal leg below.
 			local entrancePos = if homeCf then (homeCf * CFrame.new(0, 0, -15)).Position else nil
+			local rampTopPos = if homeCf then (homeCf * CFrame.new(0, 2, -10)).Position else nil
 			local reachedPad = false
 			if padCf and entrancePos then
+				-- Ramp-top waypoint (fix round 9, item 3): same edge
+				-- geometry as the steal leg — from the ramp's low end
+				-- straight to the pad crosses the platform edge
+				-- outside the ramp for pads 1 and 4.
 				reachedPad = walkAround(model, entrancePos, 40, stormRunning)
+					and (not rampTopPos or walkTo(model, rampTopPos, 20, stormRunning))
 					and walkTo(model, padCf.Position, 40, stormRunning)
 			elseif padCf then
 				reachedPad = walkAround(model, padCf.Position, 40, stormRunning)
@@ -699,6 +710,16 @@ local function stepRival(rival: State.Rival, model: Model)
 					-- the F9 trail reads triggered → walking →
 					-- arrived → grabbed → running home → placed.
 					print("[Rival] " .. rival.name .. " placed " .. (if def then def.name else "a Brainrot") .. " on its base — earning now")
+					-- (fix round 9, item 3) STEAL COMPLETE: the steal
+					-- is only PROVEN when the stolen Brainrot is
+					-- placed and earning on the thief's base — this
+					-- is the line Malek reads in F9 to know the thief
+					-- actually did something this time.
+					if rival.stolenName then
+						print("[Rival] STEAL COMPLETE — " .. rival.name .. " stole " .. rival.stolenName .. " from " .. (rival.stolenFrom or "a player") .. " and placed it on its base — earning now")
+						rival.stolenName = nil
+						rival.stolenFrom = nil
+					end
 				end
 			else
 				print("[Rival] " .. rival.name .. " could not reach its own base (pad " .. tostring(padIndex) .. ") — still carrying, will retry next cycle")
@@ -752,20 +773,49 @@ local function stepRival(rival: State.Rival, model: Model)
 				local arrived = false
 				if padCf and victimAngle then
 					local around = Vector3.new(math.cos(victimAngle) * 45, 0, math.sin(victimAngle) * 45)
-					-- Entrance leg (fix round 8, item 3): the straight
-					-- line from the ring to the pad crosses the
-					-- platform's 2-stud edge anywhere — usually NOT
-					-- at the 6-wide entrance ramp — so the rival
-					-- pushes against the edge until the walk times
-					-- out ("Ziggy couldn't reach the base", playtest
-					-- 9). Route through the ramp's low end first
-					-- (the only way up), then to the pad.
+					-- Entrance leg (fix round 8, item 3; rewritten fix
+					-- round 9, item 3): three real causes of "the
+					-- thief does nothing". (a) The walk passed
+					-- stormRunning as the cancel, so any storm
+					-- starting mid-walk (a 20-40s walk against an 8s
+					-- storm every 90s cycle) aborted the steal — even
+					-- though stepRival's header exempts steal/chase
+					-- from storm cover. The steal walk is storm-proof
+					-- now (nil cancel). (b) The final leg ran from
+					-- the ramp's LOW end straight to the pad, crossing
+					-- the 2-stud platform edge OUTSIDE the 6-wide
+					-- ramp for pads 1 and 4 (crossing at x ≈ ±3.43)
+					-- — the rival pushed the edge until the 40s
+					-- timeout. Route UP the ramp first (ramp-top
+					-- waypoint, local (0,2,-10)), then along the
+					-- platform to the pad. (c) The pad picked at the
+					-- start could empty during the walk — re-pick the
+					-- first occupied pad on arrival instead of
+					-- grabbing at an empty one.
 					local entrancePos = if victimCf then (victimCf * CFrame.new(0, 0, -15)).Position else padCf.Position
-					arrived = walkAround(model, around, 40, stormRunning)
-						and walkTo(model, entrancePos, 20, stormRunning)
-						and walkTo(model, padCf.Position, 40, stormRunning)
+					local rampTopPos = if victimCf then (victimCf * CFrame.new(0, 2, -10)).Position else nil
+					local reachedRamp = walkAround(model, around, 40, nil)
+						and walkTo(model, entrancePos, 20, nil)
+						and (not rampTopPos or walkTo(model, rampTopPos, 20, nil))
+					if reachedRamp then
+						local freshPad: number? = nil
+						local freshPlaced = State.placed[victimBase]
+						if freshPlaced then
+							for index in pairs(freshPlaced) do
+								freshPad = index
+								break
+							end
+						end
+						if freshPad then
+							padIndex = freshPad
+							padCf = WorldBuilder.padCFrame(victimBase, freshPad)
+							arrived = if padCf then walkTo(model, padCf.Position, 40, nil) else false
+						else
+							print("[Rival] " .. rival.name .. " reached " .. victim.Name .. "'s base but every pad emptied on the walk — steal aborted")
+						end
+					end
 				elseif padCf then
-					arrived = walkTo(model, padCf.Position, 60, stormRunning)
+					arrived = walkTo(model, padCf.Position, 60, nil)
 				end
 				if arrived then
 					print("[Rival] " .. rival.name .. " arrived at " .. victim.Name .. "'s base")
@@ -780,6 +830,11 @@ local function stepRival(rival: State.Rival, model: Model)
 							carryModel(rival, stolen)
 							local stolenDef = RotlingCatalog.getDef(stolen:GetAttribute("DefId") :: string)
 							local stolenName = if stolenDef then stolenDef.name else "Brainrot"
+							-- (fix round 9, item 3) remember what was
+							-- stolen, so the placement logs STEAL
+							-- COMPLETE — the proof the steal worked.
+							rival.stolenName = stolenName
+							rival.stolenFrom = victim.Name
 							Remotes.bannerEvent():FireClient(victim, "🚨 " .. rival.name .. " stole your " .. stolenName .. "! Slap them to get it back!", 5)
 							print("[Rival] " .. rival.name .. " stole " .. stolenName .. " from " .. victim.Name .. " — carrying it home")
 							rival.phase = "toBase"
@@ -965,6 +1020,8 @@ local function spawnRival(index: number)
 		targetBase = nil,
 		lastThiefBannerAt = 0,
 		bornAt = time(),
+		stolenName = nil,
+		stolenFrom = nil,
 		chaseWaypoints = {},
 		chaseWpIndex = 1,
 		chasePathTarget = nil,
