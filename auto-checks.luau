@@ -2348,10 +2348,10 @@ do
 end
 
 -- -- (ap) meteor eggs ------------------------------------------------------------
--- Item 12: 1-2 eggs per storm, heavy carry (walk slower), rivals chase,
--- incubator per base, 60s hatch into a random Rotling with Epic /
--- Legendary / mutation chances, hatch animation + reveal popup, and
--- the egg drops on death.
+-- Item 12 (rebalanced fix round 10): 4 eggs per storm, heavy carry (walk
+-- slower), rivals chase, incubator per base, rarity-scaled hatch into a
+-- random Rotling with Epic / Legendary / mutation chances, hatch
+-- animation + reveal popup, and the egg drops on death.
 do
 	local configSrc = read("src/shared/Config.luau")
 	local eggSrc = read("src/server/MeteorEggService.luau")
@@ -2363,8 +2363,8 @@ do
 		local perStorm = configValue(configSrc, "EGGS_PER_STORM")
 		if not perStorm then
 			table.insert(problems, "Config.EGGS_PER_STORM not found")
-		elseif perStorm < 1 or perStorm > 2 then
-			table.insert(problems, "EGGS_PER_STORM is " .. tostring(perStorm) .. " (must be 1-2)")
+		elseif perStorm < 1 or perStorm > 4 then
+			table.insert(problems, "EGGS_PER_STORM is " .. tostring(perStorm) .. " (must be 1-4)")
 		end
 		-- (fix round 6, item 6) The hatch time is a per-rarity table
 		-- now, not a flat 60s: Common 60s scaling up to Cosmic 300s.
@@ -7291,6 +7291,84 @@ do
 			check("fence-parallel", false, "the fences are not true parallels of the walkway — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau")
 		else
 			check("fence-parallel", true, "crater-to-shop fences are true parallels of the stone path (4 studs to each side, no part within 3 studs of the centreline, clear of the crater rim); spawn-path fences still flank at x=+/-5")
+		end
+	end
+end
+
+-- Fix round 10, item 2 — egg rebalance: more eggs, rarer rares, the
+-- rate depends on the rarity. Before: 2 eggs/storm, base weights
+-- (45/28/15/8/3/1) PLUS a 40% bump on Common/Rare rolls to Epic
+-- (60%) / Legendary (40%) — effective Epic 32.5%, Legendary 19.7%,
+-- Epic+Legendary 52.2% of eggs, so rares felt common. After: 4
+-- eggs/storm, egg-only weights 55/28/10/4/2/1, bump gone — effective
+-- Epic 10%, Legendary 4%, Epic+Legendary 14%; a Legendary egg is
+-- expected once per ~6 storms, plus the guaranteed legendary drop
+-- every 240s in the crater.
+do
+	local configSrc = read("src/shared/Config.luau")
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	if not configSrc or not eggSrc then
+		check("egg-rebalance", false, "could not verify the egg rebalance — Config.luau or MeteorEggService.luau missing")
+	else
+		local problems: { string } = {}
+		-- Four eggs per storm.
+		local perStorm = configSrc:match("Config.EGGS_PER_STORM = (%d+)")
+		if perStorm ~= "4" then
+			table.insert(problems, "EGGS_PER_STORM is " .. tostring(perStorm) .. ", not 4")
+		end
+		-- Egg-only weights, parsed as (tier, weight) pairs.
+		local weightsBody = configSrc:match("Config.EGG_RARITY_WEIGHTS = {(.-)}")
+		local weights: { [number]: number } = {}
+		if weightsBody then
+			for tier, w in weightsBody:gmatch("%[(%d+)%] = (%d+)") do
+				weights[tonumber(tier)] = tonumber(w)
+			end
+		end
+		local total = 0
+		for tier = 1, 6 do
+			total += weights[tier] or 0
+		end
+		if total ~= 100 then
+			table.insert(problems, "egg weights sum to " .. tostring(total) .. ", not 100")
+		else
+			local epic = (weights[3] or 0)
+			local legendary = (weights[4] or 0)
+			local common = (weights[1] or 0)
+			if epic + legendary > 15 then
+				table.insert(problems, "Epic+Legendary is " .. tostring(epic + legendary) .. "% per egg (must be <= 15%)")
+			end
+			if legendary > 5 then
+				table.insert(problems, "Legendary is " .. tostring(legendary) .. "% per egg (must be <= 5%)")
+			end
+			if common < 50 then
+				table.insert(problems, "Common is only " .. tostring(common) .. "% per egg (must be >= 50%)")
+			end
+			-- Expected eggs of each rarity per storm at 4/storm.
+			local perStormCount = tonumber(perStorm) or 0
+			local expectedLegendary = perStormCount * legendary / 100
+			if expectedLegendary > 0.25 then
+				table.insert(problems, "expected Legendary eggs per storm is " .. string.format("%.2f", expectedLegendary) .. " (must be <= 0.25, one per ~4+ storms)")
+			end
+		end
+		-- The 40% bump must be gone, and the roll must use the weights.
+		if eggSrc:find("rarityTier%(rarityName%) < 3") then
+			table.insert(problems, "the 40% Common/Rare bump is still in rollHatchDef")
+		end
+		if not eggSrc:find("local function rollEggRarity") then
+			table.insert(problems, "no rollEggRarity")
+		end
+		if not eggSrc:find("EGG_RARITY_WEIGHTS") then
+			table.insert(problems, "the roll does not read EGG_RARITY_WEIGHTS")
+		end
+		-- The guaranteed legendary drop is untouched.
+		local interval = configSrc:match("Config.LEGENDARY_EGG_INTERVAL = (%d+)")
+		if interval ~= "240" then
+			table.insert(problems, "LEGENDARY_EGG_INTERVAL changed to " .. tostring(interval) .. " (must stay 240)")
+		end
+		if #problems > 0 then
+			check("egg-rebalance", false, "the egg rebalance is wrong — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, MeteorEggService.luau")
+		else
+			check("egg-rebalance", true, "4 eggs/storm with egg-only weights 55/28/10/4/2/1 (Epic 10%, Legendary 4%, ~0.16 Legendary/storm); 40% bump gone; legendary drop still every 240s")
 		end
 	end
 end

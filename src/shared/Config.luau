@@ -232,12 +232,20 @@ Config.SLAP_COOLDOWN = 2
 Config.SLAP_RANGE = 9 -- studs in front of the swinger
 Config.SLAP_KNOCKBACK = 38
 
--- Meteor eggs (item 12): 1-2 glowing eggs crash somewhere on the map
--- during each storm. Heavy to carry (walk slower); rivals chase you
--- for one. Bring it to the incubator on your base: it hatches after
--- 60s into a random Rotling, with a chance of Epic, Legendary or a
--- mutation. Eggs also pay Stardust on hatch.
-Config.EGGS_PER_STORM = 2
+-- Meteor eggs (item 12, rebalanced fix round 10): 4 glowing eggs crash
+-- somewhere on the open field during each storm. Heavy to carry (walk
+-- slower); rivals chase you for one. Bring it to the incubator on your
+-- base: it hatches after a rarity-scaled wait into a random Rotling,
+-- with a chance of Epic, Legendary or a mutation. Eggs also pay
+-- Stardust on hatch.
+Config.EGGS_PER_STORM = 4
+-- Egg-only rarity weights (fix round 10, item 2): steeper than the belt
+-- weights in RarityConfig — Commons flood, a Legendary egg is a real
+-- event (4% per egg, ~0.16 per storm at 4/storm, one per ~6 storms).
+-- The old 40% bump that flattened the distribution is gone; the
+-- guaranteed legendary drop (every 240s, crater) is the Epic/Legendary
+-- safety net. Indexed by rarity tier 1-6.
+Config.EGG_RARITY_WEIGHTS = { [1] = 55, [2] = 28, [3] = 10, [4] = 4, [5] = 2, [6] = 1 }
 Config.LEGENDARY_EGG_INTERVAL = 240 -- seconds between legendary egg drops (fix round 9, item 11)
 Config.LEGENDARY_EGG_LIFETIME = 75 -- seconds a legendary egg stays grabbable before it vanishes
 Config.EGG_HATCH_TIME = { [1] = 60, [2] = 90, [3] = 120, [4] = 180, [5] = 240, [6] = 300 } -- seconds on the incubator before hatching, by rarity tier (fix round 6, item 6: rarer eggs take longer — Common 60s, Rare 90s, Epic 120s, Legendary 180s, Mythic 240s, Cosmic 300s)

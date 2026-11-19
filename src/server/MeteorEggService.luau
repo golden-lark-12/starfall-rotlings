@@ -1,7 +1,7 @@
 --!strict
 -- Starfall Rotlings: meteor eggs.
--- During each storm, 1-2 glowing meteor eggs crash somewhere on the
--- map. Heavy — walk slower carrying one (BoostService applies the
+-- During each storm, 4 glowing meteor eggs crash somewhere on the
+-- open field. Heavy — walk slower carrying one (BoostService applies the
 -- slow); rivals chase you for it (RivalService.notifyEggCarrier). Bring
 -- it to the incubator on your base and it hatches into a random Rotling
 -- after a rarity-scaled wait (Common 60s, Cosmic 300s — rarer takes
@@ -52,19 +52,40 @@ local function eggPosition(): Vector3
 	return Vector3.new(0, 0, 50)
 end
 
--- Roll the hatch: a random Rotling, with a real chance of Epic or
--- Legendary, and 15% Meteor-scorched. Common/Rare rolls get one bump
--- chance toward Epic/Legendary so an egg never feels wasted.
+-- Roll the egg's rarity against the egg-only weights in
+-- Config.EGG_RARITY_WEIGHTS (fix round 10, item 2) — NOT the belt
+-- weights in RarityConfig: eggs are Common-heavy by design, and a
+-- Legendary egg is a real event (4% per egg). The old 40% bump that
+-- fired on Common/Rare rolls and pushed them to Epic/Legendary is
+-- gone — it flattened the whole distribution (52% of eggs ended up
+-- Epic/Legendary) and made rares feel common.
+local function rollEggRarity(): string
+	local total = 0
+	for tier = 1, 6 do
+		total += Config.EGG_RARITY_WEIGHTS[tier] or 0
+	end
+	local roll = math.random(1, total)
+	local running = 0
+	for tier = 1, 6 do
+		running += Config.EGG_RARITY_WEIGHTS[tier] or 0
+		if roll <= running then
+			return RarityConfig.ORDER[tier]
+		end
+	end
+	return "Common"
+end
+
+-- Roll the hatch: a random Rotling against the egg-only weights, with
+-- 15% Meteor-scorched. Mystery eggs stay worth grabbing because any
+-- egg COULD be Legendary — but most are Common, so a rare hatch is a
+-- real event, not every other egg.
 -- Declared BEFORE buildEgg and spawnEggsForStorm on purpose: the
 -- hatch is rolled at SPAWN time (fix round 7, item 6) so the ground
 -- egg can show its rarity, and a local declared after its caller is
 -- invisible to that caller — the same class of bug as fix round 3's
 -- calmDuration-after-getStatus.
 local function rollHatchDef(): (RotlingCatalog.RotlingDef, string?)
-	local rarityName = RarityConfig.rollRarity()
-	if RarityConfig.rarityTier(rarityName) < 3 and math.random() < 0.4 then
-		rarityName = if math.random() < 0.6 then "Epic" else "Legendary"
-	end
+	local rarityName = rollEggRarity()
 	local defs = RotlingCatalog.defsOfRarity(rarityName)
 	local def = defs[math.random(1, #defs)]
 	local mutation: string? = nil
@@ -156,8 +177,8 @@ local function buildEgg(position: Vector3): Model
 	return model
 end
 
--- Drop one egg per storm at a random spot: it falls from the sky and
--- lands with a thud, then waits to be grabbed (5 minutes).
+-- Drop EGGS_PER_STORM eggs per storm at random spots: each falls from
+-- the sky and lands with a thud, then waits to be grabbed (5 minutes).
 function MeteorEggService.spawnEggsForStorm()
 	for _ = 1, Config.EGGS_PER_STORM do
 		local target = eggPosition()

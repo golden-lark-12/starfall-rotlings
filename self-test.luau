@@ -1565,6 +1565,38 @@ do
 	end
 end
 
+-- Fix round 10, item 2 — egg rebalance: 4 eggs/storm, egg-only weights
+-- 55/28/10/4/2/1, the 40% bump gone, legendary drop untouched (240s).
+do
+	local configSrc = read("src/shared/Config.luau")
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	if not configSrc or not eggSrc then
+		step("egg-rebalance", false, "Config.luau or MeteorEggService.luau missing")
+	else
+		local problems: { string } = {}
+		if not configSrc:find("Config.EGGS_PER_STORM = 4") then
+			table.insert(problems, "EGGS_PER_STORM is not 4")
+		end
+		if not configSrc:find("Config.EGG_RARITY_WEIGHTS = { %[1%] = 55, %[2%] = 28, %[3%] = 10, %[4%] = 4, %[5%] = 2, %[6%] = 1 }") then
+			table.insert(problems, "egg weights are not 55/28/10/4/2/1")
+		end
+		if eggSrc:find("rarityTier%(rarityName%) < 3") then
+			table.insert(problems, "the 40% bump is still in rollHatchDef")
+		end
+		if not eggSrc:find("local function rollEggRarity") then
+			table.insert(problems, "no rollEggRarity")
+		end
+		if not configSrc:find("Config.LEGENDARY_EGG_INTERVAL = 240") then
+			table.insert(problems, "legendary drop interval changed (must stay 240)")
+		end
+		if #problems > 0 then
+			step("egg-rebalance", false, table.concat(problems, "; "))
+		else
+			step("egg-rebalance", true, "4 eggs/storm, weights 55/28/10/4/2/1 (Legendary 4% per egg, ~0.16/storm); bump gone; legendary drop still 240s")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
