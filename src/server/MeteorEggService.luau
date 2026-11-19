@@ -491,12 +491,50 @@ local function crackEgg(model: Model, egg: State.Egg, baseId: number)
 		hatched:PivotTo(wiggleBase)
 	end
 	RotlingFactory.placePop(hatched)
+	-- 2b. Hatch SPECTACLE (fix round 9, item 7): the waiting player
+	-- needs a MOMENT, not just a pop. A beam of light in the hatch's
+	-- rarity colour shoots 30 studs up from the incubator and fades
+	-- over ~3s; confetti bursts in gold + the rarity colour + white;
+	-- a bright fanfare ping fires at the reveal. The beam is a Neon
+	-- cylinder (its long axis is X, so it is rotated 90° to stand
+	-- vertical) — nothing new to verify, no asset IDs.
+	local rarityColor = RarityConfig.rarityByName(def.rarity).color
+	local beam = Instance.new("Part")
+	beam.Name = "HatchBeam"
+	beam.Shape = Enum.PartType.Cylinder
+	beam.Size = Vector3.new(30, 3, 3)
+	beam.Color = rarityColor
+	beam.Material = Enum.Material.Neon
+	beam.Transparency = 0.3
+	beam.Anchored = true
+	beam.CanCollide = false
+	beam.CFrame = CFrame.new(hatchPos + Vector3.new(0, 15, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	beam.Parent = workspace
+	task.spawn(function()
+		for i = 1, 10 do
+			task.wait(0.3)
+			if beam.Parent then
+				beam.Transparency = 0.3 + i * 0.07
+			end
+		end
+		beam:Destroy()
+	end)
+	FeedbackService.burst(hatched, rarityColor)
+	FeedbackService.burst(hatched, Color3.fromRGB(255, 225, 90))
+	FeedbackService.burst(hatched, Color3.fromRGB(255, 255, 255))
+	-- The owner is needed here for the fanfare (and again below for
+	-- the auto-carry) — looked up once, before the reveal.
+	local ownerId = BaseService.getBaseOwner(baseId)
+	local owner = if ownerId then Players:GetPlayerByUserId(ownerId) else nil
+	if owner then
+		FeedbackService.playSound(owner, 1.6, 0.7)
+	end
+	print("[MeteorEgg] hatch spectacle — " .. def.name .. " (" .. def.rarity .. ") beam + confetti at base " .. tostring(baseId))
 	-- 3. The animal comes out: if the owner is standing nearby with
 	-- a free slot, it jumps straight into their arms — they place it
 	-- on a pad themselves. Otherwise the old fallback: a free pad,
-	-- or the crater if the base is full / the owner left.
-	local ownerId = BaseService.getBaseOwner(baseId)
-	local owner = if ownerId then Players:GetPlayerByUserId(ownerId) else nil
+	-- or the crater if the base is full / the owner left. (owner /
+	-- ownerId were looked up above, for the fanfare.)
 	local carried = false
 	if owner then
 		local character = owner.Character
@@ -548,11 +586,12 @@ local function crackEgg(model: Model, egg: State.Egg, baseId: number)
 			DataService.saveProfile(owner)
 		end
 		local mutText = if mutation then " ✦ " .. mutation .. " x" .. tostring(MutationConfig.mutationMult(mutation)) else ""
-		Remotes.bannerEvent():FireClient(owner, "🥚 HATCHED: " .. def.name .. " (" .. def.rarity .. mutText .. ")! +" .. tostring(Config.EGG_STARDUST) .. " Stardust!", 6)
+		Remotes.bannerEvent():FireClient(owner, "✨ HATCHED: " .. def.name .. " (" .. string.upper(def.rarity) .. mutText .. ")! +" .. tostring(Config.EGG_STARDUST) .. " Stardust!", 6)
 		FeedbackService.celebrate(owner)
-		if RarityConfig.rarityTier(def.rarity) >= 4 then
-			Remotes.rarityPopupEvent():FireClient(owner, def.name, def.rarity, mutation, RotlingCatalog.baseCps(def, mutation))
-		end
+		-- (fix round 9, item 7) the rarity reveal fires for EVERY
+		-- hatch, not just tier 4+ — the waiting player deserves the
+		-- reveal even for a Common.
+		Remotes.rarityPopupEvent():FireClient(owner, def.name, def.rarity, mutation, RotlingCatalog.baseCps(def, mutation))
 		print("[MeteorEgg] hatched " .. def.name .. " (" .. def.rarity .. (if mutation then " " .. mutation else "") .. ") on base " .. tostring(baseId))
 	end
 end

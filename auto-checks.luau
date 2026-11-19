@@ -6855,6 +6855,48 @@ do
 	end
 end
 
+-- (ds) HATCH SPECTACLE (fix round 9, item 7): the rev-90 hatch
+-- (shake, cracks, flash, pop-out) is not enough — the player who
+-- waited minutes for an egg needs a MOMENT. The reveal now fires a
+-- 30-stud Neon beam in the hatch's rarity colour (fades over ~3s),
+-- confetti in gold + rarity colour + white, and a fanfare ping at
+-- the reveal; the rarity popup fires for EVERY hatch (not just tier
+-- 4+), and the banner reads "✨ HATCHED: <name> (<RARITY>)!".
+do
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	if not eggSrc then
+		check("ds", false, "could not verify the hatch spectacle — MeteorEggService.luau missing")
+	else
+		local problems: { string } = {}
+		if not eggSrc:find('beam%.Name = "HatchBeam"') then
+			table.insert(problems, "no HatchBeam part in the hatch")
+		end
+		if not eggSrc:find("Enum%.Material%.Neon") then
+			table.insert(problems, "the beam is not Neon")
+		end
+		if not eggSrc:find("FeedbackService%.burst%(hatched, rarityColor%)") then
+			table.insert(problems, "no rarity-colour confetti burst")
+		end
+		if not eggSrc:find("FeedbackService%.burst%(hatched, Color3%.fromRGB%(255, 225, 90%)%)") then
+			table.insert(problems, "no gold confetti burst")
+		end
+		if not eggSrc:find("FeedbackService%.playSound%(owner, 1%.6, 0%.7%)") then
+			table.insert(problems, "no fanfare ping at the reveal")
+		end
+		if eggSrc:find("if RarityConfig%.rarityTier%(def%.rarity%) >= 4 then") then
+			table.insert(problems, "the rarity popup still only fires for tier 4+")
+		end
+		if not eggSrc:find("✨ HATCHED: ") then
+			table.insert(problems, "no ✨ HATCHED banner")
+		end
+		if #problems > 0 then
+			check("ds", false, "the hatch spectacle is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau")
+		else
+			check("ds", true, "hatch spectacle: 30-stud Neon beam in the rarity colour (fades ~3s) + gold/rarity/white confetti + fanfare ping, rarity popup for every hatch, ✨ HATCHED banner")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
