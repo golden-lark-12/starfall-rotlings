@@ -1683,13 +1683,17 @@ do
 	end
 end
 
--- Fix round 12, item 2 — steal route: the SELL pad no longer blocks
--- base 1's only approach, rocks stay out of every base's entrance
--- corridor, and the meteor-rock gap at the crater mouth is widened.
+-- Fix round 12, item 2 + fix round 13, item 1 — steal route: the
+-- SELL pad no longer blocks base 1's only approach, rocks stay out
+-- of every base's entrance corridor, the meteor-rock gap at the
+-- crater mouth is widened, the meteor-rock draw is radius 33..38
+-- (worst reach 41, clear of the ring sweep), the final leg routes
+-- via the clear strip, and the give-up logs leg + nearest solid.
 do
 	local worldSrc = read("src/server/WorldBuilder.luau")
-	if not worldSrc then
-		step("steal-route", false, "WorldBuilder.luau missing")
+	local rivalSrc = read("src/server/RivalService.luau")
+	if not worldSrc or not rivalSrc then
+		step("steal-route", false, "WorldBuilder.luau or RivalService.luau missing")
 	else
 		local problems: { string } = {}
 		if not worldSrc:find("sellPad%.CanCollide = false") then
@@ -1701,10 +1705,19 @@ do
 		if not worldSrc:find("math%.abs%(x%) < 10 and z > 34") then
 			table.insert(problems, "meteor-rock gap not widened to |x| < 10")
 		end
+		if not worldSrc:find("rng:NextNumber%(33, 38%)") then
+			table.insert(problems, "meteor-rock radius draw is not 33..38")
+		end
+		if not rivalSrc:find("PointToObjectSpace%(padCf%.Position%)") or not rivalSrc:find("CFrame%.new%(localPad%.X, 2, %-9%)") then
+			table.insert(problems, "final leg has no clear-strip waypoint")
+		end
+		if not rivalSrc:find("STEAL WALK DIAGNOSTIC") or not rivalSrc:find("GetPartBoundsInRadius") then
+			table.insert(problems, "no give-up diagnostic (leg + nearest solid)")
+		end
 		if #problems > 0 then
 			step("steal-route", false, table.concat(problems, "; "))
 		else
-			step("steal-route", true, "SELL pad non-colliding on base 1's approach; rocks excluded from base corridors (radius 40..130, +/-8); meteor-rock gap |x| < 10")
+			step("steal-route", true, "SELL pad non-colliding; rocks excluded from corridors; meteor-rock gap |x| < 10; meteor-rock draw 33..38 (reach 41 < ring sweep 41.97); final leg via clear strip; give-up logs leg + nearest solid")
 		end
 	end
 end

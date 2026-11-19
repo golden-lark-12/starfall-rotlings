@@ -1501,7 +1501,21 @@ local function buildMeteorRocks()
 	local rng = Random.new(31337)
 	for i = 1, 6 do
 		local angle = rng:NextNumber(0, math.pi * 2)
-		local radius = rng:NextNumber(33, 40)
+		-- (fix round 13, item 1) Radius 33..38, NOT 33..40: the
+		-- steal walk arcs along a ring at radius 45, and the
+		-- 30-degree chords dip to 43.5 — minus the rival's 1.5-stud
+		-- half-width, the swept corridor reaches down to radius
+		-- 42. A rock at radius 40 with size 6 reaches radius 43:
+		-- inside the swept corridor, a 4-6 stud solid ball on the
+		-- only ring every rival walk uses (the stuck-hop clears a
+		-- 0.6 pad ledge, not a boulder). At radius <= 38 the worst
+		-- reach is 38 + 3 = 41, a full stud clear of the corridor.
+		-- The old 33..40 range was the last unproven blocker on
+		-- the steal route: the trace in auto-checks (steal-route)
+		-- proves the ring clear from this bound, not from one RNG
+		-- draw. Rocks still stud the rim (35..39) — a boulder on
+		-- the rim reads as part of the crater.
+		local radius = rng:NextNumber(33, 38)
 		local x = math.cos(angle) * radius
 		local z = math.sin(angle) * radius
 		-- Keep the walkways clear: not on the spawn path (x near 0,

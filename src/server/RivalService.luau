@@ -370,6 +370,38 @@ local function giveUpBanner(victim: Player?, rivalName: string, reason: string)
 	end
 end
 
+-- (fix round 13, item 1) Give-up diagnostic: when a steal walk
+-- fails, log WHERE it died (which leg, rival position, target)
+-- and the NEAREST solid part, so the F9 trail names the blocker
+-- instead of "couldn't reach your base". The trace in auto-checks
+-- proves the route clear on paper; this proves it (or finds the
+-- miss) in the live game. A placed Brainrot on the target pad
+-- reads as the nearest solid on the final leg — that is expected,
+-- not a block: the walk only needs to get within 4 studs of the
+-- pad centre, and the Brainrot stands on the pad.
+local function logWalkDiagnostic(rival: State.Rival, model: Model, leg: string, target: Vector3)
+	local root = model:FindFirstChild("HumanoidRootPart")
+	local pos = if root then root.Position else Vector3.new(0, 0, 0)
+	local nearest: BasePart? = nil
+	local nearestDist = math.huge
+	local params = OverlapParams.new()
+	params.FilterDescendantsInstances = { model }
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	for _, part in ipairs(workspace:GetPartBoundsInRadius(pos, 14, params)) do
+		if part:IsA("BasePart") and part.CanCollide and part.Anchored then
+			local d = (part.Position - pos).Magnitude
+			if d < nearestDist then
+				nearestDist = d
+				nearest = part
+			end
+		end
+	end
+	local blocker = if nearest
+		then nearest.Name .. " at " .. tostring(nearest.Position) .. " (" .. string.format("%.1f", nearestDist) .. " studs)"
+		else "none within 14 studs"
+	print("[Rival] " .. rival.name .. " STEAL WALK DIAGNOSTIC — leg '" .. leg .. "' failed; rival at " .. tostring(pos) .. ", target " .. tostring(target) .. "; nearest solid: " .. blocker)
+end
+
 -- Weld a Rotling to the rival's chest (the rival's own mini-carry).
 local function carryModel(rival: State.Rival, model: Model)
 	local body = rival.model.PrimaryPart
@@ -850,8 +882,20 @@ local function stepRival(rival: State.Rival, model: Model)
 				-- geometry as the steal leg — from the ramp's low end
 				-- straight to the pad crosses the platform edge
 				-- outside the ramp for pads 1 and 4.
+				-- (fix round 13, item 1) Final leg via the clear
+				-- strip, same as the steal leg: along the lane
+				-- between the ramp top (local z -11) and the front
+				-- pads (local z -7) at the pad's own local X, then
+				-- straight to the pad — one pad crossing at most,
+				-- never the diagonal across three pads + CollectPad.
+				local stripPos: Vector3? = nil
+				if homeCf and padCf then
+					local localPad = homeCf:PointToObjectSpace(padCf.Position)
+					stripPos = (homeCf * CFrame.new(localPad.X, 2, -9)).Position
+				end
 				reachedPad = walkAround(model, entrancePos, 40, stormRunning)
 					and (not rampTopPos or walkTo(model, rampTopPos, 20, stormRunning))
+					and (not stripPos or walkTo(model, stripPos, 20, stormRunning))
 					and walkTo(model, padCf.Position, 40, stormRunning)
 			elseif padCf then
 				reachedPad = walkAround(model, padCf.Position, 40, stormRunning)
@@ -919,6 +963,11 @@ local function stepRival(rival: State.Rival, model: Model)
 				end
 			else
 				print("[Rival] " .. rival.name .. " could not reach its own base (pad " .. tostring(padIndex) .. ") — still carrying, will retry next cycle")
+				-- (fix round 13, item 1) Same diagnostic as the
+				-- steal: name the leg + nearest solid in F9.
+				if padCf then
+					logWalkDiagnostic(rival, model, "toBase", padCf.Position)
+				end
 			end
 			rival.phase = "idle"
 		end
@@ -990,9 +1039,26 @@ local function stepRival(rival: State.Rival, model: Model)
 					-- grabbing at an empty one.
 					local entrancePos = if victimCf then (victimCf * CFrame.new(0, 0, -15)).Position else padCf.Position
 					local rampTopPos = if victimCf then (victimCf * CFrame.new(0, 2, -10)).Position else nil
-					local reachedRamp = walkAround(model, around, 40, nil)
-						and walkTo(model, entrancePos, 20, nil)
-						and (not rampTopPos or walkTo(model, rampTopPos, 20, nil))
+					-- (fix round 13, item 1) Per-leg tracking: the
+					-- old `and`-chain knew the walk failed but not
+					-- WHERE (ring? entrance? ramp? pad?) — so four
+					-- rounds guessed at single parts. failedLeg names
+					-- the leg for the diagnostic below.
+					local failedLeg: string? = nil
+					local reachedRamp = false
+					if walkAround(model, around, 40, nil) then
+						if walkTo(model, entrancePos, 20, nil) then
+							if not rampTopPos or walkTo(model, rampTopPos, 20, nil) then
+								reachedRamp = true
+							else
+								failedLeg = "ramp"
+							end
+						else
+							failedLeg = "entrance"
+						end
+					else
+						failedLeg = "ring"
+					end
 					if reachedRamp then
 						local freshPad: number? = nil
 						local freshPlaced = State.placed[victimBase]
@@ -1005,7 +1071,32 @@ local function stepRival(rival: State.Rival, model: Model)
 						if freshPad then
 							padIndex = freshPad
 							padCf = WorldBuilder.padCFrame(victimBase, freshPad)
-							arrived = if padCf then walkTo(model, padCf.Position, 40, nil) else false
+							-- (fix round 13, item 1) Final leg via
+							-- the clear strip: the old diagonal from
+							-- the ramp top straight to the pad crossed
+							-- up to 3 intermediate pads plus the
+							-- CollectPad (the trace: pad 6's line
+							-- clips the CollectPad at 0.05 studs) —
+							-- every crossing is a 0.6 ledge the rival
+							-- must hop, and a hop that lands wrong
+							-- stalls the walk. The strip is the clear
+							-- lane between the ramp top (local z -11)
+							-- and the front pads (local z -7): walk
+							-- along it at the pad's own local X, then
+							-- straight to the pad. A front-row pad
+							-- needs no crossing at all; a back-row pad
+							-- crosses exactly one front pad.
+							local stripPos: Vector3? = nil
+							if victimCf and padCf then
+								local localPad = victimCf:PointToObjectSpace(padCf.Position)
+								stripPos = (victimCf * CFrame.new(localPad.X, 2, -9)).Position
+							end
+							arrived = if padCf
+								then (not stripPos or walkTo(model, stripPos, 20, nil)) and walkTo(model, padCf.Position, 40, nil)
+								else false
+							if not arrived then
+								failedLeg = "pad"
+							end
 						else
 							print("[Rival] " .. rival.name .. " reached " .. victim.Name .. "'s base but every pad emptied on the walk — steal aborted")
 						end
@@ -1051,6 +1142,9 @@ local function stepRival(rival: State.Rival, model: Model)
 					local rivalPos = if root then root.Position else Vector3.new(0, 0, 0)
 					local padPos = if padCf then padCf.Position else Vector3.new(0, 0, 0)
 					print("[Rival] " .. rival.name .. " could not reach " .. victim.Name .. "'s base (pad " .. tostring(padIndex) .. ") — steal aborted; rival at " .. tostring(rivalPos) .. ", pad at " .. tostring(padPos) .. ", " .. tostring(math.floor((rivalPos - padPos).Magnitude)) .. " studs short")
+					-- (fix round 13, item 1) Name the blocker: the
+					-- leg + the nearest solid part, in F9.
+					logWalkDiagnostic(rival, model, failedLeg or "unknown", padPos)
 					giveUpBanner(victim, rival.name, "couldn't reach your base")
 					setThiefSign(model, false)
 					rival.phase = "idle"

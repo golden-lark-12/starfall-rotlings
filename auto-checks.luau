@@ -5758,23 +5758,50 @@ do
 	end
 end
 
--- -- (steal-route) fix round 12, item 2: the thief can reach the
--- base ---------------------------------------------------------------
+-- -- (steal-route) fix round 12, item 2 + fix round 13, item 1:
+-- the thief can reach the base --------------------------------------
 -- Playtest 11: the thief "still couldn't reach the base and gave
--- up" — the third round in a row. The root cause is the SELL pad:
--- it sits at (62, 0.5, 0), dead centre on the ONLY approach line
--- to base 1 (ring radius 45 -> entrance ramp at radius 95,
--- straight along the base's radial line), and part() defaults
--- CanCollide=true — so the pad was the one solid the steal walk
--- had to cross, and the stuck-hop clears a 2-stud platform edge,
--- not a 14-wide slab. The pad is now non-colliding, rocks are
--- excluded from every base's entrance corridor (radius 40..130,
--- +/-8 studs lateral), and the meteor-rock gap at the crater mouth
--- is widened to |x| < 10.
+-- up" — the third round in a row. The round-12 root cause was the
+-- SELL pad: it sits at (62, 0.5, 0), dead centre on the ONLY
+-- approach line to base 1 (ring radius 45 -> entrance ramp at
+-- radius 95, straight along the base's radial line), and part()
+-- defaults CanCollide=true — so the pad was the one solid the
+-- steal walk had to cross, and the stuck-hop clears a 2-stud
+-- platform edge, not a 14-wide slab. The pad is now non-colliding,
+-- rocks are excluded from every base's entrance corridor (radius
+-- 40..130, +/-8 studs lateral), and the meteor-rock gap at the
+-- crater mouth is widened to |x| < 10.
+--
+-- Playtest 12: the thief STILL gives up — the fourth round. So
+-- this check no longer just pattern-matches the last fix: it
+-- COMPUTES the steal route (the same waypoint math as
+-- RivalService.walkAround + the entrance legs, for rival bases
+-- 5-8 walking to base 1) and tests every leg as a capsule
+-- (humanoid half-width 1.5) against every solid the world can
+-- put in its way. What the trace found (see /tmp/steal_trace.py,
+-- the scratch run that produced these numbers):
+--   * Ring arc + approach legs are CLEAR of every deterministic
+--     solid (rim outer 39, spawn platform, shop, fences are all
+--     ghost or out of the way).
+--   * The ONLY tall-solid intrusion the geometry allows is a
+--     meteor rock on the ring: the 30-degree chords dip to
+--     43.47, minus the 1.5 half-width the swept corridor reaches
+--     radius 41.97 — and the old rock draw (radius 33..40, size
+--     up to 6) reached radius 43. The draw is now 33..38 (worst
+--     reach 41), a full stud clear, proven from the bound below
+--     — not from one RNG draw (Lune has no Roblox Random).
+--   * The final leg's old diagonal crossed up to 3 intermediate
+--     pads + the CollectPad (0.05 studs on pad 6's line) — every
+--     crossing a 0.6 ledge to hop. It now routes via the clear
+--     strip (local z -9) at the pad's own local X: at most one
+--     pad crossing.
+--   * The give-up now logs the leg + nearest solid (F9), so a
+--     live stall names its blocker instead of guessing again.
 do
 	local worldSrc = read("src/server/WorldBuilder.luau")
-	if not worldSrc then
-		check("steal-route", false, "could not verify the steal route — WorldBuilder.luau missing")
+	local rivalSrc = read("src/server/RivalService.luau")
+	if not worldSrc or not rivalSrc then
+		check("steal-route", false, "could not verify the steal route — WorldBuilder.luau or RivalService.luau missing")
 	else
 		local problems: { string } = {}
 		-- The pad really is on the route: base 1's approach runs
@@ -5799,10 +5826,203 @@ do
 		if worldSrc:find("math%.abs%(x%) < 6 and z > 36") then
 			table.insert(problems, "the old narrow meteor-rock gap (|x| < 6) is still there")
 		end
+		-- (fix round 13, item 1) The meteor-rock draw must be
+		-- radius 33..38: worst reach 38 + 6/2 = 41, clear of the
+		-- ring sweep (computed below). A 33..40 draw reaches 43.
+		if not worldSrc:find("rng:NextNumber%(33, 38%)") then
+			table.insert(problems, "buildMeteorRocks still draws radius 33..40 — a rock can reach radius 43, inside the ring sweep")
+		end
+		if worldSrc:find("rng:NextNumber%(33, 40%)") then
+			table.insert(problems, "the old meteor-rock radius draw (33..40) is still there")
+		end
+		-- The final leg routes via the clear strip (local z -9) at
+		-- the pad's own local X, in BOTH the steal and toBase
+		-- branches — never the diagonal across the pads.
+		if not rivalSrc:find("PointToObjectSpace%(padCf%.Position%)") or not rivalSrc:find("CFrame%.new%(localPad%.X, 2, %-9%)") then
+			table.insert(problems, "the final leg has no clear-strip waypoint (local z -9 at the pad's local X)")
+		end
+		-- The give-up names its leg + nearest solid (F9).
+		if not rivalSrc:find("STEAL WALK DIAGNOSTIC") or not rivalSrc:find("GetPartBoundsInRadius") or not rivalSrc:find("failedLeg") then
+			table.insert(problems, "no give-up diagnostic (leg + nearest solid) on the steal walk")
+		end
+		-- --- The computed trace: every steal leg as a capsule
+		-- against every solid. Geometry helpers (2D, XZ plane).
+		local HUM_R = 1.5
+		local function segPointDist(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number
+			local abx, abz = bx - ax, bz - az
+			local d = abx * abx + abz * abz
+			if d == 0 then
+				return math.sqrt((px - ax) ^ 2 + (pz - az) ^ 2)
+			end
+			local t = ((px - ax) * abx + (pz - az) * abz) / d
+			t = math.max(0, math.min(1, t))
+			return math.sqrt((px - (ax + abx * t)) ^ 2 + (pz - (az + abz * t)) ^ 2)
+		end
+		-- Segment vs axis-aligned box (in the box's local frame),
+		-- inflated by HUM_R. Slab method; exact.
+		local function segHitsBox(ax: number, az: number, bx: number, bz: number, minX: number, maxX: number, minZ: number, maxZ: number): boolean
+			local dx, dz = bx - ax, bz - az
+			local t0, t1 = 0, 1
+			if math.abs(dx) < 1e-9 then
+				if ax < minX or ax > maxX then
+					return false
+				end
+			else
+				local ta, tb = (minX - ax) / dx, (maxX - ax) / dx
+				if ta > tb then
+					ta, tb = tb, ta
+				end
+				t0 = math.max(t0, ta)
+				t1 = math.min(t1, tb)
+				if t0 > t1 then
+					return false
+				end
+			end
+			if math.abs(dz) < 1e-9 then
+				if az < minZ or az > maxZ then
+					return false
+				end
+			else
+				local ta, tb = (minZ - az) / dz, (maxZ - az) / dz
+				if ta > tb then
+					ta, tb = tb, ta
+				end
+				t0 = math.max(t0, ta)
+				t1 = math.min(t1, tb)
+				if t0 > t1 then
+					return false
+				end
+			end
+			return true
+		end
+		-- Segment vs oriented box: rotate the segment into the
+		-- box's local frame, then the slab test.
+		local function segHitsObb(ax: number, az: number, bx: number, bz: number, cx: number, cz: number, hx: number, hz: number, yawDeg: number): boolean
+			local yaw = math.rad(yawDeg)
+			local cosY, sinY = math.cos(yaw), math.sin(yaw)
+			local function toLocal(px: number, pz: number): (number, number)
+				local dx, dz = px - cx, pz - cz
+				return dx * cosY + dz * sinY, -dx * sinY + dz * cosY
+			end
+			local lax, laz = toLocal(ax, az)
+			local lbx, lbz = toLocal(bx, bz)
+			return segHitsBox(lax, laz, lbx, lbz, -hx - HUM_R, hx + HUM_R, -hz - HUM_R, hz + HUM_R)
+		end
+		-- Ring sweep: 30-degree chords at radius 45 dip to
+		-- 45*cos(15); minus the half-width is the corridor's
+		-- inner edge. Meteor rocks must not reach it.
+		local chordInner = 45 * math.cos(math.rad(15))
+		local sweepInner = chordInner - HUM_R
+		local meteorReach = 38 + 6 / 2
+		if not (meteorReach < sweepInner) then
+			table.insert(problems, "meteor-rock worst reach " .. tostring(meteorReach) .. " is inside the ring sweep (" .. string.format("%.2f", sweepInner) .. ")")
+		end
+		-- Rim: outer ring ends at radius 39 — the sweep clears it.
+		if not (39 < sweepInner) then
+			table.insert(problems, "the crater rim (outer 39) reaches the ring sweep")
+		end
+		-- Waypoints for a steal from rival base rb to base 1:
+		-- radial drop to the ring, 30-degree arc the shorter way,
+		-- ring target, entrance, ramp top. (Same math as
+		-- RivalService.walkAround.)
+		local function stealLegs(rb: number): { { ax: number, az: number, bx: number, bz: number, kind: string } }
+			local legs: { { ax: number, az: number, bx: number, bz: number, kind: string } } = {}
+			local startAng = math.rad((rb - 1) * 45)
+			local sx, sz = math.cos(startAng) * 110, math.sin(startAng) * 110
+			local rx, rz = math.cos(startAng) * 45, math.sin(startAng) * 45
+			table.insert(legs, { ax = sx, az = sz, bx = rx, bz = rz, kind = "departure" })
+			local curAng = startAng
+			local diff = 0 - curAng
+			while diff > math.pi do
+				diff -= 2 * math.pi
+			end
+			while diff < -math.pi do
+				diff += 2 * math.pi
+			end
+			local step = math.rad(30) * (if diff >= 0 then 1 else -1)
+			local remaining = math.abs(diff)
+			local px, pz = rx, rz
+			while remaining > 0.01 do
+				local move = math.min(math.rad(30), remaining)
+				curAng += step * (move / math.rad(30))
+				local wx, wz = math.cos(curAng) * 45, math.sin(curAng) * 45
+				table.insert(legs, { ax = px, az = pz, bx = wx, bz = wz, kind = "ring" })
+				px, pz = wx, wz
+				remaining -= move
+			end
+			table.insert(legs, { ax = px, az = pz, bx = 45, bz = 0, kind = "ring" })
+			table.insert(legs, { ax = 45, az = 0, bx = 95, bz = 0, kind = "approach" })
+			table.insert(legs, { ax = 95, az = 0, bx = 100, bz = 0, kind = "ramp" })
+			return legs
+		end
+		-- Solid inventory (deterministic): rim OBBs, base platforms,
+		-- spawn platform circle. Pads/trim/collect pad are 0.6
+		-- ledges on the platforms the route walks on by design —
+		-- the trace does not flag them; the strip waypoint keeps
+		-- the final leg to at most one crossing.
+		local rimObbs: { { cx: number, cz: number, hx: number, hz: number, yaw: number } } = {}
+		for _, ring in ipairs({ { 28, 31, 2.5 }, { 31, 35, 4 }, { 35, 39, 5.5 } }) do
+			local inner, outer = ring[1], ring[2]
+			local mid = (inner + outer) / 2
+			local arc = 2 * math.pi * mid / 16
+			for i = 0, 15 do
+				if i ~= 4 then
+					local th = (i / 16) * math.pi * 2
+					local cx, cz = math.cos(th) * mid, math.sin(th) * mid
+					-- Tangent axis angle: local X runs along the
+					-- tangent (-sin th, cos th).
+					local yaw = math.atan2(math.cos(th), -math.sin(th)) * 180 / math.pi
+					table.insert(rimObbs, { cx = cx, cz = cz, hx = arc * 1.08 / 2, hz = (outer - inner) / 2, yaw = yaw })
+				end
+			end
+		end
+		local platformObbs: { { cx: number, cz: number, hx: number, hz: number, yaw: number } } = {}
+		for bi = 1, 8 do
+			local a = math.rad((bi - 1) * 45)
+			local cx, cz = math.cos(a) * 110, math.sin(a) * 110
+			-- Base 1's local X is world -Z; general yaw from the
+			-- local-X axis (sin a, -cos a).
+			local yaw = math.atan2(-math.cos(a), math.sin(a)) * 180 / math.pi
+			table.insert(platformObbs, { cx = cx, cz = cz, hx = 13, hz = 11, yaw = yaw })
+		end
+		for rb = 5, 8 do
+			for _, leg in ipairs(stealLegs(rb)) do
+				-- Every leg must stay outside the meteor-rock worst
+				-- reach (min distance to origin > 41).
+				local minR = math.min(
+					segPointDist(0, 0, leg.ax, leg.az, leg.bx, leg.bz),
+					math.sqrt(leg.ax ^ 2 + leg.az ^ 2),
+					math.sqrt(leg.bx ^ 2 + leg.bz ^ 2)
+				)
+				if minR <= meteorReach then
+					table.insert(problems, "rival base " .. tostring(rb) .. " " .. leg.kind .. " leg dips to radius " .. string.format("%.1f", minR) .. " — inside meteor-rock reach " .. tostring(meteorReach))
+				end
+				-- Ring + approach legs must clear the rim, every
+				-- platform, and the spawn platform. (Departure may
+				-- cross its own platform; ramp runs up the victim's.)
+				if leg.kind == "ring" or leg.kind == "approach" then
+					for _, obb in ipairs(rimObbs) do
+						if segHitsObb(leg.ax, leg.az, leg.bx, leg.bz, obb.cx, obb.cz, obb.hx, obb.hz, obb.yaw) then
+							table.insert(problems, "rival base " .. tostring(rb) .. " " .. leg.kind .. " leg hits a crater-rim segment")
+							break
+						end
+					end
+					for _, obb in ipairs(platformObbs) do
+						if segHitsObb(leg.ax, leg.az, leg.bx, leg.bz, obb.cx, obb.cz, obb.hx, obb.hz, obb.yaw) then
+							table.insert(problems, "rival base " .. tostring(rb) .. " " .. leg.kind .. " leg hits a base platform")
+							break
+						end
+					end
+					if segPointDist(0, 96, leg.ax, leg.az, leg.bx, leg.bz) <= 28 + HUM_R then
+						table.insert(problems, "rival base " .. tostring(rb) .. " " .. leg.kind .. " leg hits the spawn platform")
+					end
+				end
+			end
+		end
 		if #problems > 0 then
-			check("steal-route", false, "the steal route is still blocked — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau")
+			check("steal-route", false, "the steal route is still blocked — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, RivalService.luau")
 		else
-			check("steal-route", true, "steal route clear: SELL pad non-colliding (it sits on base 1's only approach), rocks excluded from every base's entrance corridor (radius 40..130, +/-8 studs), meteor-rock gap widened to |x| < 10")
+			check("steal-route", true, "steal route traced: ring arc + approach clear of rim/platforms/spawn (computed, all 4 rival bases); meteor-rock worst reach 41 < ring sweep 41.97; SELL pad non-colliding; rocks excluded from corridors; final leg via the clear strip; give-up logs leg + nearest solid")
 		end
 	end
 end
