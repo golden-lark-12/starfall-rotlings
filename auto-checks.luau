@@ -7155,6 +7155,58 @@ do
 	end
 end
 
+-- Follow-up, item 2 — thieves hunt the player like the guardian:
+-- a rival near a free-walking player chases them at 22 studs/s
+-- (faster than walk 16, slower than the guardian 28-34); on the tag
+-- it steals the best carried Brainrot and runs home, or knocks the
+-- player flat if they carry nothing. The base interior ends the
+-- hunt; one hunter per victim; storm-proof (chase phase).
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	local stateSrc = read("src/server/State.luau")
+	if not rivalSrc or not configSrc or not stateSrc then
+		check("thief-hunt", false, "could not verify the thief hunt — RivalService.luau, Config.luau or State.luau missing")
+	else
+		local problems: { string } = {}
+		if not configSrc:find("RIVAL_HUNT_SPEED = 22") then
+			table.insert(problems, "no RIVAL_HUNT_SPEED = 22 in Config")
+		end
+		if not configSrc:find("RIVAL_HUNT_RADIUS = 30") then
+			table.insert(problems, "no RIVAL_HUNT_RADIUS = 30 in Config")
+		end
+		if not rivalSrc:find("local function tryStartHunt") then
+			table.insert(problems, "no tryStartHunt")
+		end
+		if not rivalSrc:find('chaseKind = "hunt"') then
+			table.insert(problems, "no hunt chase kind set")
+		end
+		if not rivalSrc:find('chaseKind = "carrier"') then
+			table.insert(problems, "the carrier chase does not set its kind (hunt/carrier would mix)")
+		end
+		if not rivalSrc:find("hunting \" .. best%.Name") then
+			table.insert(problems, "no hunt-start log")
+		end
+		if not rivalSrc:find("stole your carried") then
+			table.insert(problems, "no steal-on-tag (hunt does not take the carried Brainrot)")
+		end
+		if not rivalSrc:find("knocked \" .. victim%.Name .. \" down") then
+			table.insert(problems, "no knockdown-on-tag for an empty-handed player")
+		end
+		if not rivalSrc:find("isOnBaseInterior%(victimBase, victimRoot%.Position%)") then
+			table.insert(problems, "the hunt does not end at the base interior")
+		end
+		if not stateSrc:find("chaseKind: string%?") then
+			table.insert(problems, "no chaseKind on the Rival type")
+		end
+		if #problems > 0 then
+			check("thief-hunt", false, "the thief hunt is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RivalService.luau, Config.luau, State.luau")
+		else
+			check("thief-hunt", true, "thieves hunt free-walking players at 22 studs/s; tag steals the best carried Brainrot (runs home, STEAL COMPLETE) or knocks the player flat; base interior ends the hunt; one hunter per victim; storm-proof")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

@@ -219,6 +219,11 @@ Config.RIVAL_GRAB_RADIUS = 12 -- a rival grabs the nearest free Rotling this clo
 Config.RIVAL_STEAL_CHANCE = 0.5 -- per rival trip, chance it targets a player's base instead (fix round 7, item 2: 0.35 -> 0.5 — with a 60-90s cycle, 0.35 meant about one steal attempt per rival every 2-3 minutes; the 75s steal clock now guarantees a beat on top of the roll)
 Config.RIVAL_CHASE_MAX = 2 -- max rivals chasing one carrier at once (fix round 8, item 8: one chaser reads as "nobody", four read as a swarm — two is "others")
 Config.RIVAL_CHASE_SPEED = 19 -- a chasing rival runs at 19 (fix round 8, item 8: walk is 16, so a chaser GAINS on a walking carrier; sprint 26 still escapes). The old RIVAL_CHASE_RADIUS = 30 is GONE: a rival only chased a carrier within 30 studs, but rivals sit at their bases at radius 110 — so a grab in the crater almost never had a rival in range and Malek was never chased. Assignment is now by NEAREST rival, any distance (notifyCarrier).
+Config.RIVAL_HUNT_SPEED = 22 -- a HUNTING thief runs at 22 (follow-up, item 2): faster than a walking player (16) and the carrier chase (19), slower than the guardian (28-34) — threatening, escapable, distinct from both. The guardian smashes you; the thief mugs you.
+Config.RIVAL_HUNT_RADIUS = 30 -- a rival this close to a free-walking player starts hunting them (follow-up, item 2)
+Config.RIVAL_HUNT_GIVEUP_DIST = 60 -- the hunt ends if the player gets this far away
+Config.RIVAL_HUNT_TIMEOUT = 20 -- seconds a hunt lasts at most
+Config.RIVAL_HUNT_COOLDOWN = 10 -- seconds after a hunt ends (knockdown tag) before the same rival hunts again
 Config.RIVAL_SLAP_COOLDOWN = 3 -- seconds between a rival's slap-backs
 
 -- Slap bat (item 10): swing knocks a rival or player back and drops

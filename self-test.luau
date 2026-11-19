@@ -1505,6 +1505,35 @@ do
 	end
 end
 
+-- Follow-up, item 2 — thieves hunt the player like the guardian:
+-- chase at 22, steal the carried Brainrot or knock the player down.
+do
+	local rivalSrc = read("src/server/RivalService.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not rivalSrc or not configSrc then
+		step("thief-hunt", false, "RivalService.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if not configSrc:find("RIVAL_HUNT_SPEED = 22") then
+			table.insert(problems, "no RIVAL_HUNT_SPEED = 22")
+		end
+		if not rivalSrc:find("local function tryStartHunt") then
+			table.insert(problems, "no tryStartHunt")
+		end
+		if not rivalSrc:find("stole your carried") then
+			table.insert(problems, "no steal-on-tag")
+		end
+		if not rivalSrc:find("knocked \" .. victim%.Name .. \" down") then
+			table.insert(problems, "no knockdown-on-tag")
+		end
+		if #problems > 0 then
+			step("thief-hunt", false, table.concat(problems, "; "))
+		else
+			step("thief-hunt", true, "thieves hunt free-walking players at 22; tag steals the best carried Brainrot or knocks the player flat")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
