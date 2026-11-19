@@ -84,7 +84,7 @@ titleLabel.AnchorPoint = Vector2.new(0.5, 0)
 -- button ("💰 Collect $X"), the rebirth tier/multiplier lives in the
 -- Rebirth panel, and the storm boost rides as an (x2) suffix on the
 -- income. Stardust rides at the end of the line.
-local topLineLabel = GuiKit.makeLabel(gui, "TopLine", "$0 • +$0/s • 📖 0/20 • 💎 0", UDim2.new(0.7, 0, 0, 28), UDim2.new(0.5, 0, 0, 34), 20, GuiKit.COLORS.Gold)
+local topLineLabel = GuiKit.makeLabel(gui, "TopLine", "$0 • +$0/s • 📖 0/22 • 💎 0", UDim2.new(0.7, 0, 0, 28), UDim2.new(0.5, 0, 0, 34), 20, GuiKit.COLORS.Gold)
 topLineLabel.AnchorPoint = Vector2.new(0.5, 0)
 topLineLabel.TextScaled = true
 topLineLabel.TextTruncate = Enum.TextTruncate.AtEnd
@@ -330,7 +330,7 @@ local hud = {
 	stormSeconds = 0,
 	danger = 0,
 	indexCount = 0,
-	indexTotal = 20,
+	indexTotal = 22,
 	top3 = {},
 	belt = {},
 	boosts = {},
@@ -464,7 +464,7 @@ local function onHudData(data: Remotes.HudData)
 	hud.stormSeconds = data.stormSeconds
 	hud.danger = data.danger or 0
 	hud.indexCount = data.indexCount or 0
-	hud.indexTotal = data.indexTotal or 20
+	hud.indexTotal = data.indexTotal or 22
 	hud.top3 = data.top3 or {}
 	hud.belt = data.belt or {}
 	hud.boosts = data.boosts or {}

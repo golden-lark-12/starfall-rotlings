@@ -61,12 +61,12 @@ end
 -- Epic/Legendary) and made rares feel common.
 local function rollEggRarity(): string
 	local total = 0
-	for tier = 1, 6 do
+	for tier = 1, 7 do
 		total += Config.EGG_RARITY_WEIGHTS[tier] or 0
 	end
 	local roll = math.random(1, total)
 	local running = 0
-	for tier = 1, 6 do
+	for tier = 1, 7 do
 		running += Config.EGG_RARITY_WEIGHTS[tier] or 0
 		if roll <= running then
 			return RarityConfig.ORDER[tier]

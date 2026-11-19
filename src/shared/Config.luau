@@ -200,7 +200,7 @@ Config.RAIDER_WALK_SPEED = 14
 -- arrived at all). If a future tweak ever drops a tier back under 26,
 -- the guardian is decorative again — the auto-check (df) proves every
 -- tier beats the sprint speed.
-Config.GUARDIAN_SPEED = { [1] = 28, [2] = 29, [3] = 30, [4] = 31, [5] = 32, [6] = 34 } -- per rarity tier (fix round 9, item 1: CAT-FAST — every tier beats sprint 26; the escape is the base, the 25s timeout, or full Speed Boots)
+Config.GUARDIAN_SPEED = { [1] = 28, [2] = 29, [3] = 30, [4] = 31, [5] = 32, [6] = 34, [7] = 36 } -- per rarity tier (fix round 9, item 1: CAT-FAST — every tier beats sprint 26; the escape is the base, the 25s timeout, or full Speed Boots; Divine 36 is the fastest chase, still tied by full Speed Boots at 36)
 Config.GUARDIAN_LUNGE_BONUS = 12 -- studs/s burst while lunging (fix round 9, item 1)
 Config.GUARDIAN_LUNGE_RANGE = 14 -- studs: this close, the guardian lunges
 Config.GUARDIAN_LUNGE_COOLDOWN = 4 -- seconds between lunges
@@ -245,10 +245,10 @@ Config.EGGS_PER_STORM = 4
 -- The old 40% bump that flattened the distribution is gone; the
 -- guaranteed legendary drop (every 240s, crater) is the Epic/Legendary
 -- safety net. Indexed by rarity tier 1-6.
-Config.EGG_RARITY_WEIGHTS = { [1] = 55, [2] = 28, [3] = 10, [4] = 4, [5] = 2, [6] = 1 }
+Config.EGG_RARITY_WEIGHTS = { [1] = 550, [2] = 280, [3] = 100, [4] = 40, [5] = 20, [6] = 10, [7] = 5 } -- egg-only rarity weights x10 (fix round 11: the round-10 weights 55/28/10/4/2/1 rescaled so Divine fits below Cosmic as an integer weight — Divine 5 < Cosmic 10, 0.5% per egg; same proportions otherwise)
 Config.LEGENDARY_EGG_INTERVAL = 240 -- seconds between legendary egg drops (fix round 9, item 11)
 Config.LEGENDARY_EGG_LIFETIME = 75 -- seconds a legendary egg stays grabbable before it vanishes
-Config.EGG_HATCH_TIME = { [1] = 60, [2] = 90, [3] = 120, [4] = 180, [5] = 240, [6] = 300 } -- seconds on the incubator before hatching, by rarity tier (fix round 6, item 6: rarer eggs take longer — Common 60s, Rare 90s, Epic 120s, Legendary 180s, Mythic 240s, Cosmic 300s)
+Config.EGG_HATCH_TIME = { [1] = 60, [2] = 90, [3] = 120, [4] = 180, [5] = 240, [6] = 300, [7] = 360 } -- seconds on the incubator before hatching, by rarity tier (fix round 6, item 6: rarer eggs take longer — Common 60s, Rare 90s, Epic 120s, Legendary 180s, Mythic 240s, Cosmic 300s, Divine 360s)
 Config.EGG_SLOW = 6 -- WalkSpeed lost while carrying an egg
 Config.EGG_STARDUST = 25 -- Stardust paid when an egg hatches
 Config.EGG_SCORCHED_CHANCE = 0.15 -- hatch comes out Meteor-scorched

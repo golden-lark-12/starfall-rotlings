@@ -1,14 +1,15 @@
 --!strict
 -- Starfall Rotlings: the cast.
--- Twenty original creatures, each with its own silhouette, colours and
+-- Twenty-two original creatures, each with its own silhouette, colours and
 -- accessory, built from Parts by RotlingFactory. Nothing here is borrowed
 -- from any other game: these names, shapes and jokes are ours. Every name
 -- was checked against the Italian brainrot roster (Tralalero, Tung Tung
 -- Sahur, Cappuccino Assassino and the rest) and appears on none of it —
 -- and against the other entries in this bounty (no "Disco Pickle": ours
--- is Disco Donut, Malek-approved Nov 18). The 20 names are Malek's
--- approved roster (Nov 18 16:10): 5 Common, 4 Rare, 4 Epic, 4 Legendary,
--- 2 Mythic, 1 Cosmic. Two entries changed tier to match that roster —
+-- is Disco Donut, Malek-approved Nov 18). The 22 names are Malek's
+-- approved roster (Nov 18 16:10) plus the Divine pair (fix round 11,
+-- Nov 19): 5 Common, 4 Rare, 4 Epic, 4 Legendary, 2 Mythic, 1 Cosmic,
+-- 2 Divine. Two entries changed tier to match that roster —
 -- penguin (Rare -> Legendary) and cat (Cosmic -> Legendary) — so their
 -- body/belly colours are the Legendary gold; silhouettes and cpsMult
 -- are untouched.
@@ -321,6 +322,34 @@ RotlingCatalog.DEFS = {
 		accessory = "star",
 		features = { "comet tail", "pointy ears", "star collar" },
 		size = 4.2,
+		cpsMult = 1.5,
+	},
+	{
+		id = "alfredo",
+		name = "Archangel Alfredo",
+		rarity = "Divine",
+		flavor = "Fell from heaven, tastes of garlic and grace.",
+		body = "tall",
+		silhouette = "angel-noodle",
+		bodyColor = Color3.fromRGB(70, 120, 255),
+		bellyColor = Color3.fromRGB(150, 185, 255),
+		accessory = "none",
+		features = { "golden halo", "feather wings", "flowing noodle robe" },
+		size = 5.0,
+		cpsMult = 1.5,
+	},
+	{
+		id = "pineapple",
+		name = "Pope Pineapple",
+		rarity = "Divine",
+		flavor = "His Holiness of the tropics. Spiky outside, holy inside.",
+		body = "wide",
+		silhouette = "pineapple-pope",
+		bodyColor = Color3.fromRGB(70, 120, 255),
+		bellyColor = Color3.fromRGB(150, 185, 255),
+		accessory = "none",
+		features = { "spiky leaf crown", "golden mitre", "diamond cross" },
+		size = 4.6,
 		cpsMult = 1.5,
 	},
 } :: { RotlingDef }

@@ -500,7 +500,7 @@ do
 end
 
 -- 11c. Branding (Malek-approved Nov 18 16:10): the game is Space Rock
--- Brainrots! and the catalog carries the 20 approved Rotling names.
+-- Brainrots! and the catalog carries the 22 approved Rotling names.
 do
 	local catalogSrc = read("src/shared/RotlingCatalog.luau")
 	local hudSrc = read("src/client/HUDController.client.luau")
@@ -523,7 +523,7 @@ do
 		if #problems > 0 then
 			step("branding", false, table.concat(problems, "; "))
 		else
-			step("branding", true, "SPACE ROCK BRAINROTS! title + all 20 approved Rotling names in the catalog (5C/4R/4E/4L/2M/1Co)")
+			step("branding", true, "SPACE ROCK BRAINROTS! title + all 22 approved Rotling names in the catalog (5C/4R/4E/4L/2M/1Co/2D)")
 		end
 	end
 end
@@ -1259,8 +1259,8 @@ do
 					table.insert(problems, "tier " .. tostring(i) .. " speed " .. tostring(v) .. " <= sprint 26")
 				end
 			end
-			if i ~= 6 then
-				table.insert(problems, "GUARDIAN_SPEED has " .. tostring(i) .. " tiers, not 6")
+			if i ~= 7 then
+				table.insert(problems, "GUARDIAN_SPEED has " .. tostring(i) .. " tiers, not 7")
 			end
 		else
 			table.insert(problems, "no GUARDIAN_SPEED table in Config")
@@ -1566,7 +1566,9 @@ do
 end
 
 -- Fix round 10, item 2 — egg rebalance: 4 eggs/storm, egg-only weights
--- 55/28/10/4/2/1, the 40% bump gone, legendary drop untouched (240s).
+-- 550/280/100/40/20/10/5 (fix round 11 rescaled x10 so Divine fits
+-- below Cosmic: Divine 0.5% per egg, ~0.02/storm), the 40% bump gone,
+-- legendary drop untouched (240s).
 do
 	local configSrc = read("src/shared/Config.luau")
 	local eggSrc = read("src/server/MeteorEggService.luau")
@@ -1577,8 +1579,8 @@ do
 		if not configSrc:find("Config.EGGS_PER_STORM = 4") then
 			table.insert(problems, "EGGS_PER_STORM is not 4")
 		end
-		if not configSrc:find("Config.EGG_RARITY_WEIGHTS = { %[1%] = 55, %[2%] = 28, %[3%] = 10, %[4%] = 4, %[5%] = 2, %[6%] = 1 }") then
-			table.insert(problems, "egg weights are not 55/28/10/4/2/1")
+		if not configSrc:find("Config.EGG_RARITY_WEIGHTS = { %[1%] = 550, %[2%] = 280, %[3%] = 100, %[4%] = 40, %[5%] = 20, %[6%] = 10, %[7%] = 5 }") then
+			table.insert(problems, "egg weights are not 550/280/100/40/20/10/5")
 		end
 		if eggSrc:find("rarityTier%(rarityName%) < 3") then
 			table.insert(problems, "the 40% bump is still in rollHatchDef")
@@ -1592,7 +1594,7 @@ do
 		if #problems > 0 then
 			step("egg-rebalance", false, table.concat(problems, "; "))
 		else
-			step("egg-rebalance", true, "4 eggs/storm, weights 55/28/10/4/2/1 (Legendary 4% per egg, ~0.16/storm); bump gone; legendary drop still 240s")
+			step("egg-rebalance", true, "4 eggs/storm, weights 550/280/100/40/20/10/5 (Legendary 4% per egg, ~0.16/storm; Divine 0.5%, ~0.02/storm); bump gone; legendary drop still 240s")
 		end
 	end
 end

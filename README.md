@@ -11,15 +11,16 @@ every second. A meteor storm sweeps the crater every 90 seconds, so
 get home before it hits or drop your catch. Other players can sneak
 into your base and steal your Rotlings — unless you lock the base.
 
-- **20 original Rotlings** — Bloop the Blob, Pip the Potato, Wobble Wombat,
+- **22 original Rotlings** — Bloop the Blob, Pip the Potato, Wobble Wombat,
   Tiny Toaster Tim, Gloopy Goose, Sir Soggy Sock, Bongo the Banana,
   Captain Crumb, Mister Muffin Feet, Professor Pickle, Turbo Toast,
   Lord Lasagna Legs, Disco Donut, Baron von Burrito, Count Croissant,
   Sir Reginald Ramen, Grandpa Gumball, Supreme Spaghetti,
-  The Great Giggling Gherkin and Cosmic Corn Dog — each built from Parts with its own silhouette,
+  The Great Giggling Gherkin, Cosmic Corn Dog, Archangel Alfredo and
+  Pope Pineapple — each built from Parts with its own silhouette,
   big eyes and a name/rarity/coins-per-second label. Every name was
   checked against the Italian brainrot roster and appears on none of it.
-- **Rarities** Common, Rare, Epic, Legendary, Mythic, Cosmic, each with
+- **Rarities** Common, Rare, Epic, Legendary, Mythic, Cosmic, Divine, each with
   its own glow colour, plus Gold, Frozen, Rainbow and **Starstruck**
   mutations that multiply income. Starstruck is never rolled: a Rotling
   only earns it by surviving a meteor hit during a storm.

@@ -48,7 +48,7 @@ function IndexService.markFound(player: Player, defId: string)
 		local FeedbackService = require(script.Parent.FeedbackService)
 		FeedbackService.playSound(player, 1.8, 0.9)
 	end
-	-- All twenty found? Pay the big reward once.
+	-- All twenty-two found? Pay the big reward once.
 	if not profile.indexFullRewarded then
 		local found = 0
 		for _ in pairs(profile.index) do
@@ -57,7 +57,7 @@ function IndexService.markFound(player: Player, defId: string)
 		if found >= #RotlingCatalog.DEFS then
 			profile.indexFullRewarded = true
 			profile.coins += Config.INDEX_FULL_REWARD
-			Remotes.bannerEvent():FireClient(player, "🏆 INDEX COMPLETE! All 20 Brainrots found! +" .. Formatting.formatMoney(Config.INDEX_FULL_REWARD) .. "! 🏆", 6)
+			Remotes.bannerEvent():FireClient(player, "🏆 INDEX COMPLETE! All 22 Brainrots found! +" .. Formatting.formatMoney(Config.INDEX_FULL_REWARD) .. "! 🏆", 6)
 			local FeedbackService = require(script.Parent.FeedbackService)
 			FeedbackService.playSound(player, 2.0, 1.0)
 		end

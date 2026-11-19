@@ -110,6 +110,10 @@ local function bodyForSilhouette(def: RotlingCatalog.RotlingDef): (Vector3, Enum
 		return Vector3.new(s, s * 0.95, s), Enum.PartType.Ball
 	elseif def.silhouette == "cat-sit" then
 		return Vector3.new(s * 0.9, s * 0.9, s * 0.9), Enum.PartType.Block
+	elseif def.silhouette == "angel-noodle" then
+		return Vector3.new(s * 0.5, s * 1.2, s * 0.5), Enum.PartType.Block
+	elseif def.silhouette == "pineapple-pope" then
+		return Vector3.new(s * 0.85, s * 1.05, s * 0.85), Enum.PartType.Block
 	elseif def.body == "ball" then
 		return Vector3.new(s, s, s), Enum.PartType.Ball
 	elseif def.body == "tall" then
@@ -841,6 +845,43 @@ local function addNameProp(model: Model, body: Part, def: RotlingCatalog.Rotling
 		star.Material = Enum.Material.Neon
 		star.CFrame = body.CFrame * CFrame.new(0, size * 0.1, -bodySize.Z / 2 - size * 0.75)
 		weldIt(star)
+	elseif def.id == "alfredo" then
+		-- Golden halo: a flat gold disc floating above the head.
+		local halo = makePart("Halo", Enum.PartType.Cylinder, Vector3.new(size * 0.1, size * 0.6, size * 0.6), Color3.fromRGB(255, 215, 0))
+		halo.Material = Enum.Material.Neon
+		halo.CFrame = top * CFrame.new(0, size * 0.3, 0)
+		weldIt(halo)
+		-- Feather wings: two white wedges on the back, angled out.
+		for _, side in ipairs({ -1, 1 }) do
+			local wing = makePart("Wing", Enum.PartType.Wedge, Vector3.new(size * 0.1, size * 0.55, size * 0.35), Color3.fromRGB(255, 255, 255))
+			wing.CFrame = body.CFrame * CFrame.new(side * size * 0.32, size * 0.15, -bodySize.Z / 2 - size * 0.08) * CFrame.Angles(0, side * 0.4, side * -0.5)
+			weldIt(wing)
+		end
+		-- Flowing noodle robe: a cream panel down the front.
+		local robe = makePart("Robe", Enum.PartType.Block, Vector3.new(size * 0.5, size * 0.45, size * 0.12), Color3.fromRGB(255, 245, 220))
+		robe.CFrame = body.CFrame * CFrame.new(0, -bodySize.Y * 0.28, bodySize.Z / 2 + size * 0.02)
+		weldIt(robe)
+	elseif def.id == "pineapple" then
+		-- Spiky leaf crown: three green spikes on top.
+		for _, offset in ipairs({ -0.2, 0, 0.2 }) do
+			local leaf = makePart("LeafSpike", Enum.PartType.Wedge, Vector3.new(size * 0.12, size * 0.35, size * 0.12), Color3.fromRGB(60, 180, 80))
+			leaf.CFrame = top * CFrame.new(offset * size, size * 0.12, 0) * CFrame.Angles(0, 0, -offset * 1.2)
+			weldIt(leaf)
+		end
+		-- Golden mitre: a tall gold wedge above the leaves.
+		local mitre = makePart("Mitre", Enum.PartType.Wedge, Vector3.new(size * 0.4, size * 0.5, size * 0.15), Color3.fromRGB(255, 215, 0))
+		mitre.Material = Enum.Material.Metal
+		mitre.CFrame = top * CFrame.new(0, size * 0.35, 0)
+		weldIt(mitre)
+		-- Diamond cross: two thin white Neon bars crossed on the front.
+		local crossV = makePart("CrossV", Enum.PartType.Block, Vector3.new(size * 0.08, size * 0.32, size * 0.06), Color3.fromRGB(255, 255, 255))
+		crossV.Material = Enum.Material.Neon
+		crossV.CFrame = body.CFrame * CFrame.new(0, size * 0.05, bodySize.Z / 2 + size * 0.04)
+		weldIt(crossV)
+		local crossH = makePart("CrossH", Enum.PartType.Block, Vector3.new(size * 0.24, size * 0.08, size * 0.06), Color3.fromRGB(255, 255, 255))
+		crossH.Material = Enum.Material.Neon
+		crossH.CFrame = body.CFrame * CFrame.new(0, size * 0.12, bodySize.Z / 2 + size * 0.04)
+		weldIt(crossH)
 	end
 end
 

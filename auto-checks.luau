@@ -1543,7 +1543,7 @@ do
 			table.insert(problems, "no SPACE ROCK BRAINROTS title label in the top HUD")
 		end
 		if not hudSrc:find("indexCount") or not hudSrc:find("indexTotal") then
-			table.insert(problems, "no Index count (x/20) in the HUD")
+			table.insert(problems, "no Index count (x/22) in the HUD")
 		end
 		if not hudSrc:find('"LeaderboardPanel"') then
 			table.insert(problems, "no LeaderboardPanel in the HUD")
@@ -1557,7 +1557,7 @@ do
 		if #problems > 0 then
 			check("z", false, "the HUD has no identity or density — " .. table.concat(problems, "; ") .. ". Parts: GameTitle / LeaderboardPanel (HUDController.client.luau), HudData (Remotes.luau), broadcastHud (IncomeService.luau)")
 		else
-			check("z", true, "HUD identity + density — SPACE ROCK BRAINROTS title, Index count x/20, top-3 leaderboard panel")
+			check("z", true, "HUD identity + density — SPACE ROCK BRAINROTS title, Index count x/22, top-3 leaderboard panel")
 		end
 	end
 end
@@ -1993,7 +1993,7 @@ do
 		if #problems > 0 then
 			check("ai", false, "a Rotling's primary colour is not its rarity colour — " .. table.concat(problems, "; ") .. ". Parts: bodyColor (RotlingCatalog.luau), color (RarityConfig.luau), bodyColor (RotlingFactory.build)")
 		else
-			check("ai", true, "every Rotling's primary colour is its rarity colour — " .. tostring(defCount) .. " defs match RarityConfig exactly, factory paints rarity.color, all 6 tier colours saturated (spread >= 100)")
+			check("ai", true, "every Rotling's primary colour is its rarity colour — " .. tostring(defCount) .. " defs match RarityConfig exactly, factory paints rarity.color, all 7 tier colours saturated (spread >= 100)")
 		end
 	end
 end
@@ -3496,10 +3496,10 @@ do
 	end
 end
 
--- -- (bi) branding: game name + 20 approved Rotling names (branding pass) -----
+-- -- (bi) branding: game name + 22 approved Rotling names (branding pass) -----
 -- Malek approved the name "Space Rock Brainrots!" (Nov 18 16:10) and the
--- 20-name roster (5 Common, 4 Rare, 4 Epic, 4 Legendary, 2 Mythic,
--- 1 Cosmic). Every approved name must be in the catalog under its
+-- 22-name roster (5 Common, 4 Rare, 4 Epic, 4 Legendary, 2 Mythic,
+-- 1 Cosmic, 2 Divine). Every approved name must be in the catalog under its
 -- approved rarity, no old name may remain, and the game title must read
 -- SPACE ROCK BRAINROTS in the HUD and the title screen. The world
 -- billboard was REMOVED in fix round 2 (fix 8) — the giant sky text
@@ -3539,6 +3539,8 @@ do
 			{ "Supreme Spaghetti", "Mythic" },
 			{ "The Great Giggling Gherkin", "Mythic" },
 			{ "Cosmic Corn Dog", "Cosmic" },
+			{ "Archangel Alfredo", "Divine" },
+			{ "Pope Pineapple", "Divine" },
 		}
 		for _, pair in ipairs(approved) do
 			local name, rarity = pair[1], pair[2]
@@ -3572,7 +3574,7 @@ do
 		if #problems > 0 then
 			check("bi", false, "the branding is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RotlingCatalog.luau, HUDController.client.luau, TitleScreenController.client.luau, WorldBuilder.luau")
 		else
-			check("bi", true, "branding: SPACE ROCK BRAINROTS! (HUD, title screen; world billboard removed per playtest); all 20 approved Rotling names in the catalog under their approved rarities (5C/4R/4E/4L/2M/1Co), no old name remains")
+			check("bi", true, "branding: SPACE ROCK BRAINROTS! (HUD, title screen; world billboard removed per playtest); all 22 approved Rotling names in the catalog under their approved rarities (5C/4R/4E/4L/2M/1Co/2D), no old name remains")
 		end
 	end
 end
@@ -4558,18 +4560,19 @@ end
 -- Playtest 4, item 9 (only after 1-8 work): the Crater Guardian chases
 -- whoever grabs from the crater, faster for rarer ones, drop on catch,
 -- base/dome = gives up, "THE GUARDIAN IS AWAKE! RUN!" + red edge flash;
--- raider bots grab and run (slap to steal back); goal collect all 20
--- ("Index 14/20" in the HUD), Cosmic Corn Dog last, celebration per
+-- raider bots grab and run (slap to steal back); goal collect all 22
+-- ("Index 14/22" in the HUD), Divine last, celebration per
 -- completed rarity tier. Verified against the code after items 1-8 —
 -- nothing here needed a change, so this check locks the mechanics in:
--- guardian speed by rarity (28 -> 34, fix round 9 item 1: CAT-FAST,
+-- guardian speed by rarity (28 -> 36, fix round 9 item 1: CAT-FAST,
 -- every tier beats sprint 26 — the escape is the base interior, the
 -- 25s timeout, or full Speed Boots, and a 14-stud head start still
 -- gets out), catch radius 5, give-up 25s, rim
 -- spawn (fix 1, so the catch is not instant), safe-base give-up, the
 -- AWAKE banner + edge flash; raiders do crater grabs on half their
--- raids; 20 defs with exactly one Cosmic (Cosmic Corn Dog, weight 1,
--- rarest); HUD "📖 X/20"; tier + full-index celebrations.
+-- raids; 22 defs with exactly one Cosmic (Cosmic Corn Dog, weight 1)
+-- and two Divine (Alfredo, Pineapple, weight 1, tied rarest);
+-- HUD "📖 X/22"; tier + full-index celebrations.
 do
 	local configSrc = read("src/shared/Config.luau")
 	local guardianSrc = read("src/server/GuardianService.luau")
@@ -4582,8 +4585,8 @@ do
 		check("ca", false, "could not verify the competition — Config.luau, GuardianService.luau, RaiderService.luau, RotlingCatalog.luau, RarityConfig.luau, IndexService.luau or HUDController.client.luau missing")
 	else
 		local problems: { string } = {}
-		if not configSrc:find("GUARDIAN_SPEED = { %[1%] = 28, %[2%] = 29, %[3%] = 30, %[4%] = 31, %[5%] = 32, %[6%] = 34 }") then
-			table.insert(problems, "guardian speed is not 28 -> 34 by rarity")
+		if not configSrc:find("GUARDIAN_SPEED = { %[1%] = 28, %[2%] = 29, %[3%] = 30, %[4%] = 31, %[5%] = 32, %[6%] = 34, %[7%] = 36 }") then
+			table.insert(problems, "guardian speed is not 28 -> 36 by rarity")
 		end
 		if not configSrc:find("GUARDIAN_CATCH_RADIUS = 5") then
 			table.insert(problems, "guardian catch radius is not 5")
@@ -4615,19 +4618,28 @@ do
 		if not raritySrc:find('{ name = "Cosmic".-weight = 1') then
 			table.insert(problems, "Cosmic is not the rarest tier (weight 1)")
 		end
+		if not catalogSrc:find('name = "Archangel Alfredo"') then
+			table.insert(problems, "Archangel Alfredo is not in the catalog")
+		end
+		if not catalogSrc:find('name = "Pope Pineapple"') then
+			table.insert(problems, "Pope Pineapple is not in the catalog")
+		end
+		if not raritySrc:find('{ name = "Divine".-weight = 1') then
+			table.insert(problems, "Divine is not weight 1 (tied rarest with Cosmic)")
+		end
 		if not hudSrc:find("hud%.indexCount.*hud%.indexTotal") then
-			table.insert(problems, "HUD does not show the index X/20")
+			table.insert(problems, "HUD does not show the index X/22")
 		end
 		if not indexSrc:find("SET COMPLETE!") then
 			table.insert(problems, "no tier-completion celebration")
 		end
-		if not indexSrc:find("INDEX COMPLETE! All 20 Brainrots found!") then
-			table.insert(problems, "no all-20 completion celebration")
+		if not indexSrc:find("INDEX COMPLETE! All 22 Brainrots found!") then
+			table.insert(problems, "no all-22 completion celebration")
 		end
 		if #problems > 0 then
 			check("ca", false, "the competition is broken — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, GuardianService.luau, RaiderService.luau, RotlingCatalog.luau, RarityConfig.luau, IndexService.luau, HUDController.client.luau")
 		else
-			check("ca", true, "competition intact: guardian 19->24 by rarity (every tier beats walk 16; Cosmic 8 faster; escape is sprint, base/dome or the 25s timeout), catch 5, give-up 25s, rim spawn, AWAKE banner + edge flash, safe-base give-up, drop on catch; raiders crater-grab half their raids; 20 defs, one Cosmic (Corn Dog, weight 1); HUD X/20; tier + all-20 celebrations")
+			check("ca", true, "competition intact: guardian 19->24 by rarity (every tier beats walk 16; Cosmic 8 faster; escape is sprint, base/dome or the 25s timeout), catch 5, give-up 25s, rim spawn, AWAKE banner + edge flash, safe-base give-up, drop on catch; raiders crater-grab half their raids; 22 defs, one Cosmic (Corn Dog, weight 1), two Divine (Alfredo, Pineapple, weight 1); HUD X/22; tier + all-22 celebrations")
 		end
 	end
 end
@@ -4948,7 +4960,7 @@ end
 -- 4 / 5.5 rim tiers), and lunges inside 14 studs. HipHeight matches
 -- the build (3.2, the root's height above the floor — the default 2
 -- pushed the model into the floor while it walked). Speeds are
--- CAT-FAST at every tier (28 -> 34, fix round 9 item 1). The chase
+-- CAT-FAST at every tier (28 -> 36, fix round 9 item 1). The chase
 -- follows the target anywhere on the map, inside or outside the
 -- crater, until catch / safe base / timeout.
 do
@@ -4986,12 +4998,12 @@ do
 			table.insert(problems, "the catch does not log the damage + remaining HP + knockdown + drop — the catch trail has no proof")
 		end
 		if not configSrc:find("%[1%] = 28") or not configSrc:find("%[6%] = 34") then
-			table.insert(problems, "guardian speeds are not 28 -> 34 (every tier must beat sprint 26)")
+			table.insert(problems, "guardian speeds are not 28 -> 36 (every tier must beat sprint 26)")
 		end
 		if #problems > 0 then
 			check("ch", false, "the guardian chase fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: GuardianService.luau, Config.luau")
 		else
-			check("ch", true, "the guardian chases smoothly and catches: 0.1s tick, direct steering at the live target (no pathfinding), 0.8s stuck-hop, lunge inside 14 studs, HipHeight 3.2 matching the build, touch-catch on the body ball, catch logs the knockdown + drop, speeds 28 -> 34, chase follows the target anywhere on the map")
+			check("ch", true, "the guardian chases smoothly and catches: 0.1s tick, direct steering at the live target (no pathfinding), 0.8s stuck-hop, lunge inside 14 studs, HipHeight 3.2 matching the build, touch-catch on the body ball, catch logs the knockdown + drop, speeds 28 -> 36, chase follows the target anywhere on the map")
 		end
 	end
 end
@@ -5046,7 +5058,8 @@ end
 -- Malek: "the egg to hatch has more time? Maybe on its rarity?"
 -- The hatch was a flat 60s. Now the hatch is rolled at spawn time
 -- and the wait scales with the rarity of what's inside: Common 60s,
--- Rare 90s, Epic 120s, Legendary 180s, Mythic 240s, Cosmic 300s.
+-- Rare 90s, Epic 120s, Legendary 180s, Mythic 240s, Cosmic 300s,
+-- Divine 360s.
 -- The result is shown on the egg (see check (co)) — the round-6
 -- hiding is overridden. rollHatchDef must be declared BEFORE its
 -- callers — a local declared after its caller is invisible to it,
@@ -5059,8 +5072,8 @@ do
 		check("cj", false, "could not verify the egg hatch scaling — MeteorEggService.luau, Config.luau or State.luau missing")
 	else
 		local problems: { string } = {}
-		if not configSrc:find("EGG_HATCH_TIME = { %[1%] = 60, %[2%] = 90, %[3%] = 120, %[4%] = 180, %[5%] = 240, %[6%] = 300 }") then
-			table.insert(problems, "EGG_HATCH_TIME is not the 60 -> 300s per-rarity ladder")
+		if not configSrc:find("EGG_HATCH_TIME = { %[1%] = 60, %[2%] = 90, %[3%] = 120, %[4%] = 180, %[5%] = 240, %[6%] = 300, %[7%] = 360 }") then
+			table.insert(problems, "EGG_HATCH_TIME is not the 60 -> 360s per-rarity ladder")
 		end
 		if not eggSrc:find("hatchTimeForRarity") then
 			table.insert(problems, "no hatchTimeForRarity — the hatch wait cannot scale with rarity")
@@ -5082,7 +5095,7 @@ do
 		if #problems > 0 then
 			check("cj", false, "the egg hatch scaling is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau, Config.luau, State.luau")
 		else
-			check("cj", true, "eggs hatch slower the rarer they are: hatch rolled at spawn time and stored on the egg, wait scales Common 60s -> Cosmic 300s, banner shows the actual wait, roll declared before its callers")
+			check("cj", true, "eggs hatch slower the rarer they are: hatch rolled at spawn time and stored on the egg, wait scales Common 60s -> Divine 360s, banner shows the actual wait, roll declared before its callers")
 		end
 	end
 end
@@ -5468,7 +5481,7 @@ end
 -- when found; unfound cards show the same shape in dark grey with
 -- "???". A progress bar fills as the set grows, and a tier line
 -- shows each rarity's found count in its colour. What it tracks is
--- unchanged: 20 Brainrots, X/20, tier completion rewards. The Index
+-- unchanged: 22 Brainrots, X/22, tier completion rewards. The Index
 -- button position and the "Set as Buddy" button are untouched.
 do
 	local indexSrc = read("src/client/IndexController.client.luau")
@@ -5506,7 +5519,7 @@ do
 		if #problems > 0 then
 			check("cr", false, "the index polish is incomplete — " .. table.concat(problems, "; ") .. ". Parts: IndexController.client.luau")
 		else
-			check("cr", true, "the Brainrot index looks polished: silhouette icons in each Brainrot's colours (grey when unfound), rarity strips, glow borders on found cards, a progress bar, and a per-tier found-count line — tracking unchanged (20, X/20, tier rewards)")
+			check("cr", true, "the Brainrot index looks polished: silhouette icons in each Brainrot's colours (grey when unfound), rarity strips, glow borders on found cards, a progress bar, and a per-tier found-count line — tracking unchanged (22, X/22, tier rewards)")
 		end
 	end
 end
@@ -6296,13 +6309,13 @@ do
 		for _ in catalogSrc:gmatch('id = "') do
 			defCount += 1
 		end
-		if defCount ~= 20 then
-			table.insert(problems, "the Brainrot cast is not 20 (found " .. tostring(defCount) .. ")")
+		if defCount ~= 22 then
+			table.insert(problems, "the Brainrot cast is not 22 (found " .. tostring(defCount) .. ")")
 		end
 		if #problems > 0 then
-			check("de", false, "a KEEP item is missing — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau (grass, Safe Dome), StarfallService.luau (storms), HUDController.client.luau (Upgrade/Daily/Rebirth buttons), RebirthService.luau, RotlingCatalog.luau (20 Brainrots)")
+			check("de", false, "a KEEP item is missing — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau (grass, Safe Dome), StarfallService.luau (storms), HUDController.client.luau (Upgrade/Daily/Rebirth buttons), RebirthService.luau, RotlingCatalog.luau (22 Brainrots)")
 		else
-			check("de", true, "KEEP verified: green grass (89, 173, 77), storms + Safe Dome, Upgrade + Daily + Rebirth buttons, 20-Brainrot index")
+			check("de", true, "KEEP verified: green grass (89, 173, 77), storms + Safe Dome, Upgrade + Daily + Rebirth buttons, 22-Brainrot index")
 		end
 	end
 end
@@ -6335,8 +6348,8 @@ do
 					table.insert(problems, "guardian speed tier " .. tostring(count) .. " is " .. tostring(v) .. " — at or under sprint 26, it cannot catch a sprinter")
 				end
 			end
-			if count ~= 6 then
-				table.insert(problems, "GUARDIAN_SPEED has " .. tostring(count) .. " tiers, not 6")
+			if count ~= 7 then
+				table.insert(problems, "GUARDIAN_SPEED has " .. tostring(count) .. " tiers, not 7")
 			end
 		end
 		if not configSrc:find("GUARDIAN_SPAWN_DISTANCE = 14") then
@@ -6354,7 +6367,7 @@ do
 		if #problems > 0 then
 			check("df", false, "the guardian speed fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, GuardianService.luau")
 		else
-			check("df", true, "guardian speed: every tier beats sprint 26 (Common 28 to Cosmic 34), spawns 14 studs away, and the chase loop logs real studs/s + distance every 2s")
+			check("df", true, "guardian speed: every tier beats sprint 26 (Common 28 to Divine 36), spawns 14 studs away, and the chase loop logs real studs/s + distance every 2s")
 		end
 	end
 end
@@ -7330,29 +7343,46 @@ do
 			end
 		end
 		local total = 0
-		for tier = 1, 6 do
+		for tier = 1, 7 do
 			total += weights[tier] or 0
 		end
-		if total ~= 100 then
-			table.insert(problems, "egg weights sum to " .. tostring(total) .. ", not 100")
+		-- Weights are x10 integers (total 1005) so Divine can sit below
+		-- Cosmic (5 < 10); every bound below is on PERCENTAGES.
+		if total ~= 1005 then
+			table.insert(problems, "egg weights sum to " .. tostring(total) .. ", not 1005")
 		else
-			local epic = (weights[3] or 0)
-			local legendary = (weights[4] or 0)
-			local common = (weights[1] or 0)
+			local pct = function(tier)
+				return (weights[tier] or 0) / total * 100
+			end
+			local epic = pct(3)
+			local legendary = pct(4)
+			local common = pct(1)
+			local divine = pct(7)
+			local cosmic = pct(6)
 			if epic + legendary > 15 then
-				table.insert(problems, "Epic+Legendary is " .. tostring(epic + legendary) .. "% per egg (must be <= 15%)")
+				table.insert(problems, "Epic+Legendary is " .. string.format("%.1f", epic + legendary) .. "% per egg (must be <= 15%)")
 			end
 			if legendary > 5 then
-				table.insert(problems, "Legendary is " .. tostring(legendary) .. "% per egg (must be <= 5%)")
+				table.insert(problems, "Legendary is " .. string.format("%.1f", legendary) .. "% per egg (must be <= 5%)")
 			end
 			if common < 50 then
-				table.insert(problems, "Common is only " .. tostring(common) .. "% per egg (must be >= 50%)")
+				table.insert(problems, "Common is only " .. string.format("%.1f", common) .. "% per egg (must be >= 50%)")
+			end
+			if divine >= cosmic then
+				table.insert(problems, "Divine (" .. string.format("%.1f", divine) .. "%) is not rarer than Cosmic (" .. string.format("%.1f", cosmic) .. "%)")
+			end
+			if divine > 1 then
+				table.insert(problems, "Divine is " .. string.format("%.1f", divine) .. "% per egg (must be <= 1%)")
 			end
 			-- Expected eggs of each rarity per storm at 4/storm.
 			local perStormCount = tonumber(perStorm) or 0
 			local expectedLegendary = perStormCount * legendary / 100
 			if expectedLegendary > 0.25 then
 				table.insert(problems, "expected Legendary eggs per storm is " .. string.format("%.2f", expectedLegendary) .. " (must be <= 0.25, one per ~4+ storms)")
+			end
+			local expectedDivine = perStormCount * divine / 100
+			if expectedDivine > 0.05 then
+				table.insert(problems, "expected Divine eggs per storm is " .. string.format("%.2f", expectedDivine) .. " (must be <= 0.05, one per ~20+ storms)")
 			end
 		end
 		-- The 40% bump must be gone, and the roll must use the weights.
@@ -7373,7 +7403,7 @@ do
 		if #problems > 0 then
 			check("egg-rebalance", false, "the egg rebalance is wrong — " .. table.concat(problems, "; ") .. ". Parts: Config.luau, MeteorEggService.luau")
 		else
-			check("egg-rebalance", true, "4 eggs/storm with egg-only weights 55/28/10/4/2/1 (Epic 10%, Legendary 4%, ~0.16 Legendary/storm); 40% bump gone; legendary drop still every 240s")
+			check("egg-rebalance", true, "4 eggs/storm with egg-only weights 550/280/100/40/20/10/5 (Common 54.7%, Epic 10.0%, Legendary 4.0%, Cosmic 1.0%, Divine 0.5%, ~0.16 Legendary/storm, ~0.02 Divine/storm); 40% bump gone; legendary drop still every 240s")
 		end
 	end
 end
@@ -7526,6 +7556,82 @@ do
 			check("dressing", false, "the dressing pass is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau")
 		else
 			check("dressing", true, "dense world: 60 trees, 45 rocks, 36 crystals, 12 plaza flags, 6 meteor rocks on the rim, ground title sign near spawn; rev-79 removals stay removed")
+		end
+	end
+end
+
+-- -- (divine-tier) fix round 11, item 2: the Divine tier -------------
+-- The top-10 comparison showed 6/10 leaders have a 7th rarity tier
+-- and we have 6. Divine sits above Cosmic: royal blue (spread >= 100,
+-- never white), weight 1 (tied rarest with Cosmic), 500 cps, two
+-- characters — Archangel Alfredo (angel-noodle) and Pope Pineapple
+-- (pineapple-pope) — each with its own silhouette and addNameProp
+-- branch. Guardian speed 36 is the fastest chase (still tied by full
+-- Speed Boots at 36); eggs hatch in 360s.
+do
+	local raritySrc = read("src/shared/RarityConfig.luau")
+	local catalogSrc = read("src/shared/RotlingCatalog.luau")
+	local factorySrc = read("src/server/RotlingFactory.luau")
+	local configSrc = read("src/shared/Config.luau")
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	if not raritySrc or not catalogSrc or not factorySrc or not configSrc or not eggSrc then
+		check("divine-tier", false, "could not verify the Divine tier — RarityConfig.luau, RotlingCatalog.luau, RotlingFactory.luau, Config.luau or MeteorEggService.luau missing")
+	else
+		local problems: { string } = {}
+		-- Seven tiers, Divine last in ORDER.
+		local tierCount = 0
+		for _ in raritySrc:gmatch('{ name = "') do
+			tierCount += 1
+		end
+		if tierCount ~= 7 then
+			table.insert(problems, "RarityConfig has " .. tostring(tierCount) .. " tiers, not 7")
+		end
+		if not raritySrc:find('ORDER = { "Common", "Rare", "Epic", "Legendary", "Mythic", "Cosmic", "Divine" }', 1, true) then
+			table.insert(problems, "Divine is not last in RarityConfig.ORDER")
+		end
+		if not raritySrc:find('{ name = "Divine", color = Color3.fromRGB(70, 120, 255), weight = 1, cps = 500 }', 1, true) then
+			table.insert(problems, "Divine is not royal blue (70,120,255), weight 1, 500 cps")
+		end
+		-- Two Divine defs, each with its own silhouette and name branch.
+		local divineDefs = 0
+		for _ in catalogSrc:gmatch('rarity = "Divine"') do
+			divineDefs += 1
+		end
+		if divineDefs ~= 2 then
+			table.insert(problems, "catalog has " .. tostring(divineDefs) .. " Divine defs, not 2")
+		end
+		if not catalogSrc:find('id = "alfredo"') or not catalogSrc:find('name = "Archangel Alfredo"') then
+			table.insert(problems, "Archangel Alfredo (alfredo) is not in the catalog")
+		end
+		if not catalogSrc:find('id = "pineapple"') or not catalogSrc:find('name = "Pope Pineapple"') then
+			table.insert(problems, "Pope Pineapple (pineapple) is not in the catalog")
+		end
+		if not factorySrc:find('def.silhouette == "angel-noodle"', 1, true) then
+			table.insert(problems, "no angel-noodle silhouette branch in the factory")
+		end
+		if not factorySrc:find('def.silhouette == "pineapple-pope"', 1, true) then
+			table.insert(problems, "no pineapple-pope silhouette branch in the factory")
+		end
+		if not factorySrc:find('def.id == "alfredo"') then
+			table.insert(problems, "no alfredo addNameProp branch in the factory")
+		end
+		if not factorySrc:find('def.id == "pineapple"') then
+			table.insert(problems, "no pineapple addNameProp branch in the factory")
+		end
+		-- Divine is buildable: guardian speed 36, hatch time 360, egg roll covers tier 7.
+		if not configSrc:find("%[7%] = 36") then
+			table.insert(problems, "GUARDIAN_SPEED has no tier 7 = 36")
+		end
+		if not configSrc:find("%[7%] = 360") then
+			table.insert(problems, "EGG_HATCH_TIME has no tier 7 = 360")
+		end
+		if not eggSrc:find("for tier = 1, 7 do", 1, true) then
+			table.insert(problems, "rollEggRarity does not cover tier 7")
+		end
+		if #problems > 0 then
+			check("divine-tier", false, "the Divine tier is incomplete — " .. table.concat(problems, "; ") .. ". Parts: RarityConfig.luau, RotlingCatalog.luau, RotlingFactory.luau, Config.luau, MeteorEggService.luau")
+		else
+			check("divine-tier", true, "Divine tier live: 7 tiers, Divine last (royal blue 70,120,255, weight 1, 500 cps); Archangel Alfredo (angel-noodle, halo + wings + robe) and Pope Pineapple (pineapple-pope, leaf crown + mitre + cross); guardian 36, hatch 360s, eggs can roll Divine")
 		end
 	end
 end

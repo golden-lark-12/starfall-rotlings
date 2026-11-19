@@ -48,16 +48,16 @@ title.AnchorPoint = Vector2.new(0.5, 0)
 local tagline = titleLabel(titleFrame, "Tagline", "Grab them. Grow them. Guard your base.", UDim2.new(0, 700, 0, 32), UDim2.new(0.5, 0, 0, 96), 24, GuiKit.COLORS.White)
 tagline.AnchorPoint = Vector2.new(0.5, 0)
 
--- Rarity ladder: six horizontal strips in one centred panel, one row
+-- Rarity ladder: seven horizontal strips in one centred panel, one row
 -- per tier — tier colour chip, tier name, and one of our Rotlings of
 -- that tier with its income. The representative is picked from the
 -- catalog at runtime, so the ladder always shows real game data.
 local ladderPanel = GuiKit.makePanel(titleFrame, "LadderPanel", UDim2.new(0, 560, 0, 268), UDim2.new(0.5, -280, 0, 140))
 ladderPanel.ZIndex = 51
-local ladderTitle = GuiKit.makeLabel(ladderPanel, "LadderTitle", "THE BRAINROTS — 6 RARITIES", UDim2.new(1, 0, 0, 28), UDim2.new(0, 0, 0, 6), 20, GuiKit.COLORS.Gold)
+local ladderTitle = GuiKit.makeLabel(ladderPanel, "LadderTitle", "THE BRAINROTS — 7 RARITIES", UDim2.new(1, 0, 0, 28), UDim2.new(0, 0, 0, 6), 20, GuiKit.COLORS.Gold)
 ladderTitle.ZIndex = 52
 for i, rarity in ipairs(RarityConfig.RARITIES) do
-	local rowY = 40 + (i - 1) * 36
+	local rowY = 40 + (i - 1) * 32
 	-- Tier colour chip.
 	local chip = Instance.new("Frame")
 	chip.Name = "Chip" .. rarity.name

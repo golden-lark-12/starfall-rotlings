@@ -1,8 +1,10 @@
 --!strict
 -- Starfall Rotlings: the rarity ladder.
--- Six tiers, each with its own glow colour, spawn weight and base
+-- Seven tiers, each with its own glow colour, spawn weight and base
 -- coins-per-second. The ladder is the game's spine: every spawn roll,
--- every label and every income number reads it.
+-- every label and every income number reads it. Divine (fix round 11)
+-- sits above Cosmic: royal blue, weight 1 (tied rarest with Cosmic),
+-- 500 cps.
 
 export type Rarity = {
 	name: string,
@@ -20,9 +22,10 @@ RarityConfig.RARITIES = {
 	{ name = "Legendary", color = Color3.fromRGB(255, 200, 40), weight = 8, cps = 35 },
 	{ name = "Mythic", color = Color3.fromRGB(255, 80, 140), weight = 3, cps = 100 },
 	{ name = "Cosmic", color = Color3.fromRGB(60, 220, 255), weight = 1, cps = 300 },
+	{ name = "Divine", color = Color3.fromRGB(70, 120, 255), weight = 1, cps = 500 },
 } :: { Rarity }
 
-RarityConfig.ORDER = { "Common", "Rare", "Epic", "Legendary", "Mythic", "Cosmic" }
+RarityConfig.ORDER = { "Common", "Rare", "Epic", "Legendary", "Mythic", "Cosmic", "Divine" }
 
 function RarityConfig.rarityByName(name: string): Rarity
 	for _, rarity in ipairs(RarityConfig.RARITIES) do
@@ -50,7 +53,7 @@ function RarityConfig.rollRarity(): string
 	return "Common"
 end
 
--- 1-based ladder step, for banners and the Index ("Tier 4 of 6").
+-- 1-based ladder step, for banners and the Index ("Tier 4 of 7").
 function RarityConfig.rarityTier(name: string): number
 	for i, rarity in ipairs(RarityConfig.RARITIES) do
 		if rarity.name == name then

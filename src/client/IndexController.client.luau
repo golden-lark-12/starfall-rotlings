@@ -14,7 +14,7 @@
 -- when found; unfound cards show a dark grey silhouette with "???".
 -- A progress bar fills as the set grows, and a tier line shows each
 -- rarity's found count in its colour. What it tracks is unchanged:
--- 20 Brainrots, X/20, tier completion rewards.
+-- 22 Brainrots, X/22, tier completion rewards.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -172,7 +172,7 @@ do
 	grid.CellPadding = UDim2.new(0, 8, 0, 8)
 	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	grid.Parent = gridFrame
-	-- Cards in tier order (Common first, Cosmic last), so the grid
+	-- Cards in tier order (Common first, Divine last), so the grid
 	-- reads as a ladder, not a random pile.
 	local defs = table.clone(RotlingCatalog.DEFS)
 	table.sort(defs, function(a, b)
