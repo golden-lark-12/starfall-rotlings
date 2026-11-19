@@ -1,7 +1,7 @@
 -- Starfall Rotlings: Rebirth-2 proof (simplify/polish, real-base section).
 -- Rebirth 2 must reset cash only and keep the index (and the placed
 -- Brainrots, XP, level and Stardust) — and recolor the base, the one
--- visible side effect the reset is allowed to have. Three proofs:
+-- visible side effect the reset is allowed to have. Four proofs:
 --   (1) STATIC: the doRebirth body in RebirthService.luau assigns ONLY
 --       profile.coins, profile.banked and profile.rebirths — no touch
 --       of placed, index, xp, level, stardust, or any remove/clear.
@@ -11,6 +11,10 @@
 --   (3) BASE COLOUR: the rebirth recolors the base by cycling the
 --       8-entry COLORS palette by rebirth count, so Rebirth 2 takes
 --       entry 2 (blue 120, 180, 255) and Rebirth 9 wraps to entry 1.
+--   (4) COST: the price the player is charged is the price the HUD
+--       shows — both compute Config.REBIRTH_BASE_COST x (rebirths+1)^2
+--       from the same base (10000), so Rebirth 2 costs $40,000 and
+--       Rebirth 3 costs $90,000.
 --
 -- This is a headless replay, not a live Roblox run: it exercises the
 -- exact reset logic with the real source, but no Roblox server is
@@ -155,9 +159,48 @@ local colorIndex = (profile.rebirths - 1) % #colorEntries + 1
 print(string.format("base colour after Rebirth 2: palette entry %d of %d (RGB %s)", colorIndex, #colorEntries, colorEntries[colorIndex] or "?"))
 assertOk(colorIndex == 2, "Rebirth 2 takes palette entry " .. tostring(colorIndex) .. ", not entry 2")
 assertOk(colorEntries[colorIndex] == "120, 180, 255", "palette entry 2 is RGB " .. (colorEntries[colorIndex] or "?") .. ", not 120, 180, 255 (blue)")
+-- The cycle wraps: Rebirth 9 takes palette entry 1 again.
+local wrapIndex = (9 - 1) % #colorEntries + 1
+assertOk(wrapIndex == 1, "Rebirth 9 takes palette entry " .. tostring(wrapIndex) .. ", not entry 1 — the colour cycle does not wrap")
+
+-- (4) COST: the price charged is the price shown. Both the charge
+-- (RebirthService.rebirthCost, used by doRebirth) and the HUD display
+-- (IncomeService, which sends rebirthCost + rebirthProgress to the
+-- client) must compute the same formula from the same base, or the
+-- player would see one price and be charged another.
+local configSrc = read("src/shared/Config.luau")
+local baseStart = configSrc:find("Config.REBIRTH_BASE_COST = ", 1, true)
+assertOk(baseStart ~= nil, "REBIRTH_BASE_COST not found in Config.luau")
+local baseCost: number? = nil
+if baseStart then
+	local numStart = baseStart + #"Config.REBIRTH_BASE_COST = "
+	local numEnd = configSrc:find("\n", numStart, true)
+	if numEnd then
+		baseCost = tonumber(configSrc:sub(numStart, numEnd - 1))
+	end
+end
+assertOk(baseCost == 10000, "REBIRTH_BASE_COST is " .. tostring(baseCost) .. ", not 10000 — the rebirth price base changed")
+assertOk(rebirthSrc:find("return Config.REBIRTH_BASE_COST * (rebirths + 1) * (rebirths + 1)", 1, true) ~= nil, "rebirthCost does not compute REBIRTH_BASE_COST * (rebirths+1)^2")
+assertOk(body:find("local cost = RebirthService.rebirthCost(profile.rebirths)", 1, true) ~= nil, "doRebirth does not charge rebirthCost(profile.rebirths)")
+assertOk(body:find("BankService.totalWealth(player) < cost", 1, true) ~= nil, "doRebirth does not gate on total wealth >= cost")
+local incomeSrc = read("src/server/IncomeService.luau")
+assertOk(incomeSrc:find("local rebirthCost = Config.REBIRTH_BASE_COST * (profile.rebirths + 1) * (profile.rebirths + 1)", 1, true) ~= nil, "IncomeService does not display the same rebirth cost formula as rebirthCost")
+-- The prices, from the real base: Rebirth 1 = $10,000, Rebirth 2 =
+-- $40,000, Rebirth 3 = $90,000.
+local function costFor(rebirths: number): number
+	return (baseCost or 10000) * (rebirths + 1) * (rebirths + 1)
+end
+print(string.format("rebirth costs from base %d: Rebirth 1 $%d, Rebirth 2 $%d, Rebirth 3 $%d", baseCost or 10000, costFor(0), costFor(1), costFor(2)))
+assertOk(costFor(0) == 10000, "Rebirth 1 costs $" .. tostring(costFor(0)) .. ", not $10,000")
+assertOk(costFor(1) == 40000, "Rebirth 2 costs $" .. tostring(costFor(1)) .. ", not $40,000")
+assertOk(costFor(2) == 90000, "Rebirth 3 costs $" .. tostring(costFor(2)) .. ", not $90,000")
+-- The replay profile (wealth $45,000) affords Rebirth 2 ($40,000)
+-- but not Rebirth 3 ($90,000).
+assertOk(totalWealth >= costFor(1), "replay wealth $" .. tostring(totalWealth) .. " cannot afford Rebirth 2 ($40,000)")
+assertOk(totalWealth < costFor(2), "replay wealth $" .. tostring(totalWealth) .. " affords Rebirth 3 ($90,000) — the cost curve is wrong")
 
 if #failures > 0 then
 	print("FAIL: Rebirth-2 proof broken — " .. table.concat(failures, "; "))
 	process.exit(1)
 end
-print("PASS: Rebirth 2 resets cash only — coins + banked zeroed, rebirths 1 -> 2, placed (3), index (14/20), xp, level and Stardust all kept; base recolored to palette entry 2 (blue 120, 180, 255).")
+print("PASS: Rebirth 2 resets cash only — coins + banked zeroed, rebirths 1 -> 2, placed (3), index (14/20), xp, level and Stardust all kept; base recolored to palette entry 2 (blue 120, 180, 255), wrapping to entry 1 at Rebirth 9; cost charged = cost shown (base 10000, Rebirth 2 $40,000).")

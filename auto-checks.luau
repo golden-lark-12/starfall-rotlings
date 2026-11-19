@@ -124,6 +124,10 @@
 --       (TOUR.json at the root, or src/server/Tour.luau) — the tour
 --       is a Studio plugin artifact, not game code, and it must
 --       stay deleted
+--   (no-tour-requires) a runtime file still requires the deleted
+--       Studio-only tour (a require() naming Tour/TOUR.json) — the
+--       module is gone, so any require of it would break the game
+--       at runtime the moment that file loads
 --
 -- Usage (from the repo root):
 --   lune run auto-checks.luau [root]
@@ -244,7 +248,10 @@ end
 local function stripComments(source: string): string
 	local lines: { string } = {}
 	for line in (source .. "\n"):gmatch("(.-)\n") do
-		table.insert(lines, line:gsub("%-%-.*$", ""))
+		-- gsub returns (string, count): take only the string, or
+		-- table.insert reads the string as a position and errors.
+		local clean = line:gsub("%-%-.*$", "")
+		table.insert(lines, clean)
 	end
 	return table.concat(lines, "\n")
 end
@@ -9550,6 +9557,57 @@ do
 		check("no-tour-files", false, "Studio-only tour files are back in the repo — " .. table.concat(problems, "; "))
 	else
 		check("no-tour-files", true, "no Studio-only tour files: TOUR.json and src/server/Tour.luau are both absent")
+	end
+end
+
+-- -- (no-tour-requires) no runtime file requires the deleted tour -------
+-- The tour files were deleted in 55b8db4, but a require() naming Tour
+-- would still break the game at runtime — the module is gone, so the
+-- file that requires it errors the moment it loads. Comments and the
+-- dead spawnRaiderForTour helper do not count: only an actual
+-- require() of a Tour module does. (no-tour-files guards the files
+-- existing; this guards anything still trying to load them.)
+do
+	local problems: { string } = {}
+	local function walk(dir: string)
+		local ok, entries = pcall(fs.readDir, root .. "/" .. dir)
+		if not ok then
+			return
+		end
+		for _, entry in ipairs(entries :: { string }) do
+			local path = dir .. "/" .. entry
+			local metaOk, meta = pcall(fs.metadata, root .. "/" .. path)
+			if metaOk and (meta.kind == "dir" or meta.kind == "directory") then
+				walk(path)
+			elseif entry:sub(-5) == ".luau" then
+				local src = read(path)
+				if src then
+					local code = stripComments(src)
+					for line in (code .. "\n"):gmatch("(.-)\n") do
+						local lower = line:lower()
+						if lower:find("require", 1, true) and lower:find("tour", 1, true) then
+							table.insert(problems, path .. " requires a Tour module — \"" .. line:gsub("^%s+", ""):gsub("%s+$", "") .. "\"")
+						end
+					end
+				end
+			end
+		end
+	end
+	walk("src")
+	-- main.ts is the build entrypoint: it must not require the tour either.
+	local mainSrc = read("main.ts")
+	if mainSrc then
+		for line in (mainSrc .. "\n"):gmatch("(.-)\n") do
+			local lower = line:lower()
+			if lower:find("require", 1, true) and lower:find("tour", 1, true) then
+				table.insert(problems, "main.ts requires a Tour module — \"" .. line:gsub("^%s+", ""):gsub("%s+$", "") .. "\"")
+			end
+		end
+	end
+	if #problems > 0 then
+		check("no-tour-requires", false, "a runtime file still requires the deleted tour — " .. table.concat(problems, "; "))
+	else
+		check("no-tour-requires", true, "no runtime file requires the deleted tour (src/ + main.ts scanned)")
 	end
 end
 
