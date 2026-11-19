@@ -1756,20 +1756,28 @@ do
 	end
 end
 
--- Fix round 12, item 4 — egg redesign: ovoid shell (3.2 x 4.8) with
--- fixed speckles, crack lines and a twig nest, all welded to the
--- shell; mystery rule intact (no rarity on the ground).
+-- Fix round 13, item 2 — layered eggs: a clean cream ovoid (3.2 x
+-- 4.8) with two smooth bands (purple +0.8, teal -0.9), welded; no
+-- speckles, cracks or nest; mystery rule intact; legendary gold all
+-- over. Storm eggs land in the open field only (radius 48..130, 24
+-- studs from any base, SELL/shop/altar/spawn excluded).
 do
 	local eggSrc = read("src/server/MeteorEggService.luau")
 	if not eggSrc then
-		step("egg-shape", false, "MeteorEggService.luau missing")
+		step("egg-layered", false, "MeteorEggService.luau missing")
 	else
 		local problems: { string } = {}
 		if not eggSrc:find('shell%.Size = Vector3%.new%(3%.2, 4%.8, 3%.2%)') then
 			table.insert(problems, "shell is not ovoid (3.2 x 4.8 x 3.2)")
 		end
-		if not eggSrc:find("EggSpeckle") or not eggSrc:find("EggCrack") or not eggSrc:find("EggNest") then
-			table.insert(problems, "egg detail (speckles / cracks / nest) missing")
+		if not eggSrc:find("shell%.Color = Color3%.fromRGB%(255, 244, 214%)") then
+			table.insert(problems, "shell is not cream")
+		end
+		if not eggSrc:find('"EggBand"') or not eggSrc:find("{ 0%.8, 3%.3,") or not eggSrc:find("{ %-0%.9, 3%.2,") then
+			table.insert(problems, "two EggBand layers (purple +0.8, teal -0.9) missing")
+		end
+		if eggSrc:find("EggSpeckle") or eggSrc:find("EggCrack") or eggSrc:find("EggNest") then
+			table.insert(problems, "old speckle/crack/nest clutter still present")
 		end
 		if not eggSrc:find("WeldConstraint") then
 			table.insert(problems, "egg detail is not welded to the shell")
@@ -1777,10 +1785,19 @@ do
 		if not eggSrc:find('"🥚 METEOR EGG"') then
 			table.insert(problems, "ground egg label is not the plain mystery label")
 		end
+		if not eggSrc:find('child%.Name == "EggBand"') then
+			table.insert(problems, "legendary egg does not recolor its bands gold")
+		end
+		if not eggSrc:find("math%.random%(48, 130%)") or not eggSrc:find("Magnitude < 24") then
+			table.insert(problems, "egg spawn positions not open-field only (radius 48..130, 24 from bases)")
+		end
+		if not eggSrc:find("Vector3%.new%(60, 0, %-60%)") then
+			table.insert(problems, "egg fallback is not the open-field spot (60, -60)")
+		end
 		if #problems > 0 then
-			step("egg-shape", false, table.concat(problems, "; "))
+			step("egg-layered", false, table.concat(problems, "; "))
 		else
-			step("egg-shape", true, "ovoid shell (3.2 x 4.8) with fixed speckles, cracks and nest, welded; mystery rule intact")
+			step("egg-layered", true, "layered cream ovoid (3.2 x 4.8) with two bands, welded; no speckles/cracks/nest; mystery rule intact; legendary gold all over; storm eggs open-field only")
 		end
 	end
 end

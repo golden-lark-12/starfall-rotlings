@@ -5323,7 +5323,7 @@ end
 -- incubator (v74, mystery eggs). Malek: "why have the eggs on the map
 -- saying what is it? people wont go for normal eggs." A ground egg
 -- labelled "COMMON EGG" gets ignored. Now every ground egg looks
--- identical — "🥚 METEOR EGG", same gold label, same orange glow —
+-- identical — "🥚 METEOR EGG", same gold label, same warm glow —
 -- and the hatch is still rolled at spawn. The incubator banner names
 -- the rarity + wait and tints label + glow to it, and the incubating
 -- egg's label counts down live every second ("🥚 LEGENDARY EGG —
@@ -5343,16 +5343,19 @@ do
 			table.insert(problems, "the hatch is not rolled at spawn — the ground egg still has no rarity")
 		end
 		-- (v74, mystery eggs) The ground egg shows NO rarity: one
-		-- identical "🥚 METEOR EGG" label + orange glow for all.
+		-- identical "🥚 METEOR EGG" label + warm glow for all.
 		-- The reveal happens in the incubator (placeEgg), not here.
+		-- (fix round 13, item 2) The glow is warm gold now
+		-- (255, 220, 130) to match the cream layered shell — the
+		-- old orange (255, 140, 50) matched the old orange shell.
 		if not eggSrc:find('label%.Text = "🥚 METEOR EGG"') then
 			table.insert(problems, "the ground egg label is not the identical mystery label")
 		end
 		if eggSrc:find('"🥚 " %.%. string%.upper%(rarity%) %.%. " EGG"') then
 			table.insert(problems, "the ground egg label still names its rarity (not a mystery)")
 		end
-		if not eggSrc:find("light%.Color = Color3%.fromRGB%(255, 140, 50%)") then
-			table.insert(problems, "the ground egg glow is not the identical orange")
+		if not eggSrc:find("light%.Color = Color3%.fromRGB%(255, 220, 130%)") then
+			table.insert(problems, "the ground egg glow is not the identical warm gold")
 		end
 		if not eggSrc:find("rarityColor = RarityConfig%.rarityByName%(placedRarity%)%.color") then
 			table.insert(problems, "the incubator does not tint the label/glow to the revealed rarity")
@@ -5372,7 +5375,7 @@ do
 		if #problems > 0 then
 			check("co", false, "the egg rarity/timer fix is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau")
 		else
-			check("co", true, "ground eggs are mysteries: identical '🥚 METEOR EGG' label + orange glow (no rarity name or tint), hatch rolled at spawn, incubator banner names rarity + wait and tints label + glow to it, incubating label counts down live every second")
+			check("co", true, "ground eggs are mysteries: identical '🥚 METEOR EGG' label + warm gold glow (no rarity name or tint), hatch rolled at spawn, incubator banner names rarity + wait and tints label + glow to it, incubating label counts down live every second")
 		end
 	end
 end
@@ -6101,61 +6104,59 @@ do
 	end
 end
 
--- -- (egg-shape) fix round 12, item 4: eggs are ovoid and detailed
+-- -- (egg-layered) fix round 13, item 2: eggs are layered ovoids
 -- ---------------------------------------------------------------------
--- Playtest 11: "eggs could be better — more detailed, more egg
--- shaped." The shell was a near-ball (3.4 x 4.2 x 3.4) with no
--- detail — it read as a plain orange Neon ball. Now: a real ovoid
--- (3.2 wide, 4.8 tall, ratio 1.5), 10 fixed dark speckles on the
--- shell, 4 crack lines zigzagging near the top, and a twig nest
--- the egg sits in — all welded to the shell, so they travel with
--- it when it falls, is carried, or sits in the incubator. The
+-- Playtest 12: "the new egg still doesn't look like an egg, looks
+-- weird" — Malek's direction: "layered". The round-12 egg wore 10
+-- speckles, 4 crack lines and a twig nest — fiddly clutter that
+-- read as a lumpy ball from across the field. Now: a clean cream
+-- ovoid (3.2 wide, 4.8 tall, ratio 1.5) with exactly two smooth
+-- horizontal bands (purple at +0.8, teal at -0.9), each slightly
+-- wider than the shell's cross-section at its height, all welded
+-- to the shell. No speckles, no cracks, no nest anywhere. The
 -- mystery rule is intact: every ground egg is identical (same
--- shape, same "🥚 METEOR EGG" label, no rarity on the ground) —
--- the detail is fixed, never rolled. The legendary crater egg
--- keeps its gold look on the same shape.
+-- cream + bands, same "🥚 METEOR EGG" label, no rarity on the
+-- ground). The legendary crater egg keeps the same layered shape,
+-- gold all over (shell + bands).
 do
 	local eggSrc = read("src/server/MeteorEggService.luau")
 	if not eggSrc then
-		check("egg-shape", false, "could not verify the egg redesign — MeteorEggService.luau missing")
+		check("egg-layered", false, "could not verify the egg redesign — MeteorEggService.luau missing")
 	else
 		local problems: { string } = {}
 		-- Ovoid: height 4.8 vs width 3.2 (ratio 1.5), not a ball.
 		if not eggSrc:find('shell%.Size = Vector3%.new%(3%.2, 4%.8, 3%.2%)') then
 			table.insert(problems, "the egg shell is not ovoid (3.2 x 4.8 x 3.2)")
 		end
-		-- Speckles: 10 fixed offsets, welded to the shell.
-		if not eggSrc:find("EggSpeckle") or not eggSrc:find("speckleOffsets") then
-			table.insert(problems, "no fixed speckle pattern on the shell")
+		-- Cream shell, not orange.
+		if not eggSrc:find("shell%.Color = Color3%.fromRGB%(255, 244, 214%)") then
+			table.insert(problems, "the egg shell is not cream (255, 244, 214)")
+		end
+		-- Two bands, named EggBand, wider than the shell at their
+		-- heights (3.3 at +0.8, 3.2 at -0.9), welded to the shell.
+		if not eggSrc:find('"EggBand"') then
+			table.insert(problems, "no EggBand parts on the egg")
 		else
-			local specStart = eggSrc:find("local speckleOffsets = {")
-			local _, specEnd = eggSrc:find("\n\t}\n", specStart or 1)
-			local specBody = eggSrc:sub(specStart or 1, specEnd or #eggSrc)
-			local _, rows = specBody:gsub("{ [%d%.%-]+,", "")
-			if rows < 10 then
-				table.insert(problems, "the speckle pattern has " .. tostring(rows) .. " offsets, not 10")
+			local _, bandCount = eggSrc:gsub('"EggBand"', "")
+			if bandCount < 1 then
+				table.insert(problems, "no EggBand parts on the egg")
+			end
+			if not eggSrc:find("{ 0%.8, 3%.3,") or not eggSrc:find("{ %-0%.9, 3%.2,") then
+				table.insert(problems, "the bands are not at +0.8 (3.3 wide) and -0.9 (3.2 wide)")
 			end
 		end
-		-- Cracks: 4 fixed zigzag lines near the top, welded.
-		if not eggSrc:find("EggCrack") or not eggSrc:find("crackOffsets") then
-			table.insert(problems, "no fixed crack lines on the shell")
-		else
-			local crackStart = eggSrc:find("local crackOffsets = {")
-			local _, crackEnd = eggSrc:find("\n\t}\n", crackStart or 1)
-			local crackBody = eggSrc:sub(crackStart or 1, crackEnd or #eggSrc)
-			local _, rows = crackBody:gsub("{ [%d%.%-]+,", "")
-			if rows < 4 then
-				table.insert(problems, "the crack pattern has " .. tostring(rows) .. " offsets, not 4")
-			end
-		end
-		-- Nest: a twig disc under the shell, welded.
-		if not eggSrc:find("EggNest") or not eggSrc:find("EggNestTwig") then
-			table.insert(problems, "no twig nest under the egg")
-		end
-		-- Welded, never anchored: an anchored detail part would
-		-- stay floating when the shell is carried.
 		if not eggSrc:find("WeldConstraint") then
 			table.insert(problems, "egg detail is not welded to the shell")
+		end
+		-- The old clutter is GONE: no speckles, cracks or nest.
+		if eggSrc:find("EggSpeckle") or eggSrc:find("speckleOffsets") then
+			table.insert(problems, "the old speckles are still on the egg")
+		end
+		if eggSrc:find("EggCrack") or eggSrc:find("crackOffsets") then
+			table.insert(problems, "the old crack lines are still on the egg")
+		end
+		if eggSrc:find("EggNest") then
+			table.insert(problems, "the old twig nest is still under the egg")
 		end
 		-- Rest height matches the taller shell (half-height 2.4),
 		-- so the shell bottom sits on the ground / incubator.
@@ -6176,10 +6177,60 @@ do
 				table.insert(problems, "buildEgg leaks rarity onto the ground egg")
 			end
 		end
+		-- Legendary: same layered shape, gold all over (shell +
+		-- bands), not a different model.
+		if not eggSrc:find('child%.Name == "EggBand"') or not eggSrc:find('child%.Color = Color3%.fromRGB%(255, 215, 0%)') then
+			table.insert(problems, "the legendary egg does not recolor its bands gold")
+		end
 		if #problems > 0 then
-			check("egg-shape", false, "the egg redesign is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau")
+			check("egg-layered", false, "the egg redesign is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau")
 		else
-			check("egg-shape", true, "eggs are ovoid (3.2 x 4.8, ratio 1.5) with 10 fixed speckles, 4 crack lines and a twig nest, all welded to the shell; mystery rule intact; rest height 2.4")
+			check("egg-layered", true, "eggs are layered ovoids (cream 3.2 x 4.8, ratio 1.5) with two smooth bands (purple +0.8, teal -0.9), welded; no speckles/cracks/nest; mystery rule intact; legendary gold all over")
+		end
+	end
+end
+
+-- -- (egg-spawn) fix round 13, item 2: eggs land in the open field
+-- ---------------------------------------------------------------------
+-- Playtest 12: "egg places gets in other brainrot places" — eggs
+-- landed where Brainrots are (belt / crater / bases). eggPosition
+-- drew radius 40..130 (the crater rim ends at 39, so an egg could
+-- sit one stud off the rim), excluded bases only within 18 studs
+-- (the platform's far corner is 17 — an egg could sit on the
+-- doorstep), and fell back to (0, 0, 50): the spawn path at the
+-- crater mouth. Now: radius 48..130 (clear of rim + steal ring),
+-- 24 studs from any base centre, SELL pad / shop / altar / spawn
+-- pad excluded, and the fallback is a fixed open-field spot
+-- (60, -60). The legendary crater drop is untouched — it is a
+-- deliberate crater event, announced, gold-beamed, not a storm egg.
+do
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	if not eggSrc then
+		check("egg-spawn", false, "could not verify the egg spawn positions — MeteorEggService.luau missing")
+	else
+		local problems: { string } = {}
+		if not eggSrc:find("math%.random%(48, 130%)") then
+			table.insert(problems, "eggPosition does not draw radius 48..130 (crater/rim clear)")
+		end
+		if eggSrc:find("math%.random%(40, 130%)") then
+			table.insert(problems, "the old eggPosition radius draw (40..130) is still there")
+		end
+		if not eggSrc:find("Magnitude < 24") then
+			table.insert(problems, "eggPosition does not exclude 24 studs around every base")
+		end
+		if not eggSrc:find("math%.abs%(pos%.X %- 62%) < 14") or not eggSrc:find("math%.abs%(pos%.X %+ 45%) < 16") then
+			table.insert(problems, "eggPosition does not exclude the SELL pad and shop")
+		end
+		if not eggSrc:find("Vector3%.new%(60, 0, %-60%)") then
+			table.insert(problems, "the eggPosition fallback is not the open-field spot (60, -60)")
+		end
+		if eggSrc:find("Vector3%.new%(0, 0, 50%)") then
+			table.insert(problems, "the old eggPosition fallback (0, 0, 50) — crater mouth — is still there")
+		end
+		if #problems > 0 then
+			check("egg-spawn", false, "eggs can still land on Brainrot spots — " .. table.concat(problems, "; ") .. ". Parts: MeteorEggService.luau")
+		else
+			check("egg-spawn", true, "storm eggs land in the open field only: radius 48..130, 24 studs from any base, SELL/shop/altar/spawn excluded, fallback (60, -60)")
 		end
 	end
 end
