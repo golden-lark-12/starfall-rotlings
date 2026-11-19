@@ -1838,16 +1838,17 @@ do
 		if math.abs(labelH[1]) + 12.75 >= 51 or math.abs(labelH[4]) + 12.75 >= 51 then
 			table.insert(problems, "an outer hero label leaves shot 1's frame")
 		end
-		-- The title sign (12, 8, 72), 22x6: all four corners in
-		-- frame, and its text (width-bound, ~2.9deg tall) clear of
-		-- the highest label top by 1deg+.
-		for _, c in ipairs({ { 1, 11, 72 }, { 23, 11, 72 }, { 1, 5, 72 }, { 23, 5, 72 } }) do
+		-- The title sign (0, 9, 46), 22x6 — the arch over the
+		-- spawn→crater path (fix round 14, item 2): all four
+		-- corners in frame, and its text (width-bound, ~2.9deg
+		-- tall) clear of the highest label top by 1deg+.
+		for _, c in ipairs({ { -11, 12, 46 }, { 11, 12, 46 }, { -11, 6, 46 }, { 11, 6, 46 } }) do
 			local hv = screenAngles(cam1, look1, c)
 			if not inFrame(hv[1], hv[2]) then
-				table.insert(problems, "the title sign corner (" .. tostring(c[1]) .. ", " .. tostring(c[2]) .. ", 72) is out of shot 1's frame")
+				table.insert(problems, "the title sign corner (" .. tostring(c[1]) .. ", " .. tostring(c[2]) .. ", 46) is out of shot 1's frame")
 			end
 		end
-		local signHv = screenAngles(cam1, look1, { 12, 8, 72 })
+		local signHv = screenAngles(cam1, look1, { 0, 9, 46 })
 		if signHv[2] - 1.45 - maxLabelTop < 1 then
 			table.insert(problems, "the hero labels reach into the title sign's text (clearance " .. string.format("%.1f", signHv[2] - 1.45 - maxLabelTop) .. "deg, need 1deg+)")
 		end
@@ -5927,7 +5928,7 @@ do
 			table.insert(problems, "the old signpost at (6, 0, 58) is still there, on the title-sign sightline")
 		end
 		local signposts = { { -8, 62 }, { -22, 28 }, { 6, -48 } }
-		local bigSigns = { { 12, 72 }, { 16, 94 }, { -45, 45 } }
+		local bigSigns = { { 0, 46 }, { 16, 94 }, { -45, 45 } }
 		for _, sp in ipairs(signposts) do
 			for _, bs in ipairs(bigSigns) do
 				local d = math.sqrt((sp[1] - bs[1]) ^ 2 + (sp[2] - bs[2]) ^ 2)
@@ -5947,6 +5948,17 @@ do
 		end
 		if not worldSrc:find("WorldTitleTrim") or not worldSrc:find("glow%.Brightness = 1%.5") then
 			table.insert(problems, "the title sign has no pulsing gold trim / glow")
+		end
+		-- (fix round 14, item 2) The title sign stands ON the
+		-- spawn→crater sightline (x=0, z=46 — at the crater's edge,
+		-- between the rim at 39 and spawn at 96), raised to y=9 so
+		-- walkers pass under it (board bottom 6 clears a player's
+		-- head at ~5).
+		if not worldSrc:find("local cx, cz = 0, 46") then
+			table.insert(problems, "the title sign is not on the spawn→crater sightline at (0, 46)")
+		end
+		if not worldSrc:find("CFrame%.new%(cx, 9, cz%)") then
+			table.insert(problems, "the title sign board is not raised to y=9 (walkers must pass under it on the main path)")
 		end
 		-- (c) Contract Board text fits: wrapped title + body on a
 		-- 260x140 GUI, longest line ("Finish one, claim the
@@ -6009,7 +6021,7 @@ do
 		if #problems > 0 then
 			check("signs-overhaul", false, "the signs overhaul is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau")
 		else
-			check("signs-overhaul", true, "signs overhaul: title posts outside the board (12.5 > 11) with pulse glow, STAR SHOP round gold disc at y=7 with its text on a front anchor 0.75 clear of the disc face, signposts off the big-sign sightlines with per-line colours, Contract Board 12x8 with gold border + wrapped text + footer, base signs striped in their own colour")
+			check("signs-overhaul", true, "signs overhaul: title arch on the spawn→crater sightline (0, 46), raised to y=9, posts outside the board (12.5 > 11) with pulse glow, STAR SHOP round gold disc at y=7 with its text on a front anchor 0.75 clear of the disc face, signposts off the big-sign sightlines with per-line colours, Contract Board 12x8 with gold border + wrapped text + footer, base signs striped in their own colour")
 		end
 	end
 end
@@ -6618,7 +6630,7 @@ do
 		end
 		-- The AABB audit: {name, assembly, cx, cy, cz, sx, sy, sz}.
 		-- Centres/sizes are the source constants (signpost literals,
-		-- title cx/cz 12/72, contract lookAt (16,0,94), SELL (62,9,-2),
+		-- title cx/cz 0/46, contract lookAt (16,0,94), SELL (62,9,-2),
 		-- shop CFrame (-45,0,45) yaw 45 + disc offset (0,7,10.3),
 		-- base signs at BASE_RADIUS 110 + local offset (0,7,9.5)).
 		local boards: { { string } } = {}
@@ -6632,11 +6644,11 @@ do
 			end
 			board("signpost post", "signpost" .. tostring(sp[1]) .. "," .. tostring(sp[2]), sp[1] - 4.2, 4.5, sp[2], 0.8, 9, 0.8)
 		end
-		board("title board", "title", 12, 8, 72, 22, 6, 1)
-		board("title trim top", "title", 12, 11.1, 72, 22.4, 0.5, 1.2)
-		board("title trim bottom", "title", 12, 4.9, 72, 22.4, 0.5, 1.2)
-		board("title post L", "title", -0.5, 5, 72, 1.2, 10, 1.2)
-		board("title post R", "title", 24.5, 5, 72, 1.2, 10, 1.2)
+		board("title board", "title", 0, 9, 46, 22, 6, 1)
+		board("title trim top", "title", 0, 12.1, 46, 22.4, 0.5, 1.2)
+		board("title trim bottom", "title", 0, 5.9, 46, 22.4, 0.5, 1.2)
+		board("title post L", "title", -12.5, 6, 46, 1.2, 12, 1.2)
+		board("title post R", "title", 12.5, 6, 46, 1.2, 12, 1.2)
 		board("contract board", "contract", 16, 6, 94, 2, 8, 12)
 		board("contract backing", "contract", 16, 6, 94, 2, 8.6, 12.6)
 		board("contract trim", "contract", 16, 10.2, 94, 2, 0.5, 12.4)

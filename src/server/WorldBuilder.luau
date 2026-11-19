@@ -1478,9 +1478,10 @@ end
 local function buildSignpostsAndFences()
 	-- (fix round 12, item 1) The spawn-path signpost used to stand
 	-- at (6, 58), dead on the sightline from the crater to the title
-	-- sign at (12, 72) — its boards overlapped the title text
-	-- ("BRAINI Shop") from the plaza. It now stands on the WEST
-	-- side of the spawn path (-8, 62), clear of every big sign.
+	-- sign — its boards overlapped the title text ("BRAINI Shop")
+	-- from the plaza. It now stands on the WEST side of the spawn
+	-- path (-8, 62), clear of every big sign (the title arch is at
+	-- (0, 46), 17.9 studs away).
 	signpost(Vector3.new(-8, 0, 62), { { text = "← Crater", color = Color3.fromRGB(140, 210, 255), board = Color3.fromRGB(40, 60, 110) }, { text = "Shop →", color = Color3.fromRGB(255, 220, 90), board = Color3.fromRGB(110, 85, 30) } })
 	signpost(Vector3.new(-22, 0, 28), { { text = "Shop →", color = Color3.fromRGB(255, 220, 90), board = Color3.fromRGB(110, 85, 30) }, { text = "← Crater", color = Color3.fromRGB(140, 210, 255), board = Color3.fromRGB(40, 60, 110) } })
 	signpost(Vector3.new(6, 0, -48), { { text = "Altar ↑", color = Color3.fromRGB(210, 150, 255), board = Color3.fromRGB(80, 50, 110) }, { text = "← Crater", color = Color3.fromRGB(140, 210, 255), board = Color3.fromRGB(40, 60, 110) } })
@@ -1633,19 +1634,28 @@ local function buildMeteorRocks()
 	end
 end
 
--- Big in-world title sign (fix round 11, item 1 — dressing pass): a
--- proper ground sign near spawn, east of the spawn path at (12, 0,
--- 72), facing the spawn platform so it reads the moment a player
--- arrives and in screenshots from spawn toward the crater. Two posts
--- + a dark-purple board with gold trim + a depth-tested billboard
--- with the title in gold. This is NOT the old sky billboard (removed
--- in fix round 2, fix 8): no sky text, no pitch line, nothing
--- overlapping the SELL pad — the board stands on the ground at the
--- side of the path, clear of every walkway. The builder and part
--- names deliberately avoid the old sky-billboard identifiers, so the
--- old-billboard checks still prove the sky text is gone.
+-- Big in-world title sign (fix round 11, item 1 — dressing pass;
+-- MOVED fix round 14, item 2): an arch over the spawn→crater path
+-- at the crater's edge (0, 46), dead on the sightline, facing
+-- spawn — the first thing a player sees on arrival and in the
+-- middle of the map, the way Malek expects ("where's big title
+-- sign? In the middle?", playtest 13). It used to stand east of
+-- the path at (12, 72), where he never found it. Two posts + a
+-- dark-purple board with gold trim + a depth-tested billboard with
+-- the title in gold. The board is raised to y=9 (bottom edge 6,
+-- trims 5.9/12.1) so players (head ~5) and rivals (head ~6.1)
+-- walk UNDER it through the crater gap — the old y=8 board bottom
+-- (5) would graze every head on the main walkway. Posts at +/-12.5
+-- stand clear of the spawn-path fences (x +/- 5), the shop-walk
+-- fences (nearest post ~3 studs off) and the shop path (its north
+-- edge is 44.1, the sign at 46); the rim gap mouth is ~60 wide
+-- here, so the 22-wide arch leaves it open. This is NOT the old
+-- sky billboard (removed in fix round 2, fix 8): no sky text, no
+-- pitch line, nothing overlapping the SELL pad. The builder and
+-- part names deliberately avoid the old sky-billboard identifiers,
+-- so the old-billboard checks still prove the sky text is gone.
 local function buildWorldTitleSign()
-	local cx, cz = 12, 72
+	local cx, cz = 0, 46
 	-- (fix round 12, item 1) The posts used to stand at cx +/- 10,
 	-- INSIDE the 22-wide board's span (edges at cx +/- 11) — from
 	-- spawn angles a post ran straight through the middle of the
@@ -1654,14 +1664,14 @@ local function buildWorldTitleSign()
 	-- plane as the board and outside its span, a post can never
 	-- cover the board's face from any camera angle.
 	for _, side in ipairs({ -1, 1 }) do
-		local post = part("WorldTitlePost", Enum.PartType.Block, Vector3.new(1.2, 10, 1.2), Color3.fromRGB(72, 62, 92), CFrame.new(cx + side * 12.5, 5, cz))
+		local post = part("WorldTitlePost", Enum.PartType.Block, Vector3.new(1.2, 12, 1.2), Color3.fromRGB(72, 62, 92), CFrame.new(cx + side * 12.5, 6, cz))
 		post.CanCollide = false
 	end
-	local board = part("WorldTitleSign", Enum.PartType.Block, Vector3.new(22, 6, 1), Color3.fromRGB(60, 45, 90), CFrame.new(cx, 8, cz))
+	local board = part("WorldTitleSign", Enum.PartType.Block, Vector3.new(22, 6, 1), Color3.fromRGB(60, 45, 90), CFrame.new(cx, 9, cz))
 	board.CanCollide = false
-	local trimTop = part("WorldTitleTrim", Enum.PartType.Block, Vector3.new(22.4, 0.5, 1.2), Color3.fromRGB(255, 215, 0), CFrame.new(cx, 11.1, cz), Enum.Material.Neon)
+	local trimTop = part("WorldTitleTrim", Enum.PartType.Block, Vector3.new(22.4, 0.5, 1.2), Color3.fromRGB(255, 215, 0), CFrame.new(cx, 12.1, cz), Enum.Material.Neon)
 	trimTop.CanCollide = false
-	local trimBottom = part("WorldTitleTrim", Enum.PartType.Block, Vector3.new(22.4, 0.5, 1.2), Color3.fromRGB(255, 215, 0), CFrame.new(cx, 4.9, cz), Enum.Material.Neon)
+	local trimBottom = part("WorldTitleTrim", Enum.PartType.Block, Vector3.new(22.4, 0.5, 1.2), Color3.fromRGB(255, 215, 0), CFrame.new(cx, 5.9, cz), Enum.Material.Neon)
 	trimBottom.CanCollide = false
 	-- A soft gold glow + a slow pulse on the trims, so the sign
 	-- reads as alive, not a flat board.
