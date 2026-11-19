@@ -3,13 +3,14 @@
 -- The visible board where the player picks up contracts and claims
 -- rewards. Three contracts at a time from the server (MissionService):
 -- the board panel lists each with its progress bar and a Claim button.
--- Rewards are NEVER auto-paid — finishing a contract only marks it
--- ready; the player claims it here (or at the world board in the
--- plaza, which fires the OpenContracts remote). Claiming deals a fresh
--- contract from the pool. Opens from the Contracts button (top-left
--- row), the world board's prompt, or the quest pill's board hint.
--- The client only ever shows what the HUD feed sends; claiming is
--- validated server-side.
+-- Finishing a contract marks it ready; the player claims it here (or
+-- at the world board in the plaza, which fires the OpenContracts
+-- remote) — or the server AUTO-CLAIMS it 10s later (fix round 9, item
+-- 8), so a finished contract never sits at 1/1 waiting. Claiming
+-- deals a fresh contract from the pool. Opens from the Contracts
+-- button (top-left row), the world board's prompt, or the quest pill's
+-- board hint. The client only ever shows what the HUD feed sends;
+-- claiming is validated server-side.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -41,6 +42,7 @@ type ContractRow = {
 	progress: number,
 	done: boolean,
 	claimed: boolean,
+	advanceIn: number?, -- seconds left on the auto-advance timer (nil unless done — fix round 9, item 8)
 }
 
 local contracts: { ContractRow } = {}
@@ -130,6 +132,12 @@ function refreshContracts()
 			elseif contract.done then
 				row.claimButton.Text = "Claim " .. Formatting.formatMoney(contract.reward)
 				row.claimButton.BackgroundColor3 = GuiKit.COLORS.Buy
+				-- (fix round 9, item 8) the auto-advance countdown:
+				-- the row never sits at a silent 1/1.
+				if contract.advanceIn then
+					row.progressLabel.Text = "✅ Complete! Next contract in " .. tostring(contract.advanceIn) .. "s  •  Reward " .. Formatting.formatMoney(contract.reward)
+					row.claimButton.Text = "Claim " .. Formatting.formatMoney(contract.reward) .. " (" .. tostring(contract.advanceIn) .. "s)"
+				end
 			else
 				row.claimButton.Text = tostring(math.min(contract.progress, target)) .. "/" .. tostring(target)
 				row.claimButton.BackgroundColor3 = Color3.fromRGB(120, 120, 120)

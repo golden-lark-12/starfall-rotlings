@@ -4,22 +4,26 @@
 -- order. Progress is counted on the server only (grabs, places,
 -- coins earned, Rare+ grabs); finishing one marks it READY, and the
 -- player CLAIMS the reward at the Contract Board (the world board by
--- the plaza, or the Contracts button) — the reward is never auto-paid,
--- so the board is the loop. Claiming deals a fresh contract from the
--- pool. The HUD feed carries all three contracts for the board panel,
--- and the first unclaimed one doubles as the quest pill
+-- the plaza, or the Contracts button) — or the server AUTO-CLAIMS it
+-- 10s later (fix round 9, item 8), so a finished contract never sits
+-- at 1/1 waiting. Claiming (manual or auto) deals a fresh contract
+-- from the pool, and a fresh grab/rare contract fires a hook banner.
+-- The HUD feed carries all three contracts for the board panel, and
+-- the first unclaimed one doubles as the quest pill
 -- (currentMission / progress keep the old single-mission shape, so
 -- the HUD never changes shape).
 -- Nothing here trusts the client: it only ever reports progress the
 -- server itself observed, and claiming is validated here.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Formatting = require(ReplicatedStorage.Shared.Formatting)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local DataService = require(script.Parent.DataService)
 local FeedbackService = require(script.Parent.FeedbackService)
+local State = require(script.Parent.State)
 -- BaseService does NOT require MissionService, so a top-level require
 -- here is safe (no circular require). It is only needed for the live
 -- placed count in syncPlaceMission.
@@ -39,6 +43,7 @@ export type ContractState = {
 	progress: number,
 	done: boolean,
 	claimed: boolean,
+	advanceAt: number?, -- when the auto-advance timer fires (set by markReady, fix round 9, item 8)
 }
 
 -- The pool definition for a contract id, or nil.
@@ -80,10 +85,13 @@ end
 
 -- All active contracts with their pool text and reward, for the HUD
 -- feed (the board panel reads this). Deals first if the board is empty.
-function MissionService.activeContracts(player: Player): { { id: string, text: string, target: number, reward: number, progress: number, done: boolean, claimed: boolean } }
+-- advanceIn is the seconds left on the auto-advance timer for a done
+-- contract (nil otherwise) — the board + quest pill show the countdown
+-- (fix round 9, item 8).
+function MissionService.activeContracts(player: Player): { { id: string, text: string, target: number, reward: number, progress: number, done: boolean, claimed: boolean, advanceIn: number? } }
 	MissionService.dealContracts(player)
 	local profile = DataService.getProfile(player)
-	local out: { { id: string, text: string, target: number, reward: number, progress: number, done: boolean, claimed: boolean } } = {}
+	local out: { { id: string, text: string, target: number, reward: number, progress: number, done: boolean, claimed: boolean, advanceIn: number? } } = {}
 	if not profile then
 		return out
 	end
@@ -98,10 +106,32 @@ function MissionService.activeContracts(player: Player): { { id: string, text: s
 				progress = slot.progress,
 				done = slot.done,
 				claimed = slot.claimed,
+				advanceIn = if slot.done and not slot.claimed and slot.advanceAt
+					then math.max(0, math.ceil(slot.advanceAt - time()))
+					else nil,
 			})
 		end
 	end
 	return out
+end
+
+-- Seconds left on the auto-advance timer for the first unclaimed
+-- contract (the quest pill's contract), or nil. The pill shows
+-- "✅ Complete! Next contract in Ns…" instead of a stuck 1/1.
+function MissionService.currentAdvanceIn(player: Player): number?
+	local profile = DataService.getProfile(player)
+	if not profile then
+		return nil
+	end
+	for _, slot in ipairs(profile.contracts) do
+		if not slot.claimed then
+			if slot.done and slot.advanceAt then
+				return math.max(0, math.ceil(slot.advanceAt - time()))
+			end
+			return nil
+		end
+	end
+	return nil
 end
 
 -- The first unclaimed contract, as the quest pill's single mission.
@@ -140,7 +170,10 @@ end
 
 -- Mark one contract ready: banner + sound, but NO payout — the
 -- player claims the reward at the board. Shared by addProgress and
--- syncPlaceMission so the two paths cannot drift.
+-- syncPlaceMission so the two paths cannot drift. The auto-advance
+-- timer starts here: 10s after a contract is done, the server
+-- auto-claims it (pays the reward, deals the next one) — a finished
+-- contract never sits at 1/1 waiting (fix round 9, item 8).
 local function markReady(player: Player, slot: ContractState)
 	local def = contractDef(slot.id)
 	if not def then
@@ -148,10 +181,10 @@ local function markReady(player: Player, slot: ContractState)
 	end
 	slot.done = true
 	slot.progress = def.target
+	slot.advanceAt = time() + 10
 	FeedbackService.playSound(player, 1.8, 0.9)
 	Remotes.bannerEvent():FireClient(player, "📋 Contract ready: " .. def.text .. " — claim " .. Formatting.formatMoney(def.reward) .. " at the Contract Board!", 5)
-	print("[Contract] " .. player.Name .. " finished " .. slot.id .. " (" .. def.text .. ") — ready to claim " .. Formatting.formatMoney(def.reward))
-end
+	print("[Contract] " .. player.Name .. " finished " .. slot.id .. " (" .. def.text .. ") — ready to claim " .. Formatting.formatMoney(def.reward) .. " (auto-claim in 10s)")
 
 -- Report server-observed progress toward every active contract of
 -- the matching kind. Only the matching kind counts; anything else is
@@ -203,6 +236,40 @@ function MissionService.syncPlaceMission(player: Player)
 	end
 end
 
+-- Deal the replacement into a claimed slot: the next pool contract
+-- (in pool order, wrapping) that is not already active. Shared by
+-- claimContract and the auto-advance loop, so a manual claim and an
+-- auto-claim deal identically. HOOK (fix round 9, item 8): when the
+-- fresh contract is a grab or a rare grab, the player gets a banner +
+-- sound that hooks them into fetching — the contract is the next
+-- thing to do, not a line on a board.
+local function dealReplacement(player: Player, profile: State.Profile, slotIndex: number, contractId: string)
+	local active: { [string]: boolean } = {}
+	for _, other in ipairs(profile.contracts) do
+		active[other.id] = true
+	end
+	active[contractId] = nil -- the claimed one leaves the board
+	local startAt = 1
+	for i, poolDef in ipairs(Config.CONTRACTS) do
+		if poolDef.id == contractId then
+			startAt = i + 1
+			break
+		end
+	end
+	for offset = 0, #Config.CONTRACTS - 1 do
+		local candidate = Config.CONTRACTS[((startAt - 1 + offset) % #Config.CONTRACTS) + 1]
+		if not active[candidate.id] then
+			profile.contracts[slotIndex] = { id = candidate.id, progress = 0, done = false, claimed = false, advanceAt = nil }
+			if candidate.kind == "grab" or candidate.kind == "rare" then
+				FeedbackService.playSound(player, 1.8, 0.9)
+				Remotes.bannerEvent():FireClient(player, "🎯 NEW CONTRACT: " .. candidate.text .. " — go fetch!", 5)
+				print("[Contract] " .. player.Name .. " dealt " .. candidate.id .. " (" .. candidate.text .. ") — hook banner fired")
+			end
+			break
+		end
+	end
+end
+
 -- Claim a finished contract: pay the reward, mark the slot claimed,
 -- and deal a fresh contract from the pool into its place. Returns
 -- (ok, message) for the ClaimContract remote.
@@ -238,32 +305,45 @@ function MissionService.claimContract(player: Player, contractId: string): (bool
 	end
 	profile.coins += def.reward
 	slot.claimed = true
-	-- Deal the replacement into the same slot: the next pool
-	-- contract (in pool order, wrapping) that is not already active.
-	local active: { [string]: boolean } = {}
-	for _, other in ipairs(profile.contracts) do
-		active[other.id] = true
-	end
-	active[contractId] = nil -- the claimed one leaves the board
-	local startAt = 1
-	for i, poolDef in ipairs(Config.CONTRACTS) do
-		if poolDef.id == contractId then
-			startAt = i + 1
-			break
-		end
-	end
-	for offset = 0, #Config.CONTRACTS - 1 do
-		local candidate = Config.CONTRACTS[((startAt - 1 + offset) % #Config.CONTRACTS) + 1]
-		if not active[candidate.id] then
-			profile.contracts[slotIndex :: number] = { id = candidate.id, progress = 0, done = false, claimed = false }
-			break
-		end
-	end
+	slot.advanceAt = nil
+	dealReplacement(player, profile, slotIndex :: number, contractId)
 	DataService.saveProfile(player)
 	FeedbackService.celebrate(player)
 	MissionService.syncPlaceMission(player)
 	print("[Contract] " .. player.Name .. " claimed " .. contractId .. " (+" .. Formatting.formatMoney(def.reward) .. ")")
 	return true, "Contract complete! +" .. Formatting.formatMoney(def.reward) .. " — a new contract is on the board."
+end
+
+-- Auto-advance loop (fix round 9, item 8): every 1s, any done
+-- contract whose 10s timer expired is auto-claimed — reward paid,
+-- replacement dealt, no trip to the board needed. A contract that
+-- shows 1/1 never sits there waiting.
+function MissionService.start()
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			for _, player in ipairs(Players:GetPlayers()) do
+				local profile = DataService.getProfile(player)
+				if profile then
+					for i, slot in ipairs(profile.contracts) do
+						if slot.done and not slot.claimed and slot.advanceAt and time() >= slot.advanceAt then
+							local def = contractDef(slot.id)
+							if def then
+								profile.coins += def.reward
+								slot.claimed = true
+								slot.advanceAt = nil
+								dealReplacement(player, profile, i, slot.id)
+								DataService.saveProfile(player)
+								FeedbackService.celebrate(player)
+								MissionService.syncPlaceMission(player)
+								print("[Contract] " .. player.Name .. " auto-claimed " .. slot.id .. " (+" .. Formatting.formatMoney(def.reward) .. ") — next contract dealt")
+							end
+						end
+					end
+				end
+			end
+		end
+	end)
 end
 
 -- Wire the ClaimContract remote and the world board's prompt: pressing

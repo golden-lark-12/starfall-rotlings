@@ -45,7 +45,8 @@ export type HudData = {
 	missionProgress: number,
 	missionTarget: number,
 	missionReward: number,
-	contracts: { { id: string, text: string, target: number, reward: number, progress: number, done: boolean, claimed: boolean } }, -- the Contract Board: three active contracts with their progress
+	missionAdvanceIn: number?, -- seconds left on the auto-advance timer for the pill's contract (nil unless done — fix round 9, item 8)
+	contracts: { { id: string, text: string, target: number, reward: number, progress: number, done: boolean, claimed: boolean, advanceIn: number? } }, -- the Contract Board: three active contracts with their progress (+ auto-advance countdown)
 	mutations: { [string]: boolean }, -- mutations this player has collected (index row)
 	dailyReady: boolean,
 	boosts: { { kind: string, seconds: number } },

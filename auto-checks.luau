@@ -6897,6 +6897,61 @@ do
 	end
 end
 
+-- (dt) CONTRACTS HOOK + AUTO-ADVANCE (fix round 9, item 8): the
+-- "Grab a Rare" pill sat at 1/1 un-advanced in playtest 10, and a
+-- finished contract only paid when the player walked to the board.
+-- Now: markReady starts a 10s timer; a 1s loop auto-claims any done
+-- contract whose timer expired (reward paid, replacement dealt — the
+-- same deal path a manual claim uses); the HUD carries the countdown
+-- (advanceIn on board rows, missionAdvanceIn on the quest pill),
+-- which shows "✅ Complete! Next contract in Ns…" instead of a stuck
+-- 1/1; and a fresh grab/rare contract fires a "🎯 NEW CONTRACT …
+-- go fetch!" hook banner + sound.
+do
+	local missionSrc = read("src/server/MissionService.luau")
+	local remotesSrc = read("src/shared/Remotes.luau")
+	local contractSrc = read("src/client/ContractController.client.luau")
+	local hudSrc = read("src/client/HUDController.client.luau")
+	local mainSrc = read("src/server/Main.server.luau")
+	if not missionSrc or not remotesSrc or not contractSrc or not hudSrc or not mainSrc then
+		check("dt", false, "could not verify the contract auto-advance — MissionService.luau, Remotes.luau, ContractController.client.luau, HUDController.client.luau or Main.server.luau missing")
+	else
+		local problems: { string } = {}
+		if not missionSrc:find("advanceAt = time%(%) %+ 10") then
+			table.insert(problems, "markReady does not start the 10s auto-advance timer")
+		end
+		if not missionSrc:find("function MissionService%.start%(%)") then
+			table.insert(problems, "no MissionService.start auto-advance loop")
+		end
+		if not missionSrc:find("auto%-claimed") then
+			table.insert(problems, "the loop does not auto-claim expired contracts")
+		end
+		if not missionSrc:find("NEW CONTRACT: ") then
+			table.insert(problems, "no hook banner when a grab/rare contract is dealt")
+		end
+		if not missionSrc:find("advanceIn = if slot%.done") then
+			table.insert(problems, "activeContracts does not carry the advanceIn countdown")
+		end
+		if not remotesSrc:find("missionAdvanceIn: number%?") then
+			table.insert(problems, "HudData has no missionAdvanceIn for the quest pill")
+		end
+		if not contractSrc:find("Next contract in ") then
+			table.insert(problems, "the board rows do not show the auto-advance countdown")
+		end
+		if not hudSrc:find("Next contract in ") then
+			table.insert(problems, "the quest pill does not show the auto-advance countdown")
+		end
+		if not mainSrc:find('step%("contracts %(MissionService%.start%)", MissionService%.start%)') then
+			table.insert(problems, "MissionService.start is not wired in Main.server boot")
+		end
+		if #problems > 0 then
+			check("dt", false, "the contract auto-advance is incomplete — " .. table.concat(problems, "; ") .. ". Parts: MissionService.luau, Remotes.luau, ContractController.client.luau, HUDController.client.luau, Main.server.luau")
+		else
+			check("dt", true, "contracts hook + auto-advance: 10s timer on done, 1s loop auto-claims (reward paid, replacement dealt), countdown on board rows + quest pill, 🎯 NEW CONTRACT hook banner for grab/rare deals")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

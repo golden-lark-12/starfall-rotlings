@@ -583,10 +583,17 @@ local function onHudData(data: Remotes.HudData)
 	end
 
 	-- Mission bar: text + progress + reward, fill grows left to right.
+	-- (fix round 9, item 8) when the pill's contract is done, it
+	-- shows the auto-advance countdown instead of a stuck 1/1.
 	local target = math.max(1, hud.missionTarget)
-	questLabel.Text = "🎯 " .. hud.missionText .. " — " .. tostring(math.min(hud.missionProgress, target)) .. "/" .. tostring(target)
-		.. " • " .. Formatting.formatMoney(hud.missionReward)
-	questFill.Size = UDim2.new(math.clamp(hud.missionProgress / target, 0, 1), 0, 1, 0)
+	if hud.missionAdvanceIn then
+		questLabel.Text = "✅ Complete! Next contract in " .. tostring(hud.missionAdvanceIn) .. "s…"
+		questFill.Size = UDim2.new(1, 0, 1, 0)
+	else
+		questLabel.Text = "🎯 " .. hud.missionText .. " — " .. tostring(math.min(hud.missionProgress, target)) .. "/" .. tostring(target)
+			.. " • " .. Formatting.formatMoney(hud.missionReward)
+		questFill.Size = UDim2.new(math.clamp(hud.missionProgress / target, 0, 1), 0, 1, 0)
+	end
 
 	-- Daily button: bright when a claim is up, dimmed once claimed.
 	if hud.dailyReady then

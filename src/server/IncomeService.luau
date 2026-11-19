@@ -283,6 +283,7 @@ function IncomeService.broadcastHud()
 					missionProgress = MissionService.progress(player),
 					missionTarget = mission.target,
 					missionReward = mission.reward,
+					missionAdvanceIn = MissionService.currentAdvanceIn(player),
 					contracts = MissionService.activeContracts(player),
 					mutations = profile.mutations or {},
 					dailyReady = DailyService.isReady(player),

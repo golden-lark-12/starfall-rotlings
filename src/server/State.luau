@@ -39,7 +39,9 @@ export type Profile = {
 	-- { id, progress, done, claimed }. Replaces the old single
 	-- rotating mission (missionIndex / missionProgress below are
 	-- legacy fields, kept in the save shape but no longer read).
-	contracts: { { id: string, progress: number, done: boolean, claimed: boolean } },
+	-- advanceAt (fix round 9, item 8): when the auto-advance timer
+	-- fires for a done contract — nil until the contract is done.
+	contracts: { { id: string, progress: number, done: boolean, claimed: boolean, advanceAt: number? } },
 	missionIndex: number, -- LEGACY: which Config.MISSIONS entry was active (1-based). Contracts replaced the single-mission rotation; nothing reads this now.
 	missionProgress: number, -- LEGACY: progress toward the old active mission. Contracts carry their own progress now.
 	lastDailyClaim: number, -- os.time() of the last daily reward claim (0 = never)
