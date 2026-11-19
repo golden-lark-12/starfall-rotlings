@@ -5975,6 +5975,29 @@ do
 		if worldSrc:find('part%("ShopSignBoard"') then
 			table.insert(problems, "the old flat STAR SHOP board is still there")
 		end
+		-- (fix round 14, item 1) The sign text must hang IN FRONT
+		-- of the disc's face, never on the disc: the GUI was
+		-- parented to the disc, so its plane (local z 10.3) sat
+		-- 0.35 behind the disc's front face (10.3 + 0.7/2) and the
+		-- face ate the middle of the text ("STAR [ring] OP"). The
+		-- anchor at local z 11.4 is 0.75 clear of the face.
+		if not worldSrc:find('part%("ShopSignAnchor"') then
+			table.insert(problems, "the STAR SHOP sign has no front anchor (ShopSignAnchor)")
+		end
+		if not worldSrc:find("signGui%.Parent = signAnchor") then
+			table.insert(problems, "the STAR SHOP sign GUI is not parented to the front anchor — it still hangs on the disc and its own face occludes it")
+		end
+		if worldSrc:find("signGui%.Parent = signBoard") then
+			table.insert(problems, "the STAR SHOP sign GUI is still parented to the disc")
+		end
+		if not worldSrc:find("CFrame%.new%(0, 7, 11%.4%)") then
+			table.insert(problems, "the STAR SHOP sign anchor is not at local z 11.4 (in front of the disc face at 10.65)")
+		end
+		-- Arithmetic: disc centre 10.3 + half-thickness 0.35 =
+		-- face 10.65; anchor 11.4 clears it by 0.75.
+		if not (10.3 + 0.7 / 2 < 11.4) then
+			table.insert(problems, "the STAR SHOP sign anchor does not clear the disc face")
+		end
 		-- (e) Base signs carry their own colour stripe, repainted
 		-- on rebirth recolour.
 		if not worldSrc:find("signStripes%[baseId%] = signStripe") then
@@ -5986,7 +6009,7 @@ do
 		if #problems > 0 then
 			check("signs-overhaul", false, "the signs overhaul is incomplete — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau")
 		else
-			check("signs-overhaul", true, "signs overhaul: title posts outside the board (12.5 > 11) with pulse glow, STAR SHOP round gold disc at y=7, signposts off the big-sign sightlines with per-line colours, Contract Board 12x8 with gold border + wrapped text + footer, base signs striped in their own colour")
+			check("signs-overhaul", true, "signs overhaul: title posts outside the board (12.5 > 11) with pulse glow, STAR SHOP round gold disc at y=7 with its text on a front anchor 0.75 clear of the disc face, signposts off the big-sign sightlines with per-line colours, Contract Board 12x8 with gold border + wrapped text + footer, base signs striped in their own colour")
 		end
 	end
 end

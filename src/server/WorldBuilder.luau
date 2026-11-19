@@ -1196,6 +1196,20 @@ local function buildStarShop()
 	signRim.CanCollide = false
 	local signBoard = part("ShopSignDisc", Enum.PartType.Cylinder, Vector3.new(0.7, 6.4, 6.4), Color3.fromRGB(20, 15, 40), shopCf * CFrame.new(0, 7, 10.3) * CFrame.Angles(math.rad(90), 0, 0))
 	signBoard.CanCollide = false
+	-- (fix round 14, item 1) VERIFIED in code: the ring in Malek's
+	-- playtest-13 photo IS this disc + rim — the only other ring in
+	-- the world is the rebirth altar's purple AltarRing at (0,0,-70).
+	-- The "★ STAR SHOP ★" BillboardGui was parented to the disc, so
+	-- its plane sat at the disc's centre (local z 10.3) — 0.35 studs
+	-- BEHIND the disc's own opaque front face (10.3 + 0.7/2 =
+	-- 10.65). Depth-tested, the face occludes the middle of its own
+	-- text: from the plaza it reads "STAR [ring] OP". The GUI now
+	-- hangs on an invisible anchor 0.75 in front of the face (local
+	-- z 11.4), so the full text reads, framed by the gold rim.
+	local signAnchor = part("ShopSignAnchor", Enum.PartType.Block, Vector3.new(0.2, 0.2, 0.2), Color3.fromRGB(20, 15, 40), shopCf * CFrame.new(0, 7, 11.4))
+	signAnchor.Transparency = 1
+	signAnchor.CanCollide = false
+	signAnchor.CanQuery = false
 	local signGui = Instance.new("BillboardGui")
 	signGui.Name = "ShopSign"
 	-- Depth-tested and shorter-range (v74, plaza fix): the old
@@ -1205,7 +1219,7 @@ local function buildStarShop()
 	signGui.AlwaysOnTop = false
 	signGui.LightInfluence = 0
 	signGui.MaxDistance = 60
-	signGui.Parent = signBoard
+	signGui.Parent = signAnchor
 	local signLabel = Instance.new("TextLabel")
 	signLabel.Size = UDim2.new(1, 0, 1, 0)
 	signLabel.BackgroundTransparency = 1
