@@ -63,11 +63,23 @@ local SHOTS = {
 	{
 		-- BELT / GRAB MOMENT: low and close behind the belt's near
 		-- end, looking down the conveyor at the crater and the
-		-- beacon. The belt's Rotlings are ~15 studs away — big, with
+		-- beacon. The belt's Rotlings are ~24 studs away — big, with
 		-- their rarity tags readable — instead of a distant landscape.
+		-- Camera (41, 11, 8): the OLD camera (42, 4.5, 9) sat BELOW
+		-- the crater rim top (5.5), so its sightline to (0, 2, 0)
+		-- crossed the rim at y~4.3 and the whole frame was the rim
+		-- wall (Malek's shot-2 photo, Nov 19 ~19:31: dark blue wall,
+		-- one "Pip" label). Raised to y=11 — the sightline now
+		-- clears the rim top by 2.5+ studs and the tallest meteor
+		-- shard (7.0) by 2+ studs at every rim radius; the near rim
+		-- sits below the frame's bottom edge, so it cannot block
+		-- the belt. Same east-end viewpoint, same lookAt (0, 2, 0):
+		-- belt receding to the beacon at frame centre, far rim as
+		-- the backdrop. See the belt-shot check for the computed
+		-- proof (clearances + framing angles).
 		name = "2/4 — Belt",
 		detail = "Grab moment: down the conveyor belt, Brainrots and the beacon",
-		position = Vector3.new(42, 4.5, 9),
+		position = Vector3.new(41, 11, 8),
 		lookAt = Vector3.new(0, 2, 0),
 	},
 	{

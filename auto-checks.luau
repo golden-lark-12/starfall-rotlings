@@ -1631,9 +1631,15 @@ do
 		if not photoSrc:find("Vector3.new%(1, 3, 80%)") then
 			table.insert(problems, "shot 1 does not look at the hero row (1, 3, 80)")
 		end
-		-- Shot 2 (belt): low and close behind the belt's near end.
-		if not photoSrc:find("Vector3.new%(42, 4.5, 9%)") then
-			table.insert(problems, "shot 2 is not the close belt camera (42, 4.5, 9)")
+		-- Shot 2 (belt): raised above the crater rim (fix: the old
+		-- (42, 4.5, 9) sat below the rim top and framed the rim
+		-- wall). Camera (41, 11, 8) looking at the crater (0, 2, 0);
+		-- the belt-shot check proves the clearance + framing.
+		if not photoSrc:find("Vector3.new%(41, 11, 8%)") then
+			table.insert(problems, "shot 2 is not the raised belt camera (41, 11, 8)")
+		end
+		if photoSrc:find("Vector3.new%(42, 4.5, 9%)") then
+			table.insert(problems, "the old shot-2 camera (42, 4.5, 9) is still there — it sat below the rim and framed the rim wall")
 		end
 		-- Shot 3 (storm): wide crater + sky view, banner and meteors.
 		if not photoSrc:find("Vector3.new%(48, 10, 18%)") then
@@ -1682,7 +1688,128 @@ do
 		if #problems > 0 then
 			check("ac", false, "photo-mode cameras are not the 4 bounty shots + icon — " .. table.concat(problems, "; ") .. ". Parts: SHOTS / shotCFrame (PhotoModeController.client.luau)")
 		else
-			check("ac", true, "photo cameras are the 4 bounty shots + icon — staged hero row (1.75, 14, 96) first, belt close on the conveyor, storm wide (48, 10, 18) looking at the sky, base 16 out / 7 up, icon on the logo stage (0, 4, 100)")
+			check("ac", true, "photo cameras are the 4 bounty shots + icon — staged hero row (1.75, 14, 96) first, belt raised above the rim (41, 11, 8), storm wide (48, 10, 18) looking at the sky, base 16 out / 7 up, icon on the logo stage (0, 4, 100)")
+		end
+	end
+end
+
+-- -- (belt-shot) shot 2 looks DOWN the belt, not at the rim wall --
+-- Malek's shot-2 photo (Nov 19 ~19:31) was a dark blue wall: the old
+-- camera (42, 4.5, 9) sat BELOW the crater rim top (5.5), so its
+-- sightline to (0, 2, 0) crossed the rim at y~4.3. The camera is now
+-- (41, 11, 8) — same east-end viewpoint, same lookAt. This check
+-- COMPUTES the proof from the shipped literals (same atan2 screen
+-- angles as the hero-shot check: 70deg vertical FOV, ~102deg
+-- horizontal, 800px wide):
+--   * the sightline clears every rim ring top by 2+ studs and the
+--     tallest meteor shard (7.0) by 1.5+ studs at the radii where
+--     rocks sit (33..38);
+--   * the camera sits above the rim (y=11 vs rim top 5.5);
+--   * the belt near end, the beacon and the belt far end are all in
+--     frame, the far rim as backdrop, the near rim below the
+--     frame's bottom edge (so it cannot block the belt);
+--   * a belt Rotling at the near end is ~24 studs away (tags show
+--     within 40 in photo mode) and ~9deg tall — 13% of frame height.
+do
+	local photoSrc = read("src/client/PhotoModeController.client.luau")
+	if not photoSrc then
+		check("belt-shot", false, "could not verify the belt shot — PhotoModeController.client.luau missing")
+	else
+		local problems: { string } = {}
+		if not photoSrc:find("Vector3%.new%(41, 11, 8%)") then
+			table.insert(problems, "shot 2 is not the raised belt camera (41, 11, 8)")
+		end
+		if not photoSrc:find("Vector3%.new%(0, 2, 0%)") then
+			table.insert(problems, "shot 2 does not look at the crater (0, 2, 0)")
+		end
+		if photoSrc:find("Vector3%.new%(42, 4%.5, 9%)") then
+			table.insert(problems, "the old shot-2 camera (42, 4.5, 9) is still there")
+		end
+		-- Sightline height at horizontal radius r from the crater
+		-- centre: the camera is at horizontal distance
+		-- sqrt(41^2 + 8^2) = 41.77, dropping from y=11 to y=2.
+		local cam = { 41, 11, 8 }
+		local look = { 0, 2, 0 }
+		local horiz = math.sqrt(41 * 41 + 8 * 8)
+		local function sightY(r: number): number
+			return 2 + 9 * (r / horiz)
+		end
+		-- Rim ring tops: outer 35..39 -> 5.5, middle 31..35 -> 4,
+		-- inner 28..31 -> 2.5 (WorldBuilder.buildRimRing).
+		local ringTops = { { 39, 5.5 }, { 35, 5.5 }, { 31, 4 }, { 28, 2.5 } }
+		for _, rt in ipairs(ringTops) do
+			local clear = sightY(rt[1]) - rt[2]
+			if clear < 2 then
+				table.insert(problems, string.format("sightline clears the rim at r=%d by only %.2f studs (needs 2+)", rt[1], clear))
+			end
+		end
+		-- Meteor shards reach y=7.0 worst case (size 6 ball +
+		-- shard, buildMeteorRocks) at radius 33..38.
+		for _, r in ipairs({ 38, 35, 33 }) do
+			local clear = sightY(r) - 7.0
+			if clear < 1.5 then
+				table.insert(problems, string.format("sightline clears the tallest meteor shard at r=%d by only %.2f studs (needs 1.5+)", r, clear))
+			end
+		end
+		if cam[2] < 5.5 + 2 then
+			table.insert(problems, "shot-2 camera is not 2+ studs above the rim top (5.5)")
+		end
+		-- Screen angles (same helpers as the hero-shot check).
+		local function vsub(a: { number }, b: { number }): { number }
+			return { a[1] - b[1], a[2] - b[2], a[3] - b[3] }
+		end
+		local function vdot(a: { number }, b: { number }): number
+			return a[1] * b[1] + a[2] * b[2] + a[3] * b[3]
+		end
+		local function vcross(a: { number }, b: { number }): { number }
+			return { a[2] * b[3] - a[3] * b[2], a[3] * b[1] - a[1] * b[3], a[1] * b[2] - a[2] * b[1] }
+		end
+		local function vnorm(a: { number }): { number }
+			local l = math.sqrt(vdot(a, a))
+			return { a[1] / l, a[2] / l, a[3] / l }
+		end
+		local function screenAngles(c: { number }, l: { number }, p: { number }): { number }
+			local fwd = vnorm(vsub(l, c))
+			local right = vnorm(vcross(fwd, { 0, 1, 0 }))
+			local up = vcross(right, fwd)
+			local d = vsub(p, c)
+			local h = math.atan2(vdot(d, right), vdot(d, fwd)) * 180 / math.pi
+			local v = math.atan2(vdot(d, up), vdot(d, fwd)) * 180 / math.pi
+			return { h, v }
+		end
+		local function inFrame(h: number, v: number): boolean
+			return math.abs(h) < 51 and math.abs(v) < 35
+		end
+		local nearEnd = screenAngles(cam, look, { 20, 1.2, 0 })
+		if not inFrame(nearEnd[1], nearEnd[2]) then
+			table.insert(problems, "the belt's near end (20, 1.2, 0) is out of shot 2's frame")
+		end
+		local beacon = screenAngles(cam, look, { 0, 1.2, 0 })
+		if not inFrame(beacon[1], beacon[2]) then
+			table.insert(problems, "the storm beacon (0, 1.2, 0) is out of shot 2's frame")
+		end
+		local farEnd = screenAngles(cam, look, { -20, 1.2, 0 })
+		if not inFrame(farEnd[1], farEnd[2]) then
+			table.insert(problems, "the belt's far end (-20, 1.2, 0) is out of shot 2's frame")
+		end
+		-- A Rotling at the belt's near end: feet y=1.2, body top
+		-- y=5.2 (4-stud body). Must read big (8deg+ = 11%+ of
+		-- frame height) and close enough for its tag (< 40 studs,
+		-- TagController's photo-mode range).
+		local topAngles = screenAngles(cam, look, { 20, 5.2, 0 })
+		local botAngles = screenAngles(cam, look, { 20, 1.2, 0 })
+		local bodyDeg = topAngles[2] - botAngles[2]
+		if bodyDeg < 8 then
+			table.insert(problems, string.format("near-end belt Rotling is only %.1fdeg tall (needs 8deg+)", bodyDeg))
+		end
+		local dist = math.sqrt((41 - 20) ^ 2 + (11 - 3) ^ 2 + (8 - 0) ^ 2)
+		if dist >= 40 then
+			table.insert(problems, string.format("near-end belt Rotling is %.1f studs away — its tag would not show in photo mode (needs < 40)", dist))
+		end
+		if #problems > 0 then
+			check("belt-shot", false, "shot 2 does not look down the belt — " .. table.concat(problems, "; ") .. ". Parts: SHOTS shot 2 (PhotoModeController.client.luau)")
+		else
+			check("belt-shot", true, "shot 2 looks down the belt: camera (41, 11, 8) -> (0, 2, 0), sightline clears rim by 2.5+ and shards by 2+, belt + beacon + far rim in frame, near-end Rotling 13% of frame at ~24 studs (tag readable)")
 		end
 	end
 end
