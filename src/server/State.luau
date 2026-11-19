@@ -153,6 +153,12 @@ State.eggCarriedByUser = {} :: { [number]: Model }
 -- Brainrot carrier the same as an egg carrier (rev 77).
 State.brainrotCarriedByUser = {} :: { [number]: Model }
 
+-- Base-grab heat, armed: [userId] = true while a base grab's heat is
+-- armed. The player picked a Brainrot up inside their own base
+-- interior, and the Guardian + rivals engage the moment the carrier
+-- steps OUTSIDE their own base interior (fix round 12, item 3).
+State.baseHeat = {} :: { [number]: boolean }
+
 -- Global event state: { name = "cash" | "shower" | "", endsAt = number }.
 State.globalEvent = { name = "", endsAt = 0 } :: { name: string, endsAt: number }
 

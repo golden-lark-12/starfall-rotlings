@@ -497,6 +497,18 @@ function RivalService.notifyBrainrotCarrier(player: Player)
 	notifyCarrier(player, "Brainrot")
 end
 
+-- Is any rival currently chasing this player for a carried Brainrot?
+-- (fix round 12, item 3) The heat watcher uses it so it engages
+-- once per carry, not once per 0.5s tick while the carrier is out.
+function RivalService.isChasingPlayer(userId: number): boolean
+	for _, rival in pairs(State.rivals) do
+		if rival.phase == "chase" and rival.targetUserId == userId then
+			return true
+		end
+	end
+	return false
+end
+
 -- Pick a victim: a real player with Rotlings on an unlocked base.
 local function pickVictim(): (Player?, number?)
 	local candidates: { Player } = {}
@@ -1157,9 +1169,21 @@ local function stepRival(rival: State.Rival, model: Model)
 				task.wait(1)
 			end
 		elseif not carryingEgg and not carryingBrainrot then
-			print("[Rival] " .. rival.name .. " chase ended — victim stopped carrying")
-			rival.phase = "idle"
-			rival.targetUserId = nil
+			-- (fix round 12, item 3) The carrier chase gets the
+			-- same safe-base end the hunt branch has: a carrier
+			-- who makes it back inside their own base interior
+			-- is home — the chase ends instead of piling rivals
+			-- up at the gate while the player stands safe inside.
+			local victimBase = BaseService.getPlayerBase(victim.UserId)
+			if victimBase and WorldBuilder.isOnBaseInterior(victimBase, victimRoot.Position) then
+				print("[Rival] " .. rival.name .. " chase ended — " .. victim.Name .. " reached their base interior")
+				rival.phase = "idle"
+				rival.targetUserId = nil
+			else
+				print("[Rival] " .. rival.name .. " chase ended — victim stopped carrying")
+				rival.phase = "idle"
+				rival.targetUserId = nil
+			end
 		else
 			local dist = (root.Position - victimRoot.Position).Magnitude
 			if dist <= 4 then
@@ -1339,6 +1363,44 @@ function RivalService.start()
 							-- vignette + flashing text + alarm stay
 							-- live the whole time the thief is inside.
 							Remotes.thiefAlertEvent():FireClient(victim, rival.name)
+						end
+					end
+				end
+			end
+		end
+	end)
+	task.spawn(function()
+		-- Base-grab heat watcher (fix round 12, item 3): a player
+		-- who picks a Brainrot up inside their OWN base arms the
+		-- heat (State.baseHeat, set in carryRotling) instead of
+		-- unleashing it — the chase must not spawn and instantly
+		-- despawn on a safe base, and it must not punish standing
+		-- in your own base. Every 0.5s, any armed carrier who has
+		-- stepped OUTSIDE their own base interior engages: the
+		-- Guardian wakes (onGrab) and the nearest rivals give
+		-- chase (notifyBrainrotCarrier). Engages once per carry —
+		-- the isChasing guards keep it from re-firing every tick
+		-- while the carrier is out. The flag clears when the
+		-- player stops carrying (removeCarried, or here), and it
+		-- stays set while carrying, so re-exiting the base after
+		-- a safe return re-engages the heat.
+		while true do
+			task.wait(0.5)
+			for userId, _ in pairs(State.baseHeat) do
+				local player = Players:GetPlayerByUserId(userId)
+				local carried = player and CarryService.getCarried(player)
+				if not player or not carried or #carried == 0 then
+					State.baseHeat[userId] = nil
+				else
+					local baseId = BaseService.getPlayerBase(userId)
+					local character = player.Character
+					local root = character and character:FindFirstChild("HumanoidRootPart")
+					if baseId and root and not WorldBuilder.isOnBaseInterior(baseId, root.Position) then
+						local GuardianService = require(script.Parent.GuardianService)
+						if not GuardianService.isChasing(player) and not RivalService.isChasingPlayer(userId) then
+							print("[Heat] " .. player.Name .. " left their base carrying — heat engages")
+							GuardianService.onGrab(player, carried[1])
+							RivalService.notifyBrainrotCarrier(player)
 						end
 					end
 				end

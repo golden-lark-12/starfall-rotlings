@@ -1709,6 +1709,40 @@ do
 	end
 end
 
+-- Fix round 12, item 3 — base-grab heat: picking a Brainrot up from
+-- your own base arms the heat (banner now) and engages the Guardian
+-- + rivals the moment you step outside your base interior.
+do
+	local carrySrc = read("src/server/CarryService.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	local stateSrc = read("src/server/State.luau")
+	if not carrySrc or not rivalSrc or not stateSrc then
+		step("base-heat", false, "CarryService.luau, RivalService.luau or State.luau missing")
+	else
+		local problems: { string } = {}
+		if not stateSrc:find("State%.baseHeat = {}") then
+			table.insert(problems, "State.baseHeat flag missing")
+		end
+		if not carrySrc:find("State%.baseHeat%[player%.UserId%] = true") then
+			table.insert(problems, "carryRotling never arms base heat")
+		end
+		if not carrySrc:find("The Guardian is watching") then
+			table.insert(problems, "no 'Guardian is watching' alert on arm")
+		end
+		if not rivalSrc:find("State%.baseHeat") then
+			table.insert(problems, "no heat watcher in RivalService")
+		end
+		if not rivalSrc:find("reached their base interior") then
+			table.insert(problems, "carrier chase has no safe-base end")
+		end
+		if #problems > 0 then
+			step("base-heat", false, table.concat(problems, "; "))
+		else
+			step("base-heat", true, "own-base pickup arms heat (banner); watcher engages Guardian + rivals on exit, once per carry; chase ends at base interior; flag clears when carry ends")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

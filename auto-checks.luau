@@ -5807,6 +5807,80 @@ do
 	end
 end
 
+-- -- (base-grab-heat) fix round 12, item 3: picking up from your OWN
+-- base brings heat ------------------------------------------------------
+-- Playtest 11: Malek picks a Brainrot up from his OWN base — to
+-- sell it or rearrange it — and nobody reacts: no chase, no alert,
+-- nothing. Two root causes: (a) GuardianService.onGrab fired only
+-- from tryGrab (crater grabs), never from pickupOwn; (b) the
+-- carrier chase had no safe-base end, and the guardian's chaseLoop
+-- despawns instantly on a safe base — so even calling onGrab from
+-- pickupOwn would spawn + instantly despawn. The fix is a
+-- positional rule in carryRotling (the one call site for crater
+-- grabs, own-base pickups and steals): on your own base interior
+-- the heat is ARMED (State.baseHeat + a "Guardian is watching"
+-- banner); outside it the heat fires immediately. A watcher in
+-- RivalService.start engages armed heat the moment the carrier
+-- steps outside their own base interior, once per carry. The
+-- carrier chase ends when the carrier reaches their base interior.
+do
+	local carrySrc = read("src/server/CarryService.luau")
+	local rivalSrc = read("src/server/RivalService.luau")
+	local stateSrc = read("src/server/State.luau")
+	local guardianSrc = read("src/server/GuardianService.luau")
+	if not carrySrc or not rivalSrc or not stateSrc or not guardianSrc then
+		check("base-grab-heat", false, "could not verify the base-grab heat — CarryService.luau, RivalService.luau, State.luau or GuardianService.luau missing")
+	else
+		local problems: { string } = {}
+		if not stateSrc:find("State%.baseHeat = {}") then
+			table.insert(problems, "State.baseHeat flag missing")
+		end
+		-- The positional rule lives in carryRotling, the one call
+		-- site: arm on your own base, engage outside it.
+		if not carrySrc:find("State%.baseHeat%[player%.UserId%] = true") then
+			table.insert(problems, "carryRotling never arms base heat")
+		end
+		if not carrySrc:find("isOnBaseInterior%(ownBaseId, root%.Position%)") then
+			table.insert(problems, "carryRotling does not test whether the carrier is on their own base interior")
+		end
+		if not carrySrc:find("The Guardian is watching") then
+			table.insert(problems, "carryRotling gives no 'Guardian is watching' alert when heat arms")
+		end
+		-- The old tryGrab-only onGrab call must be gone: heat has
+		-- ONE call site now (carryRotling), or crater grabs would
+		-- double-fire the guardian.
+		if carrySrc:find("THE CHASE: grabbing a Brainrot from the crater wakes the Crater") then
+			table.insert(problems, "tryGrab still has its own onGrab call — heat would double-fire on crater grabs")
+		end
+		if not carrySrc:find("GuardianService%.onGrab%(player, model%)") then
+			table.insert(problems, "carryRotling never wakes the Guardian")
+		end
+		-- The watcher engages armed heat on exit, once per carry.
+		if not rivalSrc:find("State%.baseHeat") then
+			table.insert(problems, "RivalService has no heat watcher")
+		end
+		if not rivalSrc:find("not GuardianService%.isChasing%(player%) and not RivalService%.isChasingPlayer%(userId%)") then
+			table.insert(problems, "the heat watcher has no once-per-carry guard")
+		end
+		if not rivalSrc:find("function RivalService%.isChasingPlayer") then
+			table.insert(problems, "RivalService.isChasingPlayer missing")
+		end
+		-- The carrier chase ends at the carrier's base interior.
+		if not rivalSrc:find('chase ended — " %.%. victim%.Name %.%. " reached their base interior') then
+			table.insert(problems, "the carrier chase has no safe-base end")
+		end
+		-- The flag clears when the carry ends.
+		if not carrySrc:find("State%.baseHeat%[player%.UserId%] = nil") then
+			table.insert(problems, "baseHeat is never cleared when the carry ends")
+		end
+		if #problems > 0 then
+			check("base-grab-heat", false, "the base-grab heat is incomplete — " .. table.concat(problems, "; ") .. ". Parts: CarryService.luau, RivalService.luau, State.luau")
+		else
+			check("base-grab-heat", true, "base-grab heat: carryRotling arms heat on your own base (banner) and engages outside it; watcher engages on exit once per carry; carrier chase ends at your base interior; flag clears when the carry ends")
+		end
+	end
+end
+
 -- (cu) Uniform placed size (rev 75; measure fixed fix round 9, item
 -- 5): every Brainrot on a pedestal stands at one BODY height
 -- (Config.PLACED_DISPLAY_HEIGHT), so the base reads as a tidy display

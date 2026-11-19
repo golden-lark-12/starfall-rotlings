@@ -182,12 +182,42 @@ function CarryService.carryRotling(player: Player, model: Model)
 	CarryService.reseatCarried(player)
 	-- Filling your arms turns every free grab prompt off.
 	CarryService.refreshFreePrompts()
-	-- THE CHASE (rev 77): carrying a Brainrot is dangerous — flag
-	-- the carrier and wake nearby rivals, same as an egg carrier.
+	-- THE CHASE (rev 77, positional rule in fix round 12, item 3):
+	-- carrying a Brainrot is dangerous — but the danger is about
+	-- the CARRY, not where you stand. If the carrier is inside
+	-- their OWN base interior, the heat is ARMED, not unleashed:
+	-- the Guardian is watching (banner now), and the Guardian +
+	-- rivals engage the moment the carrier steps outside their
+	-- own base interior (the heat watcher in RivalService.start).
+	-- That covers the case Malek actually plays: picking a
+	-- Brainrot up from his OWN base to sell it or rearrange it —
+	-- nothing happened before, because onGrab only fired from
+	-- crater grabs and the chase despawned instantly on a safe
+	-- base. Outside the base (crater grab, or a steal from
+	-- another base), the heat fires immediately, as before.
 	-- Deferred require: RivalService requires this module.
 	State.brainrotCarriedByUser[player.UserId] = model
-	local RivalService = require(script.Parent.RivalService)
-	RivalService.notifyBrainrotCarrier(player)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local ownBaseId = BaseService.getPlayerBase(player.UserId)
+	local onOwnBase = ownBaseId ~= nil and root ~= nil and WorldBuilder.isOnBaseInterior(ownBaseId, root.Position)
+	if onOwnBase then
+		State.baseHeat[player.UserId] = true
+		local def = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
+		local name = if def then def.name else "Brainrot"
+		print("[Heat] " .. player.Name .. " grabbed " .. name .. " on their own base — heat armed, Guardian watching")
+		Remotes.bannerEvent():FireClient(player, "🚨 You grabbed " .. name .. "! The Guardian is watching — step outside your base and they'll come for it!", 4)
+	else
+		local RivalService = require(script.Parent.RivalService)
+		RivalService.notifyBrainrotCarrier(player)
+		-- THE CHASE: grabbing a Brainrot outside your own base
+		-- wakes the Crater Guardian. Deferred require:
+		-- GuardianService requires this module. (Moved here from
+		-- tryGrab so the heat has ONE call site — carryRotling —
+		-- for crater grabs, own-base pickups and steals alike.)
+		local GuardianService = require(script.Parent.GuardianService)
+		GuardianService.onGrab(player, model)
+	end
 end
 
 function CarryService.removeCarried(player: Player, model: Model)
@@ -207,9 +237,11 @@ function CarryService.removeCarried(player: Player, model: Model)
 	CarryService.reseatCarried(player)
 	-- Freeing a slot turns the free grab prompts back on.
 	CarryService.refreshFreePrompts()
-	-- No longer carrying anything: the chase ends (rev 77).
+	-- No longer carrying anything: the chase ends (rev 77), and any
+	-- armed base-grab heat clears with it (fix round 12, item 3).
 	if #carried == 0 then
 		State.brainrotCarriedByUser[player.UserId] = nil
+		State.baseHeat[player.UserId] = nil
 	end
 end
 
@@ -366,10 +398,8 @@ function CarryService.tryGrab(player: Player, model: Model)
 	end
 	print("[Grab] " .. player.Name .. " grabbed " .. model.Name)
 	CarryService.carryRotling(player, model)
-	-- THE CHASE: grabbing a Brainrot from the crater wakes the Crater
-	-- Guardian. Deferred require: GuardianService requires this module.
-	local GuardianService = require(script.Parent.GuardianService)
-	GuardianService.onGrab(player, model)
+	-- (The Guardian + rival heat fires from carryRotling — the one
+	-- call site for crater grabs, own-base pickups and steals.)
 	MissionService.addProgress(player, "grab", 1)
 	-- Rare+ grabs count toward the "rare" contracts too.
 	local grabDef = RotlingCatalog.getDef(model:GetAttribute("DefId") :: string)
