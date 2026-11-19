@@ -1243,6 +1243,41 @@ local function buildBackground()
 	-- stars and meteor streak, so no shot has an empty horizon.
 end
 
+-- Boundary walls (fix round 10, item 3): huge walls enclosing the
+-- playable area — until now a player could walk off the 500x500 ground
+-- into the void. Placement: a square at +/-200. That encloses all
+-- gameplay (bases outer edge ~123, egg field radius <=130, storm
+-- meteor spread +/-150, spawn pad, altar, logo stage, SELL) AND the
+-- existing decor (the crashed spaceship saucer reaches ~x 192 — a
+-- +/-180 square would cut straight through it), clears the storm
+-- front sweep (+/-170) by 30 studs so the glowing wall never clips
+-- the boundary, and sits 50 studs inside the ground edge (+/-250).
+-- 40 tall (matches the storm front), dark stone deep purple with a
+-- gold Neon top edge so the boundary reads from anywhere. Solid
+-- (CanCollide = true, the part() default) — the fence posts stay
+-- non-colliding visual guides; these walls are the real boundary.
+local function buildBoundaryWalls()
+	local BOUNDARY_HALF = 200
+	local BOUNDARY_HEIGHT = 40
+	local thick = 2
+	local sides = {
+		{ name = "North", center = Vector3.new(0, BOUNDARY_HEIGHT / 2, -BOUNDARY_HALF), size = Vector3.new(BOUNDARY_HALF * 2, BOUNDARY_HEIGHT, thick), trimSize = Vector3.new(BOUNDARY_HALF * 2, 0.6, thick + 0.6) },
+		{ name = "South", center = Vector3.new(0, BOUNDARY_HEIGHT / 2, BOUNDARY_HALF), size = Vector3.new(BOUNDARY_HALF * 2, BOUNDARY_HEIGHT, thick), trimSize = Vector3.new(BOUNDARY_HALF * 2, 0.6, thick + 0.6) },
+		{ name = "West", center = Vector3.new(-BOUNDARY_HALF, BOUNDARY_HEIGHT / 2, 0), size = Vector3.new(thick, BOUNDARY_HEIGHT, BOUNDARY_HALF * 2), trimSize = Vector3.new(thick + 0.6, 0.6, BOUNDARY_HALF * 2) },
+		{ name = "East", center = Vector3.new(BOUNDARY_HALF, BOUNDARY_HEIGHT / 2, 0), size = Vector3.new(thick, BOUNDARY_HEIGHT, BOUNDARY_HALF * 2), trimSize = Vector3.new(thick + 0.6, 0.6, BOUNDARY_HALF * 2) },
+	}
+	for _, side in ipairs(sides) do
+		-- Solid by design: part() defaults CanCollide = true, and
+		-- nothing here turns it off — the wall stops players.
+		local wall = part("BoundaryWall", Enum.PartType.Block, side.size, Color3.fromRGB(48, 38, 72), CFrame.new(side.center), Enum.Material.Slate)
+		-- Gold Neon cap along the top edge, so the boundary reads
+		-- from anywhere in the map. Visual only, non-colliding.
+		local trim = part("BoundaryWallTrim", Enum.PartType.Block, side.trimSize, Color3.fromRGB(255, 200, 40), CFrame.new(side.center + Vector3.new(0, BOUNDARY_HEIGHT / 2 + 0.3, 0)), Enum.Material.Neon)
+		trim.CanCollide = false
+		trim.CastShadow = false
+	end
+end
+
 -- Signposts, fences and paths: the world reads as a place, not a
 -- field. Signposts point "Crater" and "Shop" at the junctions;
 -- fences line the spawn path and the crater-to-shop walk; stone
@@ -1508,6 +1543,7 @@ function WorldBuilder.build()
 	buildRocks()
 	buildHills()
 	buildGroundDetail()
+	buildBoundaryWalls()
 	buildCrystals()
 	buildSkyDecor()
 	buildWind()
@@ -1525,7 +1561,7 @@ function WorldBuilder.build()
 	-- in the sky.
 	buildLogoStage()
 	buildContractBoard()
-	print("[WorldBuilder] world built: " .. tostring(Config.BASE_COUNT) .. " bases, crater, conveyor, sell area, plaza, trees, rocks, hills, ground detail, crystals, islands, sky, wind, star shop, upgrade machines, rebirth altar, index wall, spaceship, background, signposts, fences, paths, critters, title billboard, logo stage, bounty board.")
+	print("[WorldBuilder] world built: " .. tostring(Config.BASE_COUNT) .. " bases, crater, conveyor, sell area, plaza, trees, rocks, hills, ground detail, boundary walls, crystals, islands, sky, wind, star shop, upgrade machines, rebirth altar, index wall, spaceship, background, signposts, fences, paths, critters, title billboard, logo stage, bounty board.")
 end
 
 return WorldBuilder

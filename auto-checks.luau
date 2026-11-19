@@ -7373,6 +7373,110 @@ do
 	end
 end
 
+-- Fix round 10, item 3 — huge boundary walls enclosing the map. Until
+-- now a player could walk off the 500x500 ground into the void.
+-- Placement: a square at +/-200 — it encloses all gameplay (bases
+-- outer edge ~123, egg field radius <=130, storm spread +/-150) AND
+-- the crashed spaceship saucer (reaches ~x 192, the binding
+-- constraint — +/-180 would cut straight through it), clears the
+-- storm front sweep (+/-170) by 30 studs, and sits 50 studs inside
+-- the ground edge (+/-250). 40 tall, dark stone deep purple, gold
+-- Neon top edge, solid (CanCollide = true).
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local configSrc = read("src/shared/Config.luau")
+	local eggSrc = read("src/server/MeteorEggService.luau")
+	if not worldSrc or not configSrc or not eggSrc then
+		check("boundary-walls", false, "could not verify the boundary walls — WorldBuilder.luau, Config.luau or MeteorEggService.luau missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find("local function buildBoundaryWalls") then
+			table.insert(problems, "no buildBoundaryWalls")
+		end
+		if not worldSrc:find("\n\tbuildBoundaryWalls%(%)") then
+			table.insert(problems, "buildBoundaryWalls is never called from WorldBuilder.build")
+		end
+		local half = worldSrc:match("local BOUNDARY_HALF = (%d+)")
+		local height = worldSrc:match("local BOUNDARY_HEIGHT = (%d+)")
+		if not half or not height then
+			table.insert(problems, "could not parse BOUNDARY_HALF / BOUNDARY_HEIGHT")
+		else
+			half = tonumber(half)
+			height = tonumber(height)
+			-- Four walls + four gold trims = a closed loop. The walls
+			-- are built in a loop over a 4-entry sides table, so the
+			-- count is the sides, not literal part() calls (there is
+			-- one call site, run 4 times).
+			local _, sideCount = 0, 0
+			for _, side in ipairs({ "North", "South", "West", "East" }) do
+				if worldSrc:find('name = "' .. side .. '"') then
+					sideCount += 1
+				else
+					table.insert(problems, "no " .. side .. " wall")
+				end
+			end
+			if sideCount ~= 4 then
+				table.insert(problems, "found " .. tostring(sideCount) .. " wall sides, not 4")
+			end
+			if not worldSrc:find("for _, side in ipairs%(sides%) do") then
+				table.insert(problems, "no loop building one wall per side")
+			end
+			-- The square must enclose everything gameplay + decor.
+			local eggMax = eggSrc:match("math.random%(40, (%d+)%)")
+			if eggMax and half <= tonumber(eggMax) then
+				table.insert(problems, "walls at +/-" .. tostring(half) .. " do not enclose the egg field (radius " .. eggMax .. ")")
+			end
+			local baseRadius = configSrc:match("Config.BASE_RADIUS = (%d+)")
+			if baseRadius and half <= tonumber(baseRadius) + 13 then
+				table.insert(problems, "walls at +/-" .. tostring(half) .. " do not enclose the bases (radius " .. baseRadius .. " + 13 platform)")
+			end
+			local stormRange = configSrc:match("Config.STORM_FRONT_RANGE = (%d+)")
+			if stormRange and half <= tonumber(stormRange) then
+				table.insert(problems, "walls at +/-" .. tostring(half) .. " do not clear the storm front sweep (+/-" .. stormRange .. ")")
+			end
+			-- The spaceship saucer (centre x=170, diameter 44) reaches
+			-- ~x 192 — the binding constraint for the placement.
+			local shipX = worldSrc:match("local shipCf = CFrame.new%(([%-%d%.]+), 0, ([%-%d%.]+)%)")
+			local saucerD = worldSrc:match('part%("SpaceshipSaucer".-Vector3.new%([%-%d%.]+, ([%-%d%.]+), [%-%d%.]+%)')
+			if shipX and saucerD then
+				local reach = math.abs(tonumber(shipX)) + tonumber(saucerD) / 2
+				if half <= reach then
+					table.insert(problems, "walls at +/-" .. tostring(half) .. " cut through the spaceship saucer (reaches x " .. string.format("%.0f", reach) .. ")")
+				end
+			end
+			-- Inside the 500x500 ground, and tall enough to read.
+			if half >= 250 then
+				table.insert(problems, "walls at +/-" .. tostring(half) .. " are outside the 500x500 ground (+/-250)")
+			end
+			if height < 30 or height > 40 then
+				table.insert(problems, "wall height is " .. tostring(height) .. " (must be 30-40)")
+			end
+		end
+		-- The walls must be solid: no wall inside buildBoundaryWalls
+		-- turns off collision (the gold trim is visual-only, and may).
+		-- Scoped to the function body: an unrelated wall.CanCollide
+		-- = false exists elsewhere in WorldBuilder (line ~715).
+		local bodyStart = worldSrc:find("local function buildBoundaryWalls")
+		if bodyStart then
+			local _, bodyEnd = worldSrc:find("\nend\n", bodyStart)
+			local body = worldSrc:sub(bodyStart, bodyEnd or #worldSrc)
+			if body:find("wall%.CanCollide = false") then
+				table.insert(problems, "a BoundaryWall turns off collision")
+			end
+			if not body:find("trim%.CanCollide = false") then
+				table.insert(problems, "the gold trim is collidable (should be visual-only)")
+			end
+		else
+			table.insert(problems, "could not extract the buildBoundaryWalls body")
+		end
+		if #problems > 0 then
+			check("boundary-walls", false, "the boundary walls are wrong — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau, Config.luau")
+		else
+			check("boundary-walls", true, "4 solid walls + gold trims form a closed square at +/-200, 40 tall: encloses bases, egg field, storm spread and the spaceship (reaches ~192); clears the storm front by 30; inside the 500x500 ground")
+		end
+	end
+end
+
 -- -- Summary ------------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}

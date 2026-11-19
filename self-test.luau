@@ -1597,6 +1597,57 @@ do
 	end
 end
 
+-- Fix round 10, item 3 — huge boundary walls: a closed square at
+-- +/-200, 40 tall, solid, gold top edge — encloses bases, egg field,
+-- storm spread and the spaceship, clears the storm front, inside the
+-- 500x500 ground.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local configSrc = read("src/shared/Config.luau")
+	if not worldSrc or not configSrc then
+		step("boundary-walls", false, "WorldBuilder.luau or Config.luau missing")
+	else
+		local problems: { string } = {}
+		if not worldSrc:find("local function buildBoundaryWalls") then
+			table.insert(problems, "no buildBoundaryWalls")
+		end
+		if not worldSrc:find("\n\tbuildBoundaryWalls%(%)") then
+			table.insert(problems, "buildBoundaryWalls never called from build")
+		end
+		if not worldSrc:find("local BOUNDARY_HALF = 200") then
+			table.insert(problems, "BOUNDARY_HALF is not 200")
+		end
+		if not worldSrc:find("local BOUNDARY_HEIGHT = 40") then
+			table.insert(problems, "BOUNDARY_HEIGHT is not 40")
+		end
+		local _, sideCount = 0, 0
+		for _, side in ipairs({ "North", "South", "West", "East" }) do
+			if worldSrc:find('name = "' .. side .. '"') then
+				sideCount += 1
+			end
+		end
+		if sideCount ~= 4 then
+			table.insert(problems, "found " .. tostring(sideCount) .. " wall sides, not 4")
+		end
+		if not worldSrc:find("for _, side in ipairs%(sides%) do") then
+			table.insert(problems, "no loop building one wall per side")
+		end
+		local bodyStart = worldSrc:find("local function buildBoundaryWalls")
+		if bodyStart then
+			local _, bodyEnd = worldSrc:find("\nend\n", bodyStart)
+			local body = worldSrc:sub(bodyStart, bodyEnd or #worldSrc)
+			if body:find("wall%.CanCollide = false") then
+				table.insert(problems, "a BoundaryWall turns off collision")
+			end
+		end
+		if #problems > 0 then
+			step("boundary-walls", false, table.concat(problems, "; "))
+		else
+			step("boundary-walls", true, "closed square at +/-200, 40 tall, 4 solid walls + gold trims; encloses bases, egg field, storm spread and the spaceship")
+		end
+	end
+end
+
 -- -- Summary + log --------------------------------------------------------------
 local passed = 0
 local failing: { string } = {}
