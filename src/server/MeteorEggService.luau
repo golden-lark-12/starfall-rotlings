@@ -41,8 +41,8 @@ local legendaryBeam: Part? = nil
 -- place: the label is a TextLabel inside the EggLabel billboard that
 -- hangs off the shell.
 local function setEggLabel(model: Model, text: string)
-	local shell = model.PrimaryPart
-	local board = shell and shell:FindFirstChild("EggLabel")
+	local husk = model.PrimaryPart
+	local board = husk and husk:FindFirstChild("EggLabel")
 	local label = board and board:FindFirstChildOfClass("TextLabel")
 	if label then
 		label.Text = text
@@ -56,25 +56,25 @@ end
 -- clear spot, then a fixed fallback in the open field.
 local function eggPosition(): Vector3
 	for _ = 1, 10 do
-		local angle = math.random() * math.pi * 2
-		local radius = math.random(48, 130)
-		local pos = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
-		local nearBase = false
+		local bearing = math.random() * math.pi * 2
+		local reach = math.random(48, 130)
+		local pos = Vector3.new(math.cos(bearing) * reach, 0, math.sin(bearing) * reach)
+		local tooClose = false
 		for baseId = 1, Config.BASE_COUNT do
-			local centre = WorldBuilder.baseCFrame(baseId)
-			if centre and (pos - centre.Position).Magnitude < 24 then
-				nearBase = true
+			local hub = WorldBuilder.baseCFrame(baseId)
+			if hub and (pos - hub.Position).Magnitude < 24 then
+				tooClose = true
 				break
 			end
 		end
-		if nearBase then
+		if tooClose then
 			continue
 		end
-		local onSell = math.abs(pos.X - 62) < 14 and math.abs(pos.Z) < 14
-		local onShop = math.abs(pos.X + 45) < 16 and math.abs(pos.Z - 45) < 14
-		local onAltar = math.abs(pos.X) < 12 and math.abs(pos.Z + 70) < 12
-		local onSpawn = math.abs(pos.X) < 20 and pos.Z > 70
-		if not onSell and not onShop and not onAltar and not onSpawn then
+		local atSell = math.abs(pos.X - 62) < 14 and math.abs(pos.Z) < 14
+		local atShop = math.abs(pos.X + 45) < 16 and math.abs(pos.Z - 45) < 14
+		local atAltar = math.abs(pos.X) < 12 and math.abs(pos.Z + 70) < 12
+		local atSpawn = math.abs(pos.X) < 20 and pos.Z > 70
+		if not atSell and not atShop and not atAltar and not atSpawn then
 			return pos
 		end
 	end
@@ -85,15 +85,15 @@ end
 -- kinder than crater spawns: Commons dominate, but every tier up to
 -- Divine is on the table, so a storm egg can always surprise you.
 local function rollEggRarity(): string
-	local total = 0
+	local sum = 0
 	for _, weight in ipairs(Config.EGG_RARITY_WEIGHTS) do
-		total += weight
+		sum += weight
 	end
-	local roll = math.random(1, total)
-	local running = 0
+	local pick = math.random(1, sum)
+	local accum = 0
 	for tier = 1, 7 do
-		running += Config.EGG_RARITY_WEIGHTS[tier]
-		if roll <= running then
+		accum += Config.EGG_RARITY_WEIGHTS[tier]
+		if pick <= accum then
 			return RarityConfig.ORDER[tier]
 		end
 	end
@@ -106,12 +106,12 @@ end
 -- come out Meteor-scorched instead of Gold or Rainbow.
 local function rollHatchDef(): (RotlingCatalog.RotlingDef, string?)
 	local rarity = rollEggRarity()
-	local pool = RotlingCatalog.defsOfRarity(rarity)
-	local def = pool[math.random(1, #pool)]
+	local choices = RotlingCatalog.defsOfRarity(rarity)
+	local pick = choices[math.random(1, #choices)]
 	if math.random() < Config.EGG_SCORCHED_CHANCE then
-		return def, "Scorched"
+		return pick, "Scorched"
 	end
-	return def, MutationConfig.rollMutation()
+	return pick, MutationConfig.rollMutation()
 end
 
 -- How long an egg of this rarity sits on the incubator before it
@@ -143,38 +143,38 @@ local function buildEgg(position: Vector3): Model
 	-- The layered look: two flattened balls hugging the shell, one
 	-- purple high up, one teal low down, each wider than the shell at
 	-- its own height so the rim shows. Welded, so they ride the shell.
-	local bands = {
+	local stripes = {
 		{ 0.8, 3.3, Color3.fromRGB(190, 150, 255) },
 		{ -0.9, 3.2, Color3.fromRGB(120, 220, 200) },
 	}
-	for _, spec in ipairs(bands) do
-		local band = Instance.new("Part")
-		band.Name = "EggBand"
-		band.Shape = Enum.PartType.Ball
-		band.Size = Vector3.new(spec[2], 0.6, spec[2])
-		band.Color = spec[3]
-		band.Material = Enum.Material.SmoothPlastic
-		band.Anchored = true
-		band.CanCollide = false
-		band.CFrame = shell.CFrame * CFrame.new(0, spec[1], 0)
-		band.Parent = model
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = shell
-		weld.Part1 = band
-		weld.Parent = band
+	for _, detail in ipairs(stripes) do
+		local stripe = Instance.new("Part")
+		stripe.Name = "EggBand"
+		stripe.Shape = Enum.PartType.Ball
+		stripe.Size = Vector3.new(detail[2], 0.6, detail[2])
+		stripe.Color = detail[3]
+		stripe.Material = Enum.Material.SmoothPlastic
+		stripe.Anchored = true
+		stripe.CanCollide = false
+		stripe.CFrame = shell.CFrame * CFrame.new(0, detail[1], 0)
+		stripe.Parent = model
+		local link = Instance.new("WeldConstraint")
+		link.Part0 = shell
+		link.Part1 = stripe
+		link.Parent = stripe
 	end
 	local light = Instance.new("PointLight")
 	light.Color = Color3.fromRGB(255, 220, 130)
 	light.Brightness = 2
 	light.Range = 16
 	light.Parent = shell
-	local board = Instance.new("BillboardGui")
-	board.Name = "EggLabel"
-	board.Size = UDim2.fromOffset(200, 40)
-	board.ExtentsOffsetWorldSpace = Vector3.new(0, 3.4, 0)
-	board.MaxDistance = 60
-	board.AlwaysOnTop = true
-	board.Parent = shell
+	local tag = Instance.new("BillboardGui")
+	tag.Name = "EggLabel"
+	tag.Size = UDim2.fromOffset(200, 40)
+	tag.ExtentsOffsetWorldSpace = Vector3.new(0, 3.4, 0)
+	tag.MaxDistance = 60
+	tag.AlwaysOnTop = true
+	tag.Parent = shell
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
@@ -183,13 +183,13 @@ local function buildEgg(position: Vector3): Model
 	label.Font = Enum.Font.FredokaOne
 	label.TextSize = 20
 	label.TextScaled = true
-	label.Parent = board
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.ActionText = "Grab Meteor Egg"
-	prompt.ObjectText = "Heavy! Walk slower"
-	prompt.MaxActivationDistance = 8
-	prompt.Parent = shell
-	prompt.Triggered:Connect(function(player: Player)
+	label.Parent = tag
+	local grab = Instance.new("ProximityPrompt")
+	grab.ActionText = "Grab Meteor Egg"
+	grab.ObjectText = "Heavy! Walk slower"
+	grab.MaxActivationDistance = 8
+	grab.Parent = shell
+	grab.Triggered:Connect(function(player: Player)
 		MeteorEggService.grabEgg(player, model)
 	end)
 	model.Parent = workspace
@@ -204,11 +204,11 @@ end
 function MeteorEggService.spawnEggsForStorm()
 	for _ = 1, Config.EGGS_PER_STORM do
 		local hatchDef, hatchMutation = rollHatchDef()
-		local spot = eggPosition()
-		local model = buildEgg(spot)
-		local shell = model.PrimaryPart
-		State.eggs[model] = {
-			model = model,
+		local site = eggPosition()
+		local egg = buildEgg(site)
+		local husk = egg.PrimaryPart
+		State.eggs[egg] = {
+			model = egg,
 			phase = "falling",
 			carrier = nil,
 			baseId = nil,
@@ -217,28 +217,28 @@ function MeteorEggService.spawnEggsForStorm()
 			hatchMutation = hatchMutation,
 			bornAt = time(),
 		}
-		if shell and shell:IsA("BasePart") then
-			local fall = TweenService:Create(
-				shell,
+		if husk and husk:IsA("BasePart") then
+			local drop = TweenService:Create(
+				husk,
 				TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-				{ CFrame = CFrame.new(spot + Vector3.new(0, 2.4, 0)) }
+				{ CFrame = CFrame.new(site + Vector3.new(0, 2.4, 0)) }
 			)
-			fall.Completed:Connect(function()
-				local entry = State.eggs[model]
-				if entry and entry.phase == "falling" then
-					entry.phase = "ground"
+			drop.Completed:Connect(function()
+				local record = State.eggs[egg]
+				if record and record.phase == "falling" then
+					record.phase = "ground"
 				end
 			end)
-			fall:Play()
+			drop:Play()
 		end
 		-- Five minutes on the ground, then it is gone: a storm egg
 		-- nobody grabs fades rather than littering the field all
 		-- match. Carried and incubating eggs are untouched.
 		task.delay(300, function()
-			local entry = State.eggs[model]
-			if entry and (entry.phase == "ground" or entry.phase == "falling") then
-				State.eggs[model] = nil
-				model:Destroy()
+			local record = State.eggs[egg]
+			if record and (record.phase == "ground" or record.phase == "falling") then
+				State.eggs[egg] = nil
+				egg:Destroy()
 			end
 		end)
 	end
@@ -262,30 +262,30 @@ local function spawnLegendaryEgg()
 	if legendaryEggModel then
 		return
 	end
-	local pool = RotlingCatalog.defsOfRarity("Legendary")
-	if #pool == 0 then
+	local legends = RotlingCatalog.defsOfRarity("Legendary")
+	if #legends == 0 then
 		return
 	end
-	local def = pool[math.random(1, #pool)]
-	local angle = math.random() * math.pi * 2
-	local radius = math.random(5, 24)
-	local target = Vector3.new(math.cos(angle) * radius, Config.CRATER_FLOOR_Y, math.sin(angle) * radius)
-	local model = buildEgg(target)
-	local shell = model.PrimaryPart
-	if shell and shell:IsA("BasePart") then
-		shell.Color = Color3.fromRGB(255, 215, 0)
-		local glow = shell:FindFirstChildOfClass("PointLight")
-		if glow then
-			glow.Color = Color3.fromRGB(255, 215, 0)
-			glow.Range = 30
+	local entry = legends[math.random(1, #legends)]
+	local bearing = math.random() * math.pi * 2
+	local reach = math.random(5, 24)
+	local spot = Vector3.new(math.cos(bearing) * reach, Config.CRATER_FLOOR_Y, math.sin(bearing) * reach)
+	local egg = buildEgg(spot)
+	local husk = egg.PrimaryPart
+	if husk and husk:IsA("BasePart") then
+		husk.Color = Color3.fromRGB(255, 215, 0)
+		local lamp = husk:FindFirstChildOfClass("PointLight")
+		if lamp then
+			lamp.Color = Color3.fromRGB(255, 215, 0)
+			lamp.Range = 30
 		end
 	end
-	for _, child in ipairs(model:GetDescendants()) do
+	for _, child in ipairs(egg:GetDescendants()) do
 		if child.Name == "EggBand" then
 			child.Color = Color3.fromRGB(255, 215, 0)
 		end
 	end
-	setEggLabel(model, "🌟 LEGENDARY EGG — " .. tostring(Config.LEGENDARY_EGG_LIFETIME) .. "s!")
+	setEggLabel(egg, "🌟 LEGENDARY EGG — " .. tostring(Config.LEGENDARY_EGG_LIFETIME) .. "s!")
 	local beam = Instance.new("Part")
 	beam.Name = "LegendaryEggBeam"
 	beam.Shape = Enum.PartType.Cylinder
@@ -295,33 +295,33 @@ local function spawnLegendaryEgg()
 	beam.Transparency = 0.3
 	beam.Anchored = true
 	beam.CanCollide = false
-	beam.CFrame = CFrame.new(target + Vector3.new(0, 20, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	beam.CFrame = CFrame.new(spot + Vector3.new(0, 20, 0)) * CFrame.Angles(0, 0, math.rad(90))
 	beam.Parent = workspace
 	legendaryBeam = beam
-	legendaryEggModel = model
-	State.eggs[model] = {
-		model = model,
+	legendaryEggModel = egg
+	State.eggs[egg] = {
+		model = egg,
 		phase = "falling",
 		carrier = nil,
 		baseId = nil,
 		hatchAt = nil,
-		hatchDef = def.id,
+		hatchDef = entry.id,
 		hatchMutation = nil,
 		bornAt = time(),
 	}
-	if shell and shell:IsA("BasePart") then
-		local fall = TweenService:Create(
-			shell,
+	if husk and husk:IsA("BasePart") then
+		local drop = TweenService:Create(
+			husk,
 			TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-			{ CFrame = CFrame.new(target + Vector3.new(0, 2.4, 0)) }
+			{ CFrame = CFrame.new(spot + Vector3.new(0, 2.4, 0)) }
 		)
-		fall.Completed:Connect(function()
-			local entry = State.eggs[model]
+		drop.Completed:Connect(function()
+			local entry = State.eggs[egg]
 			if entry and entry.phase == "falling" then
 				entry.phase = "ground"
 			end
 		end)
-		fall:Play()
+		drop:Play()
 	end
 	Remotes.bannerEvent():FireAllClients("🌟 LEGENDARY EGG HAS FALLEN IN THE CRATER — grab it in " .. tostring(Config.LEGENDARY_EGG_LIFETIME) .. "s!", 6)
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -329,12 +329,12 @@ local function spawnLegendaryEgg()
 	end
 	print("[MeteorEgg] legendary egg dropped in the crater")
 	task.delay(Config.LEGENDARY_EGG_LIFETIME, function()
-		local entry = State.eggs[model]
+		local entry = State.eggs[egg]
 		if entry and (entry.phase == "ground" or entry.phase == "falling") then
-			State.eggs[model] = nil
+			State.eggs[egg] = nil
 			legendaryEggModel = nil
 			clearLegendaryBeam()
-			model:Destroy()
+			egg:Destroy()
 			Remotes.bannerEvent():FireAllClients("💨 The legendary egg vanished…", 4)
 			print("[MeteorEgg] LEGENDARY egg vanished unclaimed")
 		end
@@ -344,18 +344,18 @@ end
 -- Pick up a meteor egg. Everything is validated BEFORE any state
 -- changes: a failed grab logs and leaves the egg exactly as it was.
 function MeteorEggService.grabEgg(player: Player, model: Model)
-	local entry = State.eggs[model]
-	if not entry then
+	local record = State.eggs[model]
+	if not record then
 		print("[MeteorEgg] egg grab failed — no egg record for " .. player.Name)
 		return
 	end
-	if entry.phase == "carried" then
+	if record.phase == "carried" then
 		Remotes.bannerEvent():FireClient(player, "That egg is already being carried!", 3)
 		print("[MeteorEgg] egg grab failed — already carried (" .. player.Name .. ")")
 		return
 	end
-	if entry.phase ~= "ground" and entry.phase ~= "falling" then
-		print("[MeteorEgg] egg grab failed — egg is " .. entry.phase .. " (" .. player.Name .. ")")
+	if record.phase ~= "ground" and record.phase ~= "falling" then
+		print("[MeteorEgg] egg grab failed — egg is " .. record.phase .. " (" .. player.Name .. ")")
 		return
 	end
 	if State.eggCarriedByUser[player.UserId] then
@@ -363,31 +363,31 @@ function MeteorEggService.grabEgg(player: Player, model: Model)
 		print("[MeteorEgg] egg grab failed — " .. player.Name .. " already carries one")
 		return
 	end
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	local shell = model.PrimaryPart
-	if not root or not shell then
-		print("[MeteorEgg] egg grab failed — no root or shell for " .. player.Name)
+	local avatar = player.Character
+	local root = avatar and avatar:FindFirstChild("HumanoidRootPart")
+	local husk = model.PrimaryPart
+	if not root or not husk then
+		print("[MeteorEgg] egg grab failed — no root or husk for " .. player.Name)
 		return
 	end
 	-- All checks passed: now mutate.
-	entry.phase = "carried"
-	entry.carrier = player.UserId
+	record.phase = "carried"
+	record.carrier = player.UserId
 	State.eggCarriedByUser[player.UserId] = model
 	if model == legendaryEggModel then
 		legendaryEggModel = nil
 		clearLegendaryBeam()
 	end
-	shell.Anchored = false
-	local weld = Instance.new("Weld")
-	weld.Name = "EggWeld"
-	weld.Part0 = root
-	weld.Part1 = shell
-	weld.C0 = CFrame.new(0, Config.CARRY_Y, Config.CARRY_Z)
-	weld.Parent = shell
+	husk.Anchored = false
+	local link = Instance.new("Weld")
+	link.Name = "EggWeld"
+	link.Part0 = root
+	link.Part1 = husk
+	link.C0 = CFrame.new(0, Config.CARRY_Y, Config.CARRY_Z)
+	link.Parent = husk
 	-- The prompt goes off once the egg is carried: a live "Grab
 	-- Meteor Egg" prompt on a carried egg reads as "E does nothing".
-	local prompt = shell:FindFirstChildOfClass("ProximityPrompt")
+	local prompt = husk:FindFirstChildOfClass("ProximityPrompt")
 	if prompt then
 		prompt.Enabled = false
 	end
@@ -400,41 +400,41 @@ end
 
 -- Drop the egg the player carries (hit, slapped, died, left, or G).
 function MeteorEggService.dropEgg(player: Player)
-	local carried = State.eggCarriedByUser[player.UserId]
-	if not carried then
+	local egg = State.eggCarriedByUser[player.UserId]
+	if not egg then
 		return
 	end
-	local entry = State.eggs[carried]
+	local record = State.eggs[egg]
 	State.eggCarriedByUser[player.UserId] = nil
-	if entry then
-		entry.phase = "ground"
-		entry.carrier = nil
+	if record then
+		record.phase = "ground"
+		record.carrier = nil
 	end
-	local shell = carried.PrimaryPart
-	if shell then
-		local weld = shell:FindFirstChild("EggWeld")
-		if weld then
-			weld:Destroy()
+	local husk = egg.PrimaryPart
+	if husk then
+		local link = husk:FindFirstChild("EggWeld")
+		if link then
+			link:Destroy()
 		end
-		shell.Anchored = true
-		-- The prompt comes back: the dropped egg is grabbable again.
-		local prompt = shell:FindFirstChildOfClass("ProximityPrompt")
-		if prompt then
-			prompt.Enabled = true
+		husk.Anchored = true
+		-- The grab comes back: the dropped egg is grabbable again.
+		local grab = husk:FindFirstChildOfClass("ProximityPrompt")
+		if grab then
+			grab.Enabled = true
 		end
-		local character = player.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart")
-		local dropAt = if root then root.Position + Vector3.new(0, 0, 3) else Vector3.new(0, 0, 0)
-		carried:PivotTo(CFrame.new(dropAt + Vector3.new(0, 2.4, 0)))
+		local avatar = player.Character
+		local root = avatar and avatar:FindFirstChild("HumanoidRootPart")
+		local spot = if root then root.Position + Vector3.new(0, 0, 3) else Vector3.new(0, 0, 0)
+		egg:PivotTo(CFrame.new(spot + Vector3.new(0, 2.4, 0)))
 	end
 	BoostService.applyWalkSpeed(player)
 end
 
--- Place a carried egg on your base's incubator: it hatches after a
+-- Place a egg egg on your base's incubator: it hatches after a
 -- rarity-scaled wait (see hatchTimeForRarity).
 function MeteorEggService.placeEgg(player: Player)
-	local carried = State.eggCarriedByUser[player.UserId]
-	if not carried then
+	local egg = State.eggCarriedByUser[player.UserId]
+	if not egg then
 		Remotes.bannerEvent():FireClient(player, "Carry a meteor egg to the incubator first!", 3)
 		return
 	end
@@ -442,16 +442,16 @@ function MeteorEggService.placeEgg(player: Player)
 	if not baseId then
 		return
 	end
-	local nestCf = WorldBuilder.incubatorCFrame(baseId)
-	if not nestCf then
+	local cradle = WorldBuilder.incubatorCFrame(baseId)
+	if not cradle then
 		return
 	end
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local avatar = player.Character
+	local root = avatar and avatar:FindFirstChild("HumanoidRootPart")
 	if not root then
 		return
 	end
-	if (root.Position - nestCf.Position).Magnitude > 16 then
+	if (root.Position - cradle.Position).Magnitude > 16 then
 		Remotes.bannerEvent():FireClient(player, "Stand on the incubator to place the egg.", 2)
 		return
 	end
@@ -468,16 +468,16 @@ function MeteorEggService.placeEgg(player: Player)
 			return
 		end
 	end
-	local entry = State.eggs[carried]
+	local record = State.eggs[egg]
 	State.eggCarriedByUser[player.UserId] = nil
-	local shell = carried.PrimaryPart
-	if shell then
-		local weld = shell:FindFirstChild("EggWeld")
-		if weld then
-			weld:Destroy()
+	local husk = egg.PrimaryPart
+	if husk then
+		local link = husk:FindFirstChild("EggWeld")
+		if link then
+			link:Destroy()
 		end
-		shell.Anchored = true
-		carried:PivotTo(nestCf * CFrame.new(0, 2.4, 0))
+		husk.Anchored = true
+		egg:PivotTo(cradle * CFrame.new(0, 2.4, 0))
 	end
 	-- The hatch was rolled at SPAWN, so the egg already knows its
 	-- rarity — use the stored result. A fresh roll is only the
@@ -486,38 +486,38 @@ function MeteorEggService.placeEgg(player: Player)
 	-- incubator is where the mystery ends.
 	local hatchTime = Config.EGG_HATCH_TIME[1]
 	local placedRarity = "Common"
-	if entry then
-		entry.phase = "incubating"
-		entry.carrier = nil
-		entry.baseId = baseId
-		local def: RotlingCatalog.RotlingDef? = if entry.hatchDef then RotlingCatalog.getDef(entry.hatchDef) else nil
+	if record then
+		record.phase = "incubating"
+		record.carrier = nil
+		record.baseId = baseId
+		local def: RotlingCatalog.RotlingDef? = if record.hatchDef then RotlingCatalog.getDef(record.hatchDef) else nil
 		if not def then
 			local freshDef, freshMutation = rollHatchDef()
 			def = freshDef
-			entry.hatchDef = freshDef.id
-			entry.hatchMutation = freshMutation
+			record.hatchDef = freshDef.id
+			record.hatchMutation = freshMutation
 		end
 		placedRarity = (def :: RotlingCatalog.RotlingDef).rarity
 		hatchTime = hatchTimeForRarity(placedRarity)
 		-- Egg Warmer: -25% hatch time per tier, read live from the
 		-- profile, never below 15s.
 		local profile = DataService.getProfile(player)
-		local eggTier = if profile then profile.eggTier else 0
-		hatchTime = math.max(15, math.floor(hatchTime * (1 - Config.EGG_WARMER_REDUCTION * eggTier)))
-		entry.hatchAt = time() + hatchTime
-		setEggLabel(carried, "🥚 " .. string.upper(placedRarity) .. " EGG — " .. tostring(hatchTime) .. "s")
+		local warmerTier = if profile then profile.warmerTier else 0
+		hatchTime = math.max(15, math.floor(hatchTime * (1 - Config.EGG_WARMER_REDUCTION * warmerTier)))
+		record.hatchAt = time() + hatchTime
+		setEggLabel(egg, "🥚 " .. string.upper(placedRarity) .. " EGG — " .. tostring(hatchTime) .. "s")
 		-- Reveal: the incubator is where the rarity shows — tint the
-		-- label + glow to the rarity colour now that it is placed.
+		-- label + lamp to the rarity colour now that it is placed.
 		-- On the ground it was identical gold.
 		local rarityColor = RarityConfig.rarityByName(placedRarity).color
-		local eggBillboard = shell and shell:FindFirstChild("EggLabel")
-		local revealLabel = eggBillboard and eggBillboard:FindFirstChildOfClass("TextLabel")
-		if revealLabel then
-			revealLabel.TextColor3 = rarityColor
+		local board = husk and husk:FindFirstChild("EggLabel")
+		local shown = board and board:FindFirstChildOfClass("TextLabel")
+		if shown then
+			shown.TextColor3 = rarityColor
 		end
-		local glow = shell and shell:FindFirstChildOfClass("PointLight")
-		if glow then
-			glow.Color = rarityColor
+		local lamp = husk and husk:FindFirstChildOfClass("PointLight")
+		if lamp then
+			lamp.Color = rarityColor
 		end
 		print("[MeteorEgg] " .. player.Name .. " placed an egg (" .. placedRarity .. ") — hatches in " .. tostring(hatchTime) .. "s")
 	end
@@ -533,24 +533,24 @@ end
 -- here, no decals, no copied art). The sequence runs in its own
 -- thread so the hatch loop keeps ticking.
 local function crackEgg(model: Model, egg: State.Egg, baseId: number)
-	local husk = model.PrimaryPart
-	if not husk or not husk:IsA("BasePart") then
+	local eggShell = model.PrimaryPart
+	if not eggShell or not eggShell:IsA("BasePart") then
 		model:Destroy()
 		return
 	end
-	local hatchPos = husk.Position
+	local hatchPos = eggShell.Position
 	setEggLabel(model, "🥚 HATCHING!")
 	print("[MeteorEgg] egg on base " .. tostring(baseId) .. " is hatching — cracking open")
 	-- 1. The crack: the shell shakes, then a dark crack appears on
 	-- it, three times — the shaking reads as the animal inside
 	-- fighting its way out.
-	local restCf = husk.CFrame
+	local homeCf = eggShell.CFrame
 	for _ = 1, 3 do
 		for _ = 1, 3 do
-			husk.CFrame = restCf * CFrame.Angles(math.rad(math.random(-6, 6)), math.rad(math.random(-6, 6)), 0)
+			eggShell.CFrame = homeCf * CFrame.Angles(math.rad(math.random(-6, 6)), math.rad(math.random(-6, 6)), 0)
 			task.wait(0.12)
 		end
-		husk.CFrame = restCf
+		eggShell.CFrame = homeCf
 		local crack = Instance.new("Part")
 		crack.Name = "Crack"
 		crack.Shape = Enum.PartType.Block
@@ -559,16 +559,16 @@ local function crackEgg(model: Model, egg: State.Egg, baseId: number)
 		crack.Material = Enum.Material.SmoothPlastic
 		crack.Anchored = true
 		crack.CanCollide = false
-		local angle = math.rad(math.random(0, 360))
-		crack.CFrame = restCf * CFrame.Angles(0, angle, 0) * CFrame.new(0, math.random(-1, 1), 1.6) * CFrame.Angles(math.rad(math.random(-30, 30)), 0, math.rad(math.random(-30, 30)))
+		local spin = math.rad(math.random(0, 360))
+		crack.CFrame = homeCf * CFrame.Angles(0, spin, 0) * CFrame.new(0, math.random(-1, 1), 1.6) * CFrame.Angles(math.rad(math.random(-30, 30)), 0, math.rad(math.random(-30, 30)))
 		crack.Parent = model
 	end
 	-- Flash: the shell goes white for a beat, then breaks.
-	husk.Color = Color3.fromRGB(255, 255, 255)
-	local glow = husk:FindFirstChildOfClass("PointLight")
-	if glow then
-		glow.Color = Color3.fromRGB(255, 255, 255)
-		glow.Brightness = 6
+	eggShell.Color = Color3.fromRGB(255, 255, 255)
+	local flash = eggShell:FindFirstChildOfClass("PointLight")
+	if flash then
+		flash.Color = Color3.fromRGB(255, 255, 255)
+		flash.Brightness = 6
 	end
 	task.wait(0.3)
 	-- 2. The break: the egg is gone, the animal pops out at the
@@ -578,24 +578,24 @@ local function crackEgg(model: Model, egg: State.Egg, baseId: number)
 	-- the bottom never sinks through it. Then the birth wiggle: three
 	-- bounces + a full 360° spin over ~1.2s, so the hatch reads as a
 	-- living animal stretching, not a statue appearing.
-	local def, mutation = rollHatchDef()
+	local entry, mut = rollHatchDef()
 	if egg.hatchDef then
 		local stored = RotlingCatalog.getDef(egg.hatchDef)
 		if stored then
-			def = stored
-			mutation = egg.hatchMutation
+			entry = stored
+			mut = egg.hatchMutation
 		end
 	end
 	model:Destroy()
-	local hatched = RotlingFactory.build(def.id, mutation, hatchPos, 1)
+	local hatched = RotlingFactory.build(entry.id, mut, hatchPos, 1)
 	if not hatched then
 		return
 	end
 	hatched.Parent = workspace
-	local hatchBody = hatched.PrimaryPart
+	local core = hatched.PrimaryPart
 	local function seatHatched()
-		if hatchBody then
-			hatched:PivotTo(CFrame.new(hatchPos + Vector3.new(0, hatchBody.Size.Y / 2, 0)))
+		if core then
+			hatched:PivotTo(CFrame.new(hatchPos + Vector3.new(0, core.Size.Y / 2, 0)))
 		end
 	end
 	RotlingFactory.setModelScale(hatched, 0.2)
@@ -617,8 +617,8 @@ local function crackEgg(model: Model, egg: State.Egg, baseId: number)
 	RotlingFactory.setModelScale(hatched, 1)
 	seatHatched()
 	-- Birth wiggle: three bounces + a full spin.
-	if hatchBody then
-		local swayBase = hatchBody.CFrame
+	if core then
+		local swayBase = core.CFrame
 		for hop = 1, 3 do
 			for i = 1, 4 do
 				local up = math.sin(i / 4 * math.pi) * 1.2
@@ -637,7 +637,7 @@ local function crackEgg(model: Model, egg: State.Egg, baseId: number)
 	-- ping fires at the reveal. The beam is a Neon cylinder (its long
 	-- axis is X, so it is rotated 90° to stand vertical) — nothing
 	-- new to verify, no asset IDs.
-	local rarityColor = RarityConfig.rarityByName(def.rarity).color
+	local rarityColor = RarityConfig.rarityByName(entry.rarity).color
 	local beam = Instance.new("Part")
 	beam.Name = "HatchBeam"
 	beam.Shape = Enum.PartType.Cylinder
@@ -668,40 +668,40 @@ local function crackEgg(model: Model, egg: State.Egg, baseId: number)
 	if owner then
 		FeedbackService.playSound(owner, 1.6, 0.7)
 	end
-	print("[MeteorEgg] hatch spectacle — " .. def.name .. " (" .. def.rarity .. ") beam + confetti at base " .. tostring(baseId))
+	print("[MeteorEgg] hatch spectacle — " .. entry.name .. " (" .. entry.rarity .. ") beam + confetti at base " .. tostring(baseId))
 	-- 3. The animal comes out: if the owner is standing nearby with
 	-- a free slot, it jumps straight into their arms — they place it
 	-- on a pad themselves. Otherwise the old fallback: a free pad,
 	-- or the crater if the base is full / the owner left. (owner /
 	-- ownerId were looked up above, for the fanfare.)
-	local carried = false
+	local inArms = false
 	if owner then
 		local character = owner.Character
 		local ownerRoot = character and character:FindFirstChild("HumanoidRootPart")
 		if ownerRoot and (ownerRoot.Position - hatchPos).Magnitude <= 20 and #CarryService.getCarried(owner) < CarryService.getCarrySlots(owner) then
 			RotlingFactory.setCarriedVisual(hatched, true)
-			local body = hatched.PrimaryPart
-			if body then
+			local core = hatched.PrimaryPart
+			if core then
 				for _, part in ipairs(hatched:GetDescendants()) do
 					if part:IsA("BasePart") then
 						part.Anchored = false
 					end
 				end
-				local weld = Instance.new("Weld")
-				weld.Name = "CarryWeld"
-				weld.Part0 = ownerRoot
-				weld.Part1 = body
-				weld.C0 = CFrame.new(0, Config.CARRY_Y, Config.CARRY_Z)
-				weld.Parent = body
+				local link = Instance.new("Weld")
+				link.Name = "CarryWeld"
+				link.Part0 = ownerRoot
+				link.Part1 = core
+				link.C0 = CFrame.new(0, Config.CARRY_Y, Config.CARRY_Z)
+				link.Parent = core
 				hatched:SetAttribute("State", "carried")
 				CarryService.carryRotling(owner, hatched)
-				carried = true
-				Remotes.bannerEvent():FireClient(owner, "🥚 IT HATCHED! " .. def.name .. " jumped into your arms — place it on a pad!", 5)
-				print("[MeteorEgg] " .. def.name .. " hatched into " .. owner.Name .. "'s arms (owner nearby, free slot)")
+				inArms = true
+				Remotes.bannerEvent():FireClient(owner, "🥚 IT HATCHED! " .. entry.name .. " jumped into your arms — place it on a pad!", 5)
+				print("[MeteorEgg] " .. entry.name .. " hatched into " .. owner.Name .. "'s arms (owner nearby, free slot)")
 			end
 		end
 	end
-	if not carried then
+	if not inArms then
 		local padIndex = BaseService.freePad(baseId)
 		if padIndex and owner then
 			local padCf = WorldBuilder.padCFrame(baseId, padIndex)
@@ -712,8 +712,8 @@ local function crackEgg(model: Model, egg: State.Egg, baseId: number)
 		else
 			-- Base full (or the owner left): the hatchling wanders into
 			-- the crater instead, free to catch.
-			local position = Vector3.new((math.random() * 2 - 1) * 15, Config.CRATER_FLOOR_Y, (math.random() * 2 - 1) * 2)
-			hatched:PivotTo(CFrame.new(position))
+			local spot = Vector3.new((math.random() * 2 - 1) * 15, Config.CRATER_FLOOR_Y, (math.random() * 2 - 1) * 2)
+			hatched:PivotTo(CFrame.new(spot))
 			SpawnService.connectPrompt(hatched)
 			SpawnService.registerFree(hatched)
 		end
@@ -724,14 +724,14 @@ local function crackEgg(model: Model, egg: State.Egg, baseId: number)
 			profile.stardust += Config.EGG_STARDUST
 			DataService.saveProfile(owner)
 		end
-		local mutText = if mutation then " ✦ " .. mutation .. " x" .. tostring(MutationConfig.mutationMult(mutation)) else ""
-		Remotes.bannerEvent():FireClient(owner, "✨ HATCHED: " .. def.name .. " (" .. string.upper(def.rarity) .. mutText .. ")! +" .. tostring(Config.EGG_STARDUST) .. " Stardust!", 6)
+		local mutLabel = if mut then " ✦ " .. mut .. " x" .. tostring(MutationConfig.mutationMult(mut)) else ""
+		Remotes.bannerEvent():FireClient(owner, "✨ HATCHED: " .. entry.name .. " (" .. string.upper(entry.rarity) .. mutLabel .. ")! +" .. tostring(Config.EGG_STARDUST) .. " Stardust!", 6)
 		FeedbackService.celebrate(owner)
 		-- The rarity reveal fires for EVERY hatch, not just the rare
 		-- ones — the waiting player deserves the reveal even for a
 		-- Common.
-		Remotes.rarityPopupEvent():FireClient(owner, def.name, def.rarity, mutation, RotlingCatalog.baseCps(def, mutation))
-		print("[MeteorEgg] hatched " .. def.name .. " (" .. def.rarity .. (if mutation then " " .. mutation else "") .. ") on base " .. tostring(baseId))
+		Remotes.rarityPopupEvent():FireClient(owner, entry.name, entry.rarity, mut, RotlingCatalog.baseCps(entry, mut))
+		print("[MeteorEgg] hatched " .. entry.name .. " (" .. entry.rarity .. (if mut then " " .. mut else "") .. ") on base " .. tostring(baseId))
 	end
 end
 
@@ -764,14 +764,14 @@ function MeteorEggService.start()
 	task.spawn(function()
 		while true do
 			task.wait(1)
-			for model, entry in pairs(State.eggs) do
-				if entry.phase == "incubating" and entry.hatchAt then
-					if time() >= entry.hatchAt then
+			for model, record in pairs(State.eggs) do
+				if record.phase == "incubating" and record.hatchAt then
+					if time() >= record.hatchAt then
 						hatchEgg(model)
 					else
-						local def = if entry.hatchDef then RotlingCatalog.getDef(entry.hatchDef) else nil
-						local rarity = if def then def.rarity else "Common"
-						local remaining = math.max(0, math.ceil(entry.hatchAt - time()))
+						local found = if record.hatchDef then RotlingCatalog.getDef(record.hatchDef) else nil
+						local rarity = if found then found.rarity else "Common"
+						local remaining = math.max(0, math.ceil(record.hatchAt - time()))
 						setEggLabel(model, "🥚 " .. string.upper(rarity) .. " EGG — " .. tostring(remaining) .. "s")
 					end
 				end
@@ -779,9 +779,9 @@ function MeteorEggService.start()
 			-- Legendary egg countdown: the ground label shows the
 			-- seconds left, so the urgency reads on the egg itself.
 			if legendaryEggModel then
-				local legendEntry = State.eggs[legendaryEggModel]
-				if legendEntry and (legendEntry.phase == "ground" or legendEntry.phase == "falling") then
-					local remaining = math.max(0, math.ceil(Config.LEGENDARY_EGG_LIFETIME - (time() - legendEntry.bornAt)))
+				local legend = State.eggs[legendaryEggModel]
+				if legend and (legend.phase == "ground" or legend.phase == "falling") then
+					local remaining = math.max(0, math.ceil(Config.LEGENDARY_EGG_LIFETIME - (time() - legend.bornAt)))
 					setEggLabel(legendaryEggModel, "🌟 LEGENDARY EGG — " .. tostring(remaining) .. "s!")
 				end
 			end
