@@ -1882,6 +1882,59 @@ do
 	end
 end
 
+-- Fix round 13, item 6 — hero-shot staging: shot 1 is a staged hero
+-- row (four display Brainrots on a plinth in front of the title
+-- sign, labels on, crater behind); shot 5 frames the logo stage at
+-- its real position (0, 118), not the stale (-25, 88). Display
+-- heroes show their tags; both rows are seated by their body
+-- bottoms on a visible dais (the old logo-stage PivotTo sank the
+-- heroes 1.75 into the spawn platform).
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local tagSrc = read("src/client/TagController.client.luau")
+	local photoSrc = read("src/client/PhotoModeController.client.luau")
+	if not worldSrc or not tagSrc or not photoSrc then
+		step("hero-shot", false, "a source file is missing")
+	else
+		local problems: { string } = {}
+		if not tagSrc:find('state == "display"') then
+			table.insert(problems, "TagController does not show display-hero tags")
+		end
+		if not worldSrc:find("buildHeroRow") or not worldSrc:find('"gummy", "alfredo", "bloop", "couch"') then
+			table.insert(problems, "no hero row of gummy + alfredo + bloop + couch")
+		end
+		if not worldSrc:find('"HeroPlinth"') then
+			table.insert(problems, "the hero row has no plinth")
+		end
+		if not worldSrc:find("model:PivotTo%(CFrame%.new%(pos %+ Vector3%.new%(0, b%.Size%.Y / 2 %+ 0%.1, 0%)%)%)") then
+			table.insert(problems, "the hero row does not seat its heroes by body bottom facing +Z")
+		end
+		if not worldSrc:find('"LogoStage", Enum%.PartType%.Block, Vector3%.new%(20, 1, 8%)') then
+			table.insert(problems, "the logo stage is not 20 x 1 x 8")
+		end
+		if not worldSrc:find("%(i %- 2%) %* 8") or worldSrc:find("%(i %- 2%) %* 4%.5") then
+			table.insert(problems, "the logo-stage heroes are not 8 apart")
+		end
+		if not photoSrc:find("Vector3%.new%(1%.75, 14, 96%)") or not photoSrc:find("Vector3%.new%(1, 3, 80%)") then
+			table.insert(problems, "shot 1 is not the staged hero-row camera (1.75, 14, 96) -> (1, 3, 80)")
+		end
+		if not photoSrc:find("Vector3%.new%(0, 4, 100%)") or not photoSrc:find("Vector3%.new%(0, 3, 118%)") then
+			table.insert(problems, "shot 5 is not the logo-stage camera (0, 4, 100) -> (0, 3, 118)")
+		end
+		if photoSrc:find("Vector3%.new%(%-25, 4, 98%)") or photoSrc:find("Vector3%.new%(%-25, 3, 88%)") then
+			table.insert(problems, "the stale shot-5 camera (-25, 4, 98) is still there — it frames empty field")
+		end
+		if photoSrc:find("Vector3%.new%(10, 3%.5, 7%)") then
+			table.insert(problems, "the old generic shot-1 close-up (10, 3.5, 7) is still there")
+		end
+		if #problems > 0 then
+			step("hero-shot", false, table.concat(problems, "; "))
+		else
+			step("hero-shot", true, "shot 1 staged: hero row (gummy, alfredo, bloop, couch) on a plinth in front of the title sign, camera (1.75, 14, 96) -> (1, 3, 80); shot 5 on the logo stage at (0, 118), camera (0, 4, 100) -> (0, 3, 118); display tags on; both rows seated by body bottom (no sunk heroes)")
+		end
+	end
+end
+
 -- Fix round 13, item 2 — layered eggs: a clean cream ovoid (3.2 x
 -- 4.8) with two smooth bands (purple +0.8, teal -0.9), welded; no
 -- speckles, cracks or nest; mystery rule intact; legendary gold all

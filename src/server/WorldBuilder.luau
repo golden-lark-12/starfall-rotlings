@@ -1691,13 +1691,23 @@ end
 
 local function buildLogoStage()
 	local stageCf = CFrame.new(0, 0, 118)
-	local stage = part("LogoStage", Enum.PartType.Block, Vector3.new(16, 1, 10), Color3.fromRGB(60, 45, 90), stageCf * CFrame.new(0, 0.5, 0))
+	-- (fix round 13, item 6) The stage used to sit at y=0.5 (top y=1),
+	-- BURIED under the spawn platform (top y=2) — invisible — and the
+	-- heroes were sunk with it: PivotTo(CFrame.new(pos)) put the body
+	-- CENTRE at pos.y=2.5, so their body bottoms sat at y=0.25, 1.75
+	-- studs inside the platform. The stage is a low dais now (top
+	-- y=2.5, a 0.5 lip above the platform) and the heroes are seated
+	-- by their body bottoms, the way build() seats every Rotling.
+	-- Widened 16 -> 20 so the three heroes can stand 8 apart: at 4.5
+	-- apart their 200px labels sat 107px apart on screen and buried
+	-- each other's text; at 8 apart they sit ~190px apart and read.
+	local stage = part("LogoStage", Enum.PartType.Block, Vector3.new(20, 1, 8), Color3.fromRGB(60, 45, 90), stageCf * CFrame.new(0, 2, 0))
 	stage.CanCollide = false
 	local heroIds = { "gummy", "couch", "bloop" }
 	for i, defId in ipairs(heroIds) do
 		local def = RotlingCatalog.getDef(defId)
 		if def then
-			local pos = stageCf.Position + Vector3.new((i - 2) * 4.5, 2.5, 0)
+			local pos = stageCf.Position + Vector3.new((i - 2) * 8, 2.5, 0)
 			local model = RotlingFactory.build(defId, nil, pos, 1.5)
 			if model then
 				model.Parent = workspace
@@ -1709,8 +1719,14 @@ local function buildLogoStage()
 				model:SetAttribute("BaseId", 0)
 				model:SetAttribute("PadIndex", 0)
 				-- Face north, toward spawn and the path (the face is
-				-- built on the model's +Z side).
-				model:PivotTo(CFrame.new(pos) * CFrame.Angles(0, math.rad(180), 0))
+				-- built on the model's +Z side). Seat the body bottom
+				-- on the stage: pos is the SURFACE, the body centre
+				-- belongs half a body above it (build seats the same
+				-- way; the old CFrame.new(pos) sank the heroes).
+				local b = model.PrimaryPart
+				if b then
+					model:PivotTo(CFrame.new(pos + Vector3.new(0, b.Size.Y / 2 + 0.1, 0)) * CFrame.Angles(0, math.rad(180), 0))
+				end
 			end
 		end
 	end
@@ -1721,6 +1737,54 @@ local function buildLogoStage()
 	meteorLight.Brightness = 2
 	meteorLight.Range = 16
 	meteorLight.Parent = meteor
+end
+
+-- Hero display row in front of the title sign (fix round 13, item 6):
+-- the staged group for photo-mode shot 1 (first thumbnail + first
+-- submission screenshot). Four distinct Brainrots — the three logo
+-- heroes (Cosmic Corn Dog, Supreme Spaghetti, Baron von Burrito) plus
+-- the Divine Archangel Alfredo — stand on a low plinth east of the
+-- spawn path, facing +Z toward spawn and the shot-1 camera, at the
+-- same display height as the logo heroes. The plinth is a 0.5 lip
+-- above the spawn platform (top y=2.5) and ghost, like the logo
+-- stage. The row sits WEST of the contract board — a north-south wall
+-- at x~16, z 88..100 — so no sightline from the shot-1 camera to a
+-- hero crosses the board (the row's east hero is at x=11.5). Shot-1
+-- framing, computed offline (see the hero-shot auto-check): camera
+-- (1.75, 14, 96) looking at (1, 3, 80) puts all four heroes at
+-- 16-19% of frame height, their 200px labels 162-194px apart (edges
+-- touch, centred text reads), the title sign fully in frame with its
+-- text clear of the labels, and the crater rim flanking the sign.
+local function buildHeroRow()
+	local rowCf = CFrame.new(1.75, 0, 82)
+	local plinth = part("HeroPlinth", Enum.PartType.Block, Vector3.new(21.5, 1, 6), Color3.fromRGB(60, 45, 90), rowCf * CFrame.new(0, 2, 0))
+	plinth.CanCollide = false
+	local heroIds = { "gummy", "alfredo", "bloop", "couch" }
+	for i, defId in ipairs(heroIds) do
+		local def = RotlingCatalog.getDef(defId)
+		if def then
+			local pos = Vector3.new(-8 + (i - 1) * 6.5, 2.5, 82)
+			local model = RotlingFactory.build(defId, nil, pos, 1.5)
+			if model then
+				model.Parent = workspace
+				RotlingFactory.normalizeToHeight(model, Config.PLACED_DISPLAY_HEIGHT)
+				model:SetAttribute("State", "display")
+				model:SetAttribute("BaseId", 0)
+				model:SetAttribute("PadIndex", 0)
+				-- Face +Z, toward spawn, the path and the shot-1
+				-- camera: the face is built on the model's +Z side,
+				-- so no rotation (the logo stage rotates 180 because
+				-- it faces -Z toward spawn from z=118). Seat the body
+				-- bottom on the plinth — pos is the SURFACE, never
+				-- the body centre (the logo stage's old PivotTo sank
+				-- its heroes 1.75 into the platform that way).
+				local b = model.PrimaryPart
+				if b then
+					model:PivotTo(CFrame.new(pos + Vector3.new(0, b.Size.Y / 2 + 0.1, 0)))
+				end
+			end
+		end
+	end
 end
 
 -- Contract Board in the plaza (16, 0, 94): the visible board where
@@ -1853,8 +1917,9 @@ function WorldBuilder.build()
 	-- enough — the name lives on the HUD and the title screen, not
 	-- in the sky.
 	buildLogoStage()
+	buildHeroRow()
 	buildContractBoard()
-	print("[WorldBuilder] world built: " .. tostring(Config.BASE_COUNT) .. " bases, crater, conveyor, sell area, plaza, trees, rocks, meteor rocks, hills, ground detail, boundary walls, crystals, islands, sky, wind, star shop, upgrade machines, rebirth altar, index wall, spaceship, background, signposts, fences, paths, critters, world title sign, logo stage, bounty board.")
+	print("[WorldBuilder] world built: " .. tostring(Config.BASE_COUNT) .. " bases, crater, conveyor, sell area, plaza, trees, rocks, meteor rocks, hills, ground detail, boundary walls, crystals, islands, sky, wind, star shop, upgrade machines, rebirth altar, index wall, spaceship, background, signposts, fences, paths, critters, world title sign, logo stage, hero row, bounty board.")
 end
 
 return WorldBuilder

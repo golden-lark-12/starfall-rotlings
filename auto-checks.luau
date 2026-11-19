@@ -1612,7 +1612,7 @@ end
 -- 1 hero close-up (low and close on the belt's nearest Rotling),
 -- 2 belt (low, close down the conveyor), 3 storm (wide crater + sky
 -- with the banner, the dome and the giant meteors), 4 packed base
--- close, 5 icon (the logo stage, one big Rotling + fiery meteor).
+-- close, 5 icon (the logo stage, three heroes + fiery meteor).
 -- The old crater isometric is gone.
 do
 	local photoSrc = read("src/client/PhotoModeController.client.luau")
@@ -1620,10 +1620,16 @@ do
 		check("ac", false, "could not verify photo-mode cameras — PhotoModeController.client.luau missing")
 	else
 		local problems: { string } = {}
-		-- Shot 1 (hero close-up): low and close on the belt's
-		-- nearest Rotling.
-		if not photoSrc:find("Vector3.new%(10, 3.5, 7%)") then
-			table.insert(problems, "shot 1 is not the hero close-up camera (10, 3.5, 7)")
+		-- Shot 1 (hero row): the STAGED group in front of the title
+		-- sign (fix round 13, item 6) — four display Brainrots with
+		-- labels, the title sign and the crater behind them. The
+		-- framing is proven geometrically by the hero-shot check;
+		-- this check pins the camera.
+		if not photoSrc:find("Vector3.new%(1%.75, 14, 96%)") then
+			table.insert(problems, "shot 1 is not the staged hero-row camera (1.75, 14, 96)")
+		end
+		if not photoSrc:find("Vector3.new%(1, 3, 80%)") then
+			table.insert(problems, "shot 1 does not look at the hero row (1, 3, 80)")
 		end
 		-- Shot 2 (belt): low and close behind the belt's near end.
 		if not photoSrc:find("Vector3.new%(42, 4.5, 9%)") then
@@ -1643,16 +1649,19 @@ do
 		if not photoSrc:find("Vector3.new%(0, 7, 0%)") then
 			table.insert(problems, "shot 4 is not 7 studs up")
 		end
-		-- Shot 5 (icon): the logo stage near spawn, one big bright
-		-- Rotling front-centre with the fiery meteor behind it.
+		-- Shot 5 (icon): the logo stage at (0, 0, 118) — it moved
+		-- there in v74 from (-25, 0, 88) and this camera never
+		-- followed it, so it framed empty field until fix round 13.
+		-- Three hero Rotlings (8 apart, labels readable) with the
+		-- fiery meteor above/behind them.
 		if not photoSrc:find("Icon — 512x512") then
 			table.insert(problems, "no icon shot (Icon — 512x512)")
 		end
-		if not photoSrc:find("Vector3.new%(%-25, 4, 98%)") then
-			table.insert(problems, "icon shot is not the logo-stage camera (-25, 4, 98)")
+		if not photoSrc:find("Vector3.new%(0, 4, 100%)") then
+			table.insert(problems, "icon shot is not the logo-stage camera (0, 4, 100)")
 		end
-		if not photoSrc:find("Vector3.new%(%-25, 3, 88%)") then
-			table.insert(problems, "icon shot does not look at the logo stage (-25, 3, 88)")
+		if not photoSrc:find("Vector3.new%(0, 3, 118%)") then
+			table.insert(problems, "icon shot does not look at the logo stage (0, 3, 118)")
 		end
 		-- The crater isometric is gone.
 		if photoSrc:find("Vector3.new%(24, 24, 24%)") then
@@ -1673,7 +1682,223 @@ do
 		if #problems > 0 then
 			check("ac", false, "photo-mode cameras are not the 4 bounty shots + icon — " .. table.concat(problems, "; ") .. ". Parts: SHOTS / shotCFrame (PhotoModeController.client.luau)")
 		else
-			check("ac", true, "photo cameras are the 4 bounty shots + icon — hero close-up (10, 3.5, 7) first, belt close on the conveyor, storm wide (48, 10, 18) looking at the sky, base 16 out / 7 up, icon on the logo stage (-25, 4, 98)")
+			check("ac", true, "photo cameras are the 4 bounty shots + icon — staged hero row (1.75, 14, 96) first, belt close on the conveyor, storm wide (48, 10, 18) looking at the sky, base 16 out / 7 up, icon on the logo stage (0, 4, 100)")
+		end
+	end
+end
+
+-- -- (hero-shot) fix round 13, item 6: shot 1 is a STAGED hero row --
+-- The first thumbnail + first submission screenshot must show the
+-- pattern the top-10 leaders share (4+ distinct Brainrots with
+-- name/rarity/$-per-sec labels, a big title sign, a dense themed
+-- backdrop) — so shot 1 is staged, not a generic close-up: a hero
+-- row of four display Brainrots on a plinth in front of the title
+-- sign, with the crater rim behind it. This check COMPUTES the
+-- framing from the shipped camera CFrames (screen angles via atan2,
+-- 16:9: 70deg vertical FOV, ~102deg horizontal, 800px wide) instead
+-- of trusting the numbers in a comment:
+--   * all four heroes 16-19% of frame height (bodies 2.6..7.1
+--     studs, labels at y~8.1 — the heroes stand on the plinth top
+--     y=2.5, seated by their body bottoms, not sunk into the
+--     platform);
+--   * adjacent 200px labels 160px+ apart (edges touch, centred
+--     text reads — 5 heroes cannot fit: the outer pairs would sit
+--     ~150px apart and the outer labels would leave the frame);
+--   * the title sign fully in frame, its text (width-bound, ~2.9deg
+--     tall) clear of the highest label top by 1deg+;
+--   * the crater rim in frame flanking the sign;
+--   * the contract board's north-top corner out of frame (the board
+--     is a north-south wall at x~16, z 88..100 — the row sits west
+--     of it so no sightline to a hero crosses it).
+-- Shot 5 is fixed the same way: the logo stage moved in v74 from
+-- (-25, 0, 88) to (0, 0, 118) and the camera never followed it, so
+-- it framed empty field. The stage is a visible dais now (top
+-- y=2.5) with its heroes 8 apart (their labels were 107px apart at
+-- 4.5 and buried each other's text) and seated by their body
+-- bottoms — the old PivotTo put the body centre at pos and sank
+-- them 1.75 into the spawn platform. Shot 5's labels sit ~190px
+-- apart, all three heroes 20% of frame height, the meteor above
+-- the centre label.
+do
+	local worldSrc = read("src/server/WorldBuilder.luau")
+	local tagSrc = read("src/client/TagController.client.luau")
+	local photoSrc = read("src/client/PhotoModeController.client.luau")
+	if not worldSrc or not tagSrc or not photoSrc then
+		check("hero-shot", false, "could not verify the hero shot — a source file is missing")
+	else
+		local problems: { string } = {}
+		-- Display heroes show their tags (the staged labels).
+		if not tagSrc:find('state == "display"') then
+			table.insert(problems, "TagController does not show display-hero tags (State \"display\" missing from showable)")
+		end
+		-- The hero row: four heroes, plinth, facing +Z, seated by
+		-- body bottom.
+		if not worldSrc:find("buildHeroRow") then
+			table.insert(problems, "no hero row in the world (WorldBuilder.buildHeroRow)")
+		end
+		if not worldSrc:find('"gummy", "alfredo", "bloop", "couch"') then
+			table.insert(problems, "the hero row is not gummy + alfredo + bloop + couch")
+		end
+		if not worldSrc:find('"HeroPlinth", Enum%.PartType%.Block, Vector3%.new%(21%.5, 1, 6%)') then
+			table.insert(problems, "the hero plinth is not 21.5 x 1 x 6")
+		end
+		if not worldSrc:find("Vector3%.new%(%-8 %+ %(i %- 1%) %* 6%.5, 2%.5, 82%)") then
+			table.insert(problems, "the hero row heroes are not at x -8/-1.5/5/11.5, z=82, on the plinth top y=2.5")
+		end
+		-- The row faces +Z (no 180 turn): its PivotTo seats the
+		-- body bottom on the plinth with no rotation. (The logo
+		-- stage's PivotTo has the 180 turn and does NOT match this
+		-- pattern — the three closing parens end the call.)
+		if not worldSrc:find("model:PivotTo%(CFrame%.new%(pos %+ Vector3%.new%(0, b%.Size%.Y / 2 %+ 0%.1, 0%)%)%)") then
+			table.insert(problems, "the hero row does not seat its heroes by body bottom facing +Z")
+		end
+		-- The logo stage: visible dais, heroes 8 apart, seated by
+		-- body bottom (not sunk into the platform).
+		if not worldSrc:find('"LogoStage", Enum%.PartType%.Block, Vector3%.new%(20, 1, 8%)') then
+			table.insert(problems, "the logo stage is not 20 x 1 x 8")
+		end
+		if not worldSrc:find("%(i %- 2%) %* 8") then
+			table.insert(problems, "the logo-stage heroes are not 8 apart")
+		end
+		if worldSrc:find("%(i %- 2%) %* 4%.5") then
+			table.insert(problems, "the old logo-stage hero spacing (4.5) is still there")
+		end
+		-- The shipped cameras must be the staged ones (the geometry
+		-- below is computed from these literals).
+		if not photoSrc:find("Vector3%.new%(1%.75, 14, 96%)") then
+			table.insert(problems, "shot 1 is not the staged hero-row camera (1.75, 14, 96)")
+		end
+		if not photoSrc:find("Vector3%.new%(1, 3, 80%)") then
+			table.insert(problems, "shot 1 does not look at the hero row (1, 3, 80)")
+		end
+		if not photoSrc:find("Vector3%.new%(0, 4, 100%)") then
+			table.insert(problems, "shot 5 is not the logo-stage camera (0, 4, 100)")
+		end
+		if not photoSrc:find("Vector3%.new%(0, 3, 118%)") then
+			table.insert(problems, "shot 5 does not look at the logo stage (0, 3, 118)")
+		end
+		-- Screen-angle framing, computed from the camera + the
+		-- staged world (atan2: the true screen angle; 800px wide,
+		-- 102deg horizontal FOV at 16:9, 70deg vertical).
+		local function vsub(a: { number }, b: { number }): { number }
+			return { a[1] - b[1], a[2] - b[2], a[3] - b[3] }
+		end
+		local function vdot(a: { number }, b: { number }): number
+			return a[1] * b[1] + a[2] * b[2] + a[3] * b[3]
+		end
+		local function vcross(a: { number }, b: { number }): { number }
+			return { a[2] * b[3] - a[3] * b[2], a[3] * b[1] - a[1] * b[3], a[1] * b[2] - a[2] * b[1] }
+		end
+		local function vnorm(a: { number }): { number }
+			local l = math.sqrt(vdot(a, a))
+			return { a[1] / l, a[2] / l, a[3] / l }
+		end
+		-- Returns {h, v}: screen angles in degrees (+right, +up).
+		local function screenAngles(cam: { number }, look: { number }, p: { number }): { number }
+			local fwd = vnorm(vsub(look, cam))
+			local right = vnorm(vcross(fwd, { 0, 1, 0 }))
+			local up = vcross(right, fwd)
+			local d = vsub(p, cam)
+			local h = math.atan2(vdot(d, right), vdot(d, fwd)) * 180 / math.pi
+			local v = math.atan2(vdot(d, up), vdot(d, fwd)) * 180 / math.pi
+			return { h, v }
+		end
+		local function inFrame(h: number, v: number): boolean
+			return math.abs(h) < 51 and math.abs(v) < 35
+		end
+		-- Shot 1: camera (1.75, 14, 96) -> (1, 3, 80); heroes at
+		-- x -8/-1.5/5/11.5, z=82; bodies 2.6..7.1, labels at y~8.1.
+		local cam1 = { 1.75, 14, 96 }
+		local look1 = { 1, 3, 80 }
+		local heroXs = { -8, -1.5, 5, 11.5 }
+		local labelH: { number } = {}
+		local maxLabelTop = -100
+		for _, x in ipairs(heroXs) do
+			local hv = screenAngles(cam1, look1, { x, 8.1, 82 })
+			table.insert(labelH, hv[1])
+			if hv[2] + 3.7 > maxLabelTop then
+				maxLabelTop = hv[2] + 3.7
+			end
+			local hvTop = screenAngles(cam1, look1, { x, 7.1, 82 })
+			local hvBot = screenAngles(cam1, look1, { x, 2.6, 82 })
+			local bodyDeg = hvTop[2] - hvBot[2]
+			if bodyDeg < 11 or bodyDeg > 14 then
+				table.insert(problems, "hero at x=" .. tostring(x) .. " is " .. string.format("%.1f", bodyDeg / 70 * 100) .. "% of frame height, not 16-19%")
+			end
+			if not inFrame(hv[1], hv[2]) then
+				table.insert(problems, "hero at x=" .. tostring(x) .. " is out of shot 1's frame")
+			end
+		end
+		for i = 1, 3 do
+			local sepPx = math.abs(labelH[i + 1] - labelH[i]) * (800 / 102)
+			if sepPx < 160 then
+				table.insert(problems, "hero labels " .. tostring(i) .. "-" .. tostring(i + 1) .. " sit " .. string.format("%.0f", sepPx) .. "px apart — under 160px, the 200px cards bury each other's text")
+			end
+		end
+		if math.abs(labelH[1]) + 12.75 >= 51 or math.abs(labelH[4]) + 12.75 >= 51 then
+			table.insert(problems, "an outer hero label leaves shot 1's frame")
+		end
+		-- The title sign (12, 8, 72), 22x6: all four corners in
+		-- frame, and its text (width-bound, ~2.9deg tall) clear of
+		-- the highest label top by 1deg+.
+		for _, c in ipairs({ { 1, 11, 72 }, { 23, 11, 72 }, { 1, 5, 72 }, { 23, 5, 72 } }) do
+			local hv = screenAngles(cam1, look1, c)
+			if not inFrame(hv[1], hv[2]) then
+				table.insert(problems, "the title sign corner (" .. tostring(c[1]) .. ", " .. tostring(c[2]) .. ", 72) is out of shot 1's frame")
+			end
+		end
+		local signHv = screenAngles(cam1, look1, { 12, 8, 72 })
+		if signHv[2] - 1.45 - maxLabelTop < 1 then
+			table.insert(problems, "the hero labels reach into the title sign's text (clearance " .. string.format("%.1f", signHv[2] - 1.45 - maxLabelTop) .. "deg, need 1deg+)")
+		end
+		-- The crater rim flanks the sign in frame.
+		for _, r in ipairs({ { 0, 5.5, 39 }, { -28, 5.5, 28 }, { 39, 5.5, 39 } }) do
+			local hv = screenAngles(cam1, look1, r)
+			if not inFrame(hv[1], hv[2]) then
+				table.insert(problems, "the crater rim point (" .. tostring(r[1]) .. ", 5.5, " .. tostring(r[3]) .. ") is out of shot 1's frame")
+			end
+		end
+		-- The contract board's north-top corner (16, 10, 88) is
+		-- out of frame to the east; and every hero stands west of
+		-- the board's plane (x=16), so no sightline to a hero
+		-- crosses the board.
+		local boardHv = screenAngles(cam1, look1, { 16, 10, 88 })
+		if math.abs(boardHv[1]) < 51 then
+			table.insert(problems, "the contract board's north-top corner is inside shot 1's frame (h=" .. string.format("%.1f", boardHv[1]) .. "deg)")
+		end
+		for _, x in ipairs(heroXs) do
+			if x >= 16 then
+				table.insert(problems, "hero at x=" .. tostring(x) .. " stands east of the contract board (x=16) — its sightline crosses the board")
+			end
+		end
+		-- Shot 5: camera (0, 4, 100) -> (0, 3, 118); stage heroes
+		-- at x -8/0/8, z=118; bodies 2.6..7.1, labels at y~8.1.
+		local cam5 = { 0, 4, 100 }
+		local look5 = { 0, 3, 118 }
+		local stageH: { number } = {}
+		for _, x in ipairs({ -8, 0, 8 }) do
+			local hv = screenAngles(cam5, look5, { x, 8.1, 118 })
+			table.insert(stageH, hv[1])
+			local hvTop = screenAngles(cam5, look5, { x, 7.1, 118 })
+			local hvBot = screenAngles(cam5, look5, { x, 2.6, 118 })
+			local bodyDeg = hvTop[2] - hvBot[2]
+			if bodyDeg < 12 or bodyDeg > 16 then
+				table.insert(problems, "logo-stage hero at x=" .. tostring(x) .. " is " .. string.format("%.1f", bodyDeg / 70 * 100) .. "% of frame height, not ~20%")
+			end
+			if not inFrame(hv[1], hv[2]) then
+				table.insert(problems, "logo-stage hero at x=" .. tostring(x) .. " is out of shot 5's frame")
+			end
+		end
+		for i = 1, 2 do
+			local sepPx = math.abs(stageH[i + 1] - stageH[i]) * (800 / 102)
+			if sepPx < 180 then
+				table.insert(problems, "logo-stage labels " .. tostring(i) .. "-" .. tostring(i + 1) .. " sit " .. string.format("%.0f", sepPx) .. "px apart — under 180px, the 200px cards bury each other's text")
+			end
+		end
+		if #problems > 0 then
+			check("hero-shot", false, "the hero shot is not staged — " .. table.concat(problems, "; ") .. ". Parts: WorldBuilder.luau (buildHeroRow, buildLogoStage), TagController.client.luau, PhotoModeController.client.luau")
+		else
+			check("hero-shot", true, "shot 1 staged: 4 heroes (gummy, alfredo, bloop, couch) 16-19% of frame, labels 162-194px apart and on-screen, title sign in frame with text clear of the labels, crater rim flanking, contract board out of frame; shot 5: logo-stage heroes 8 apart, labels ~190px apart, 20% of frame, meteor above the centre label; display tags on")
 		end
 	end
 end
@@ -5637,7 +5862,12 @@ do
 		if worldSrc:find("CFrame%.new%(-25, 0, 88%)") then
 			table.insert(problems, "the logo stage is still beside the spawn path (-25, 0, 88)")
 		end
-		if not worldSrc:find("model:PivotTo%(CFrame%.new%(pos%) %* CFrame%.Angles%(0, math%.rad%(180%), 0%)%)") then
+		-- (fix round 13, item 6) The logo-stage heroes still face
+		-- north (180 turn) — but the PivotTo now seats the body
+		-- bottom on the stage (pos + half a body + 0.1), not the
+		-- body centre on pos: the old form sank them 1.75 into the
+		-- spawn platform.
+		if not worldSrc:find("model:PivotTo%(CFrame%.new%(pos %+ Vector3%.new%(0, b%.Size%.Y / 2 %+ 0%.1, 0%)%) %* CFrame%.Angles%(0, math%.rad%(180%), 0%)%)") then
 			table.insert(problems, "the logo-stage heroes do not face north toward the path")
 		end
 		if not hudSrc:find("UDim2%.new%(0, 220, 0, 48%), UDim2%.new%(1, %-244, 0, 140%)") then

@@ -2,14 +2,15 @@
 -- Space Rock Brainrots!: photo mode.
 -- Press P (or type /photo in chat) to step through FIVE fixed camera
 -- shots: the FINAL 4 submission shots, all real gameplay, full HUD in
--- every frame — (1) hero Rotling close-up — low and close on the
--- belt's nearest Rotling, tags readable; (2) belt / grab moment — low
--- and close down the conveyor; (3) storm — the glowing storm wall,
--- the green SAFE DOME over a base, the (x2) income boost readout and
--- the red banner in one frame; (4) packed base — pads full of placed
--- Rotlings with the Lv sign — plus (5) the ICON shot: the logo
--- stage near spawn, one big bright Rotling front-centre with the fiery
--- meteor behind it, framed square for the 512x512 icon. The title
+-- every frame — (1) hero row — the staged group in front of the title
+-- sign: four distinct Brainrots with their labels on, the big title
+-- sign and the crater behind them (the first thumbnail); (2) belt /
+-- grab moment — low and close down the conveyor; (3) storm — the
+-- glowing storm wall, the green SAFE DOME over a base, the (x2)
+-- income boost readout and the red banner in one frame; (4) packed
+-- base — pads full of placed Rotlings with the Lv sign — plus (5) the
+-- ICON shot: the logo stage near spawn, its three hero Rotlings with
+-- the fiery meteor behind them, framed square for the 512x512 icon. The title
 -- screen stays in the game but is NOT one of the 4 shots: the
 -- submission sheet is gameplay only, no key art. Each shot is a
 -- deterministic fixed CFrame — never a free-fly — and the chat is
@@ -44,14 +45,20 @@ local player = Players.LocalPlayer
 -- capture of that shot moves.
 local SHOTS = {
 	{
-		-- HERO ROTLING CLOSE-UP, and the first thumbnail: low and
-		-- close on the belt's nearest Rotling, ~12 studs away — one
-		-- big character filling the frame with its rarity tag
-		-- readable, instead of a distant landscape.
+		-- HERO ROW, and the first thumbnail: the staged group in
+		-- front of the title sign (fix round 13, item 6) — four
+		-- distinct Brainrots on the hero plinth with their labels
+		-- on, the big "SPACE ROCK BRAINROTS!" sign behind them and
+		-- the crater rim flanking it. Camera (1.75, 14, 96) looking
+		-- at (1, 3, 80): the heroes read 16-19% of frame height,
+		-- their labels clear of the sign text, the contract board
+		-- (a wall at x~16) out of frame to the east. Do NOT move
+		-- this camera back to a generic close-up — the staged
+		-- composition IS shot 1.
 		name = "1/4 — Hero",
-		detail = "Hero Brainrot close-up: low and close on the belt's nearest Brainrot, tags readable",
-		position = Vector3.new(10, 3.5, 7),
-		lookAt = Vector3.new(0, 2, 0),
+		detail = "Hero row: four Brainrots with labels, title sign and crater behind",
+		position = Vector3.new(1.75, 14, 96),
+		lookAt = Vector3.new(1, 3, 80),
 	},
 	{
 		-- BELT / GRAB MOMENT: low and close behind the belt's near
@@ -82,14 +89,17 @@ local SHOTS = {
 	},
 	{
 		name = "Icon — 512x512",
-		detail = "Icon: logo stage near spawn — one big bright Brainrot front-centre, fiery meteor behind, square crop",
-		-- Icon shot: the logo stage near spawn (-25, 0, 88) with its
-		-- three hero Rotlings and the fiery meteor prop behind them.
-		-- Camera 10 studs south of the stage, looking north at the
+		detail = "Icon: logo stage near spawn — three hero Brainrots, fiery meteor behind, square crop",
+		-- Icon shot: the logo stage at (0, 0, 118) with its three
+		-- hero Rotlings (8 apart, labels readable) and the fiery
+		-- meteor prop above/behind them. The stage MOVED in v74
+		-- from (-25, 0, 88) to (0, 0, 118) and this camera never
+		-- followed it — it framed empty field until fix round 13.
+		-- Camera 18 studs south of the stage, looking north at the
 		-- centre Rotling with the meteor above/behind it — framed
 		-- for a square 512x512 icon crop.
-		position = Vector3.new(-25, 4, 98),
-		lookAt = Vector3.new(-25, 3, 88),
+		position = Vector3.new(0, 4, 100),
+		lookAt = Vector3.new(0, 3, 118),
 	},
 }
 

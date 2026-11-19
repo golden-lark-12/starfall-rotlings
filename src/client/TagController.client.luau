@@ -38,7 +38,7 @@ local function updateTags()
 					label = label,
 					dist = flat.Magnitude,
 					state = state,
-					showable = state == "free" or state == "placed",
+					showable = state == "free" or state == "placed" or state == "display",
 				})
 			end
 		end
@@ -47,9 +47,16 @@ local function updateTags()
 		return a.dist < b.dist
 	end)
 	-- Only the nearest few, only up close: a tag shows when its
-	-- Rotling is free or placed, within TAG_MAX_DISTANCE, and among
-	-- the TAG_MAX_SHOWN nearest such Rotlings. Everything else stays
-	-- off, including every carried Rotling and every tag past 25 studs.
+	-- Rotling is free, placed or a display hero, within
+	-- TAG_MAX_DISTANCE, and among the TAG_MAX_SHOWN nearest such
+	-- Rotlings. Everything else stays off, including every carried
+	-- Rotling and every tag past 25 studs. Display heroes (the logo
+	-- stage and the hero row, State "display") show their tags in
+	-- normal play too — they are a showcase, and a player walking
+	-- the plaza reads their names — and in photo mode, where the
+	-- staged shots need every label. They take the free tag's 6-stud
+	-- minimum (not the placed 12): they stand in the open plaza,
+	-- not on a base under its sign.
 	-- PHOTO MODE override: when the camera has the PhotoMode attribute
 	-- (set by PhotoModeController while framing a shot), show EVERY
 	-- tag within TAG_PHOTO_MAX_DISTANCE — the screenshots need every
