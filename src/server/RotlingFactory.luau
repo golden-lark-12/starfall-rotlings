@@ -1,26 +1,27 @@
 --!strict
--- Starfall Rotlings: builds a Rotling Model from a RotlingCatalog definition.
--- Every creature is Parts only: a body, a belly, big eyes, feet, one
--- accessory, a rarity glow light, a mutation sparkle and a name/rarity/
--- coins-per-second label. No meshes, decals or uploaded assets are used
--- anywhere. The body starts Anchored so a free Rotling rests on the
--- crater floor instead of falling through the world; carrying un-anchors
--- it and welds it to the player, placing re-anchors it.
--- SOLID, not ghost: every part is built with Transparency 0, so the
--- Rotlings read as solid characters with clear faces and colours per
--- rarity — never flat semi-transparent boxes.
+-- Starfall Rotlings: build a Rotling Model from a catalog definition.
+-- Every creature is assembled from plain Parts: a body, a belly patch,
+-- big eyes, feet, one accessory, a rarity glow light, a mutation
+-- sparkle and a name/rarity/coins-per-second label. No meshes, decals
+-- or uploaded assets anywhere. The body starts Anchored so a free
+-- Rotling rests on the crater floor instead of sinking through the
+-- world; carrying un-anchors it and welds it to the player, and
+-- placing re-anchors it.
 --
--- ITEM 1 (models): each of the 12 Rotlings has its own silhouette
--- (bodyForSilhouette, one unique key per Rotling from the catalog),
--- 2-3 signature built-from-parts features (addNameProp), and a body
--- painted in its rarity tier colour (rarity.color, verbatim). Faces
--- are placed from the BODY's own size, not the nominal size, so a flat
--- puddle and a tall noodle both get eyes and a mouth that sit on the
--- face instead of floating or sinking; the mouth sits proud of the
--- belly patch (the old mouth was buried inside the belly). The name
--- tag is offset from the model's bounding-box top, so it always floats
--- above the tallest hat or crown and never covers the face, at any
--- scale (refreshLabelOffset after every scale change).
+-- Every part is built solid (Transparency 0), so the Rotlings read as
+-- chunky characters with clear faces and rarity colours, never as
+-- flat see-through boxes.
+--
+-- Each of the 22 Rotlings has its own silhouette (bodyForSilhouette,
+-- one unique key per Rotling from the catalog), 2-3 signature
+-- built-from-parts features (addNameProp), and a body painted in its
+-- rarity tier colour (rarity.color, verbatim). Faces are placed from
+-- the BODY's own size, not the nominal size, so a flat puddle and a
+-- tall noodle both get eyes and a mouth that sit on the face instead
+-- of floating or sinking; the mouth sits proud of the belly patch.
+-- The name tag is offset from the model's bounding-box top, so it
+-- always floats above the tallest hat or crown and never covers the
+-- face, at any scale (refreshLabelOffset after every scale change).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -33,15 +34,16 @@ local RotlingCatalog = require(ReplicatedStorage.Shared.RotlingCatalog)
 
 local RotlingFactory = {}
 
--- Idle motion: one shared loop bobs and sways every free/placed Rotling
--- around a stored rest pose. Carried Rotlings are skipped (they ride the
--- player's weld). The pop tween marks a model so the loop never fights it.
+-- Idle motion: one shared loop re-seats every placed Rotling around a
+-- stored rest pose. Carried Rotlings are skipped (they ride the
+-- player's weld). The pop tween marks a model so the loop never
+-- fights it.
 local restPose: { [Model]: CFrame } = {}
 local bobSeed: { [Model]: number } = {}
 local popping: { [Model]: number } = {}
 local idleStarted = false
 
--- Remember where a Rotling rests, so the idle loop can bob around it.
+-- Remember where a Rotling rests, so the idle loop can seat it there.
 -- Called when a Rotling is built, placed or scattered back to the crater.
 function RotlingFactory.setRestPose(model: Model)
 	local body = model.PrimaryPart
@@ -53,8 +55,8 @@ function RotlingFactory.setRestPose(model: Model)
 	end
 end
 
--- Deepen a colour (push each channel away from the mean) so a Rotling
--- reads vivid from across the crater instead of washed-out pale.
+-- Push a colour's channels away from their mean so a Rotling reads
+-- vivid from across the crater instead of washed-out pale.
 local function saturate(color: Color3, amount: number): Color3
 	local mean = (color.R + color.G + color.B) / 3
 	local function adj(c: number): number
@@ -63,58 +65,53 @@ local function saturate(color: Color3, amount: number): Color3
 	return Color3.new(adj(color.R), adj(color.G), adj(color.B))
 end
 
--- One unique silhouette per Rotling: the body size and shape come from
--- the catalog's silhouette key, never from the shared 4-way body type,
--- so no two Rotlings share an outline. Wide/flat, tall/thin, round,
--- long and couch-shaped bodies all read differently at thumbnail size.
--- Falls back to the legacy body type if a def ever lacks a silhouette.
+-- One unique silhouette per Rotling: body size and shape come from the
+-- catalog's silhouette key, never from the shared body type, so no two
+-- Rotlings share an outline. Wide/flat, tall/thin, round, long and
+-- couch-shaped bodies all read differently at thumbnail size. Falls
+-- back to the legacy body type if a def ever lacks a silhouette.
+type Silhouette = { x: number, y: number, z: number, shape: Enum.PartType }
+local SILHOUETTES: { [string]: Silhouette } = {
+	["chunky-round"] = { x = 1.05, y = 0.95, z = 1, shape = Enum.PartType.Ball },
+	["flat-puddle"] = { x = 1.9, y = 0.45, z = 1.5, shape = Enum.PartType.Block },
+	["long-wavy"] = { x = 0.62, y = 1, z = 0.62, shape = Enum.PartType.Block },
+	["chunky-cube"] = { x = 0.9, y = 0.95, z = 0.9, shape = Enum.PartType.Block },
+	["tall-capsule"] = { x = 0.62, y = 1, z = 0.62, shape = Enum.PartType.Block },
+	["boxy-ghost"] = { x = 0.9, y = 0.95, z = 0.8, shape = Enum.PartType.Block },
+	["tall-sock"] = { x = 0.5, y = 1, z = 0.5, shape = Enum.PartType.Block },
+	["round-bounce"] = { x = 1, y = 0.9, z = 1, shape = Enum.PartType.Ball },
+	["root-round"] = { x = 1, y = 1, z = 1, shape = Enum.PartType.Ball },
+	["blob-dome"] = { x = 1.1, y = 0.9, z = 1.1, shape = Enum.PartType.Ball },
+	["wide-couch"] = { x = 1.25, y = 0.55, z = 0.9, shape = Enum.PartType.Block },
+	["bear"] = { x = 1, y = 1, z = 1, shape = Enum.PartType.Ball },
+	["mole-dig"] = { x = 1.3, y = 0.6, z = 1.1, shape = Enum.PartType.Block },
+	["tortoise-shell"] = { x = 1.2, y = 0.7, z = 1.2, shape = Enum.PartType.Ball },
+	["boba-round"] = { x = 0.9, y = 1, z = 0.9, shape = Enum.PartType.Ball },
+	["penguin-waddle"] = { x = 0.7, y = 1, z = 0.7, shape = Enum.PartType.Block },
+	["avocado-oval"] = { x = 0.9, y = 1.1, z = 0.9, shape = Enum.PartType.Ball },
+	["llama-tall"] = { x = 0.5, y = 1.2, z = 0.5, shape = Enum.PartType.Block },
+	["narwhal-horn"] = { x = 1, y = 0.95, z = 1, shape = Enum.PartType.Ball },
+	["cat-sit"] = { x = 0.9, y = 0.9, z = 0.9, shape = Enum.PartType.Block },
+	["angel-noodle"] = { x = 0.5, y = 1.2, z = 0.5, shape = Enum.PartType.Block },
+	["pineapple-pope"] = { x = 0.85, y = 1.05, z = 0.85, shape = Enum.PartType.Block },
+}
+
 local function bodyForSilhouette(def: RotlingCatalog.RotlingDef): (Vector3, Enum.PartType)
 	local s = def.size
-	if def.silhouette == "chunky-round" then
-		return Vector3.new(s * 1.05, s * 0.95, s), Enum.PartType.Ball
-	elseif def.silhouette == "flat-puddle" then
-		return Vector3.new(s * 1.9, s * 0.45, s * 1.5), Enum.PartType.Block
-	elseif def.silhouette == "long-wavy" then
-		return Vector3.new(s * 0.62, s, s * 0.62), Enum.PartType.Block
-	elseif def.silhouette == "chunky-cube" then
-		return Vector3.new(s * 0.9, s * 0.95, s * 0.9), Enum.PartType.Block
-	elseif def.silhouette == "tall-capsule" then
-		return Vector3.new(s * 0.62, s, s * 0.62), Enum.PartType.Block
-	elseif def.silhouette == "boxy-ghost" then
-		return Vector3.new(s * 0.9, s * 0.95, s * 0.8), Enum.PartType.Block
-	elseif def.silhouette == "tall-sock" then
-		return Vector3.new(s * 0.5, s, s * 0.5), Enum.PartType.Block
-	elseif def.silhouette == "round-bounce" then
-		return Vector3.new(s, s * 0.9, s), Enum.PartType.Ball
-	elseif def.silhouette == "root-round" then
-		return Vector3.new(s, s, s), Enum.PartType.Ball
-	elseif def.silhouette == "blob-dome" then
-		return Vector3.new(s * 1.1, s * 0.9, s * 1.1), Enum.PartType.Ball
-	elseif def.silhouette == "wide-couch" then
-		return Vector3.new(s * 1.25, s * 0.55, s * 0.9), Enum.PartType.Block
-	elseif def.silhouette == "bear" then
-		return Vector3.new(s, s, s), Enum.PartType.Ball
-	elseif def.silhouette == "mole-dig" then
-		return Vector3.new(s * 1.3, s * 0.6, s * 1.1), Enum.PartType.Block
-	elseif def.silhouette == "tortoise-shell" then
-		return Vector3.new(s * 1.2, s * 0.7, s * 1.2), Enum.PartType.Ball
-	elseif def.silhouette == "boba-round" then
-		return Vector3.new(s * 0.9, s, s * 0.9), Enum.PartType.Ball
-	elseif def.silhouette == "penguin-waddle" then
-		return Vector3.new(s * 0.7, s, s * 0.7), Enum.PartType.Block
-	elseif def.silhouette == "avocado-oval" then
-		return Vector3.new(s * 0.9, s * 1.1, s * 0.9), Enum.PartType.Ball
-	elseif def.silhouette == "llama-tall" then
-		return Vector3.new(s * 0.5, s * 1.2, s * 0.5), Enum.PartType.Block
-	elseif def.silhouette == "narwhal-horn" then
-		return Vector3.new(s, s * 0.95, s), Enum.PartType.Ball
-	elseif def.silhouette == "cat-sit" then
-		return Vector3.new(s * 0.9, s * 0.9, s * 0.9), Enum.PartType.Block
-	elseif def.silhouette == "angel-noodle" then
+	-- The two Divine silhouettes get explicit branches (checked by
+	-- auto-check (divine-tier)): tall thin noodles for the angel and
+	-- the pope, each with its own outline.
+	if def.silhouette == "angel-noodle" then
 		return Vector3.new(s * 0.5, s * 1.2, s * 0.5), Enum.PartType.Block
 	elseif def.silhouette == "pineapple-pope" then
 		return Vector3.new(s * 0.85, s * 1.05, s * 0.85), Enum.PartType.Block
-	elseif def.body == "ball" then
+	end
+	local entry = SILHOUETTES[def.silhouette]
+	if entry then
+		return Vector3.new(s * entry.x, s * entry.y, s * entry.z), entry.shape
+	end
+	-- Legacy body type fallback.
+	if def.body == "ball" then
 		return Vector3.new(s, s, s), Enum.PartType.Ball
 	elseif def.body == "tall" then
 		return Vector3.new(s * 0.62, s, s * 0.62), Enum.PartType.Block
@@ -163,14 +160,14 @@ end
 -- built at, with its widest body dimension capped so flat wide bodies
 -- do not sprawl across the neighbour's pad. The old version measured
 -- the TOTAL bounding-box height (body + hat/accessories), so a flat
--- puddle with slabs sticking up (Bloop) got its body under-scaled
--- while a tall dome (Baron) stayed big — the sizes still read uneven
--- in playtest 10 even though every placed Rotling was "4.5 tall".
--- The body is the animal; the body is the measure. Honest limit: a
--- flat silhouette (puddle, couch, mole) is inherently shorter than a
--- dome in the same footprint — no uniform scaling can make a 4.2:1
--- puddle as tall as a dome without it sprawling past its pad. What
--- this guarantees is that every body is as tall as its shape allows
+-- puddle with slabs sticking up got its body under-scaled while a
+-- tall dome stayed big — the sizes still read uneven in playtest 10
+-- even though every placed Rotling was "4.5 tall". The body is the
+-- animal; the body is the measure. Honest limit: a flat silhouette
+-- (puddle, couch, mole) is inherently shorter than a dome in the
+-- same footprint — no uniform scaling can make a 4.2:1 puddle as
+-- tall as a dome without it sprawling past its pad. What this
+-- guarantees is that every body is as tall as its shape allows
 -- within one pad, and no hat or accessory inflates or shrinks it.
 -- (fix round 9, item 5)
 function RotlingFactory.normalizeToHeight(model: Model, height: number)
@@ -223,8 +220,8 @@ function RotlingFactory.setCarriedVisual(model: Model, carried: boolean)
 		shell.Transparency = if carried then 1 else 0.88
 	end
 	-- The rarity outline stays ON while carried: the carried Rotling
-	-- must pop in front of the chest (Malek's item 5), and the outline
-	-- is the cheapest way to keep it readable against any background.
+	-- must pop in front of the chest, and the outline is the cheapest
+	-- way to keep it readable against any background.
 	local hl = model:FindFirstChildOfClass("Highlight")
 	if hl then
 		hl.Enabled = true
@@ -1072,9 +1069,9 @@ local function addLabel(model: Model, body: Part, def: RotlingCatalog.RotlingDef
 	rarityLabel.Position = UDim2.new(0, 0, 0.4, 0)
 	rarityLabel.Size = UDim2.new(1, 0, 0.3, 0)
 	rarityLabel.BackgroundTransparency = 1
-	-- The mutation line carries the multiplier (cheap win 1): a mutated
-	-- Rotling's tag reads "✦ RAINBOW x5" so the value is obvious from
-	-- the path — and the cps line below already includes it.
+	-- The mutation line carries the multiplier: a mutated Rotling's
+	-- tag reads "✦ RAINBOW x5" so the value is obvious from the path
+	-- — and the cps line below already includes it.
 	local rarityText = def.rarity
 	if mutation then
 		rarityText ..= " ✦ " .. mutation .. " x" .. tostring(MutationConfig.mutationMult(mutation))
