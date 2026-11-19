@@ -802,7 +802,7 @@ do
 		for _, entry in ipairs(entries :: { string }) do
 			local path = dir .. "/" .. entry
 			local metaOk, meta = pcall(fs.metadata, root .. "/" .. path)
-			if metaOk and meta.kind == "directory" then
+			if metaOk and (meta.kind == "dir" or meta.kind == "directory") then
 				walk(path)
 			elseif entry:sub(-5) == ".luau" then
 				local src = read(path)
@@ -810,9 +810,12 @@ do
 					local code = stripComments(src)
 					-- Formatting.luau IS the shared function: it is
 					-- the one file allowed to prepend "$". Every
-					-- other file must go through it.
+					-- other file must go through it. The concat
+					-- may be spaced ("$" .. x, the usual style) or
+					-- tight ("$"..x), so the pattern allows
+					-- whitespace before the "..".
 					local handRolled = path ~= "src/shared/Formatting.luau"
-						and (code:find('"%$"%.%.') or code:find("'%$'%.%."))
+						and (code:find('"%$"%s*%.%.') or code:find("'%$'%s*%.%."))
 					if handRolled or code:find('%$%$') then
 						table.insert(badFiles, path)
 					end
@@ -8873,8 +8876,9 @@ do
 	local hudSrc = read("src/client/HUDController.client.luau")
 	local rivalSrc = read("src/server/RivalService.luau")
 	local raiderSrc = read("src/server/RaiderService.luau")
-	if not guiKitSrc or not hudSrc or not rivalSrc or not raiderSrc then
-		check("banner-fit", false, "could not verify the banner fit — GuiKit.luau, HUDController.client.luau, RivalService.luau or RaiderService.luau missing")
+	local configSrc = read("src/shared/Config.luau")
+	if not guiKitSrc or not hudSrc or not rivalSrc or not raiderSrc or not configSrc then
+		check("banner-fit", false, "could not verify the banner fit — GuiKit.luau, HUDController.client.luau, RivalService.luau, RaiderService.luau or Config.luau missing")
 	else
 		local problems: { string } = {}
 		if not hudSrc:find("bannerLabel%.TextScaled = false") then
@@ -8902,11 +8906,70 @@ do
 		if not raiderSrc:find("Grimble the Grabber") then
 			table.insert(problems, "the longest raider title (Grimble the Grabber) is gone — the worst-case fit case changed")
 		end
-		-- Worst case, computed: the raider line at the longest
-		-- title is ~98 chars; at the 14px floor and ~8px/char it
-		-- needs 3 lines on a 360px phone (label 324px) — the
-		-- height formula must cover 3 lines.
-		local longest = 98
+		-- Worst case, MEASURED from the source — the old code had
+		-- `local longest = 98` as a hand-written literal, so the
+		-- lines/height guard could never fail on a source change:
+		-- a longer title or banner string sailed straight
+		-- through. Now the longest thief banner is the longest
+		-- name/title on the longest banner template, all four
+		-- thief banner lines measured: the raider and rival sneak
+		-- lines and the two give-up lines (the rival reasons are
+		-- short literals in RivalService). Byte lengths: the "🚨 "
+		-- prefix is 5 bytes and the em-dash is 3, so this slightly
+		-- overcounts display width — a conservative fit. At the
+		-- 14px floor and ~8px/char it needs 3 lines on a 360px
+		-- phone (label 324px) — the height formula must cover
+		-- 3 lines.
+		local titlesBlock = raiderSrc:match("local RAIDER_TITLES = {([%s%S]-)}")
+		local longestRaider = 0
+		if titlesBlock then
+			for title in titlesBlock:gmatch('"([^"]+)"') do
+				longestRaider = math.max(longestRaider, #title)
+			end
+		end
+		if longestRaider == 0 then
+			table.insert(problems, "could not measure the longest raider title (RAIDER_TITLES not found in RaiderService.luau)")
+		end
+		local namesBlock = configSrc:match("Config%.RIVAL_NAMES = {([%s%S]-)}")
+		local longestRival = 0
+		if namesBlock then
+			for name in namesBlock:gmatch('"([^"]+)"') do
+				longestRival = math.max(longestRival, #name)
+			end
+		end
+		if longestRival == 0 then
+			table.insert(problems, "could not measure the longest rival name (RIVAL_NAMES not found in Config.luau)")
+		end
+		local raiderSneak = raiderSrc:match('" is sneaking toward your base! Guard your Brainrots — bonk it or slap it!"')
+		local rivalSneak = rivalSrc:match('" is sneaking to your base! Lock it %(L%)!"')
+		local raiderGiveUp = raiderSrc:match('" gave up sneaking to your base — couldn\'t reach it!"')
+		local rivalGiveUpPrefix = rivalSrc:match('" gave up sneaking to your base — "')
+		local longestReason = 0
+		for reason in rivalSrc:gmatch('giveUpBanner%(victim, rival%.name, "([^"]+)"%)') do
+			longestReason = math.max(longestReason, #reason)
+		end
+		local prefixLen = #"🚨 "
+		local longest = 0
+		if raiderSneak then
+			longest = math.max(longest, prefixLen + longestRaider + #raiderSneak)
+		else
+			table.insert(problems, "could not measure the raider sneak banner (template not found in RaiderService.luau)")
+		end
+		if rivalSneak then
+			longest = math.max(longest, prefixLen + longestRival + #rivalSneak)
+		else
+			table.insert(problems, "could not measure the rival sneak banner (template not found in RivalService.luau)")
+		end
+		if raiderGiveUp then
+			longest = math.max(longest, prefixLen + longestRaider + #raiderGiveUp)
+		else
+			table.insert(problems, "could not measure the raider give-up banner (template not found in RaiderService.luau)")
+		end
+		if rivalGiveUpPrefix then
+			longest = math.max(longest, prefixLen + longestRival + #rivalGiveUpPrefix + longestReason + 1)
+		else
+			table.insert(problems, "could not measure the rival give-up banner (template not found in RivalService.luau)")
+		end
 		local phoneLabel = 360 * 0.9
 		local linesNeeded = math.ceil(longest * 8 / phoneLabel)
 		local height = linesNeeded * 14 + 16
@@ -8914,9 +8977,9 @@ do
 			table.insert(problems, "the longest thief banner needs " .. tostring(linesNeeded) .. " lines on a phone (" .. tostring(height) .. "px) — the fit must cover it")
 		end
 		if #problems > 0 then
-			check("banner-fit", false, "the thief banner does not fit — " .. table.concat(problems, "; ") .. ". Parts: GuiKit.luau, HUDController.client.luau, RivalService.luau, RaiderService.luau")
+			check("banner-fit", false, "the thief banner does not fit — " .. table.concat(problems, "; ") .. ". Parts: GuiKit.luau, HUDController.client.luau, RivalService.luau, RaiderService.luau, Config.luau")
 		else
-			check("banner-fit", true, "thief banner fits: TextScaled off (it mis-measured the emoji), showBanner measures with TextService, shrinks to fit in 2 lines, grows the label to the lines needed; longest line (~98 chars, Grimble the Grabber) needs " .. tostring(linesNeeded) .. " lines on a phone (" .. tostring(height) .. "px)")
+			check("banner-fit", true, "thief banner fits: TextScaled off (it mis-measured the emoji), showBanner measures with TextService, shrinks to fit in 2 lines, grows the label to the lines needed; longest measured thief banner is " .. tostring(longest) .. " bytes and needs " .. tostring(linesNeeded) .. " lines on a phone (" .. tostring(height) .. "px)")
 		end
 	end
 end

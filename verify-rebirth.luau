@@ -6,8 +6,10 @@
 --       profile.coins, profile.banked and profile.rebirths — no touch
 --       of placed, index, xp, level, stardust, or any remove/clear.
 --   (2) REPLAY: a concrete profile (cash + banked + 3 placed Brainrots
---       + 14/20 index + XP + level + Stardust) goes through the exact
---       reset the code performs; everything but the cash survives.
+--       + 14/20 index + XP + level + Stardust) goes through the reset
+--       the doRebirth body states — the assignments are read out of
+--       the body and applied, not re-typed — so everything but the
+--       cash survives only if the code really resets cash only.
 --   (3) BASE COLOUR: the rebirth recolors the base by cycling the
 --       8-entry COLORS palette by rebirth count, so Rebirth 2 takes
 --       entry 2 (blue 120, 180, 255) and Rebirth 9 wraps to entry 1.
@@ -76,6 +78,22 @@ local dataSrc = read("src/server/DataService.luau")
 assertOk(dataSrc:find("placed = {},") ~= nil, "default profile has no placed table")
 assertOk(dataSrc:find("index = {},") ~= nil, "default profile has no index table")
 
+-- The rebirth price base, parsed from Config here because the replay
+-- below (proof 2) already needs it for its cost check; proof (4)
+-- pins it to 10000 and the formula.
+local configSrc = read("src/shared/Config.luau")
+local baseStart = configSrc:find("Config.REBIRTH_BASE_COST = ", 1, true)
+assertOk(baseStart ~= nil, "REBIRTH_BASE_COST not found in Config.luau")
+local baseCost: number? = nil
+if baseStart then
+	local numStart = baseStart + #"Config.REBIRTH_BASE_COST = "
+	local numEnd = configSrc:find("\n", numStart, true)
+	if numEnd then
+		baseCost = tonumber(configSrc:sub(numStart, numEnd - 1))
+	end
+end
+assertOk(baseCost ~= nil, "REBIRTH_BASE_COST did not parse from Config.luau")
+
 -- (2) REPLAY: a mid-game profile through the exact reset.
 print("--- Rebirth-2 replay: profile before the rebirth ---")
 local profile = {
@@ -107,16 +125,24 @@ print(string.format(
 	profile.coins, profile.banked, profile.rebirths, #profile.placed, countIndex(profile.index), profile.xp, profile.level, profile.stardust
 ))
 
--- The reset, exactly as doRebirth performs it — gated on the same
--- cost check (rebirthCost(1) = 10000 * 2 * 2 = $40,000, paid from
--- total wealth: coins + banked).
-local cost = 10000 * (profile.rebirths + 1) * (profile.rebirths + 1)
+-- The reset, applied exactly as the doRebirth body states it — NOT
+-- re-typed here. Every `profile.<field> = 0` in the body zeroes that
+-- field of the replay profile, every `profile.<field> += 1`
+-- increments it. If the body ever zeroes the wrong field (or forgets
+-- one), the assertions below fail: the replay cannot pass on a reset
+-- the code does not perform. The cost comes from the base parsed
+-- from Config above, not a literal, and is gated on the same total
+-- wealth the code charges from.
+local cost = (baseCost or 10000) * (profile.rebirths + 1) * (profile.rebirths + 1)
 local totalWealth = profile.coins + profile.banked
 print(string.format("rebirth cost $%d, total wealth $%d — affordable: %s", cost, totalWealth, tostring(totalWealth >= cost)))
-assertOk(totalWealth >= cost, "replay profile cannot afford Rebirth 2 (cost $40,000)")
-profile.coins = 0
-profile.banked = 0
-profile.rebirths += 1
+assertOk(totalWealth >= cost, "replay profile cannot afford Rebirth 2 (cost $" .. tostring(cost) .. ")")
+for field in body:gmatch("profile%.([%a_]+)%s*=%s*0") do
+	(profile :: any)[field] = 0
+end
+for field in body:gmatch("profile%.([%a_]+)%s*%+=%s*1") do
+	(profile :: any)[field] = (profile :: any)[field] + 1
+end
 
 print("--- the same profile after Rebirth 2 ---")
 print(string.format(
@@ -168,17 +194,7 @@ assertOk(wrapIndex == 1, "Rebirth 9 takes palette entry " .. tostring(wrapIndex)
 -- (IncomeService, which sends rebirthCost + rebirthProgress to the
 -- client) must compute the same formula from the same base, or the
 -- player would see one price and be charged another.
-local configSrc = read("src/shared/Config.luau")
-local baseStart = configSrc:find("Config.REBIRTH_BASE_COST = ", 1, true)
-assertOk(baseStart ~= nil, "REBIRTH_BASE_COST not found in Config.luau")
-local baseCost: number? = nil
-if baseStart then
-	local numStart = baseStart + #"Config.REBIRTH_BASE_COST = "
-	local numEnd = configSrc:find("\n", numStart, true)
-	if numEnd then
-		baseCost = tonumber(configSrc:sub(numStart, numEnd - 1))
-	end
-end
+-- The base was parsed from Config above (the replay needs it too).
 assertOk(baseCost == 10000, "REBIRTH_BASE_COST is " .. tostring(baseCost) .. ", not 10000 — the rebirth price base changed")
 assertOk(rebirthSrc:find("return Config.REBIRTH_BASE_COST * (rebirths + 1) * (rebirths + 1)", 1, true) ~= nil, "rebirthCost does not compute REBIRTH_BASE_COST * (rebirths+1)^2")
 assertOk(body:find("local cost = RebirthService.rebirthCost(profile.rebirths)", 1, true) ~= nil, "doRebirth does not charge rebirthCost(profile.rebirths)")
