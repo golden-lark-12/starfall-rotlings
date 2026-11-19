@@ -2,16 +2,15 @@
 -- Starfall Rotlings: the Crater Guardian (THE CHASE — the core of the game).
 -- When anyone grabs a Brainrot from the crater, a space rock monster
 -- (glowing red eyes) climbs out and chases them. Rarer Brainrot =
--- faster guardian: CAT-FAST at every tier (Common 28 to Cosmic 34 —
--- fix round 9, item 1), faster than a sprint, so a walking player
--- cannot outrun it and even a sprinter only escapes by reaching the
--- base. If it catches you, it SMASHES you: 40 HP damage + knocked
--- down + you drop the Brainrot back (fix round 8, item 2 — two
--- catches kill you, so a catch is a real threat, not a free reset).
--- Reach your base interior and it gives up. The chase is NOT bounded
--- to the crater: it follows the target anywhere on the map (fix round
--- 9, item 2) — the only approved stops are the base interior, the
--- dropped carry, and the 25s timeout.
+-- faster guardian: CAT-FAST at every tier (Common 28 to Cosmic 34),
+-- faster than a sprint, so a walking player cannot outrun it and even
+-- a sprinter only escapes by reaching the base. If it catches you, it
+-- SMASHES you: 40 HP damage + knocked down + you drop the Brainrot
+-- back — two catches kill you, so a catch is a real threat, not a
+-- free reset. Reach your base interior and it gives up. The chase is
+-- NOT bounded to the crater: it follows the target anywhere on the
+-- map — the only approved stops are the base interior, the dropped
+-- carry, and the 25s timeout.
 -- Raider bots also grab from the crater, so the guardian chases them
 -- too — and a player can slap/bonk a raider to steal its Brainrot.
 -- The Cosmic Corn Dog is the final index entry: rarest spawn, and the
@@ -41,10 +40,10 @@ type Guardian = {
 	targetPlayer: Player?,
 	speed: number,
 	bornAt: number,
-	-- Chase telemetry (fix round 9, item 1): the proof the chase is
-	-- real — total distance actually moved, closest approach, farthest
-	-- radius reached (did it leave the crater?), and whether it ever
-	-- got out of the crater at all. The despawn summary prints these.
+	-- Chase telemetry: the proof the chase is real — total distance
+	-- actually moved, closest approach, farthest radius reached (did
+	-- it leave the crater?), and whether it ever got out of the
+	-- crater at all. The despawn summary prints these.
 	totalMoved: number,
 	minDist: number,
 	maxRadius: number,
@@ -97,13 +96,13 @@ end
 
 -- Build the guardian: a hunched rock golem with glowing cracks.
 -- Built from parts only (no meshes, no uploads), like every Rotling.
--- (fix round 6, item 5) THE LOOK, reworked: the old guardian was a
--- smooth ball with flat grey slabs — Malek asked for a creature. Now
--- it has a head jutting forward low on the chest (the hunch), a heavy
--- brow over glowing red eyes, boulder shoulders, long arms with fists,
--- stomp feet, and Neon magma cracks instead of grey slabs. The body
--- ball itself is UNCHANGED (size + centre are the locomotion the
--- chase was tuned on); everything new is decorative and welded to it.
+-- THE LOOK: the old guardian was a smooth ball with flat grey slabs —
+-- Malek asked for a creature. Now it has a head jutting forward low
+-- on the chest (the hunch), a heavy brow over glowing red eyes,
+-- boulder shoulders, long arms with fists, stomp feet, and Neon magma
+-- cracks instead of grey slabs. The body ball itself is UNCHANGED
+-- (size + centre are the locomotion the chase was tuned on);
+-- everything new is decorative and welded to it.
 local function buildGuardian(position: Vector3): Model
 	local model = Instance.new("Model")
 	model.Name = "Crater Guardian"
@@ -235,7 +234,7 @@ local function buildGuardian(position: Vector3): Model
 	-- ball's centre, 3.2 studs above the floor (the ball is 5 tall,
 	-- centred at +3.2). The default HipHeight 2 made the Humanoid
 	-- push the whole model down into the floor while it walked —
-	-- part of the jerky "in blocks" motion (fix round 7, item 1).
+	-- part of the jerky "in blocks" motion.
 	local humanoid = Instance.new("Humanoid")
 	humanoid.WalkSpeed = Config.GUARDIAN_SPEED[1]
 	humanoid.HipHeight = 3.2
@@ -283,12 +282,11 @@ function GuardianService.despawnGuardian(model: Model, reason: string?)
 	local targetName = if guardian.targetPlayer then guardian.targetPlayer.Name else "raider"
 	local lived = math.max(0.1, time() - guardian.bornAt)
 	local avgSpeed = guardian.totalMoved / lived
-	-- Chase summary (fix round 9, item 1): the proof, in one line —
-	-- how long it chased, how close it got, its average REAL speed
-	-- (not WalkSpeed), and whether it ever left the crater. If the
-	-- average real speed is under 26, the chase is broken no matter
-	-- what Config says; if max radius stayed under 40, it never left
-	-- the crater (item 2).
+	-- Chase summary: the proof, in one line — how long it chased,
+	-- how close it got, its average REAL speed (not WalkSpeed), and
+	-- whether it ever left the crater. If the average real speed is
+	-- under 26, the chase is broken no matter what Config says; if
+	-- max radius stayed under 40, it never left the crater.
 	print("[Guardian] chase summary — " .. tostring(reason or "?") .. " — chased " .. targetName .. " for " .. tostring(math.floor(lived)) .. "s, min distance " .. string.format("%.1f", guardian.minDist) .. " studs, avg real speed " .. string.format("%.1f", avgSpeed) .. " studs/s, max radius " .. string.format("%.0f", guardian.maxRadius) .. " (left crater: " .. tostring(guardian.leftCrater) .. ")")
 	model:Destroy()
 end
@@ -297,20 +295,18 @@ end
 -- damage, knocked flat, everything carried drops back into the crater —
 -- then the guardian leaves. Two catches kill (100 HP), so a catch is a
 -- real threat, not a free reset: the old catch only dropped the
--- Brainrot and Malek read it as harmless ("all it does is him getting
--- dropped the brainrot", playtest 9).
+-- Brainrot and Malek read it as harmless.
 local function catchPlayer(guardian: Model, player: Player)
-	-- (fix round 13, item 3) ZERO damage on your own base, at all.
-	-- The Touch-catch handler fires the moment the guardian's body
-	-- touches the target, with no own-base check — a guardian
-	-- chasing you to the door could touch-catch you while you
-	-- stood on the platform edge, even though the chaseLoop gives
-	-- up first. So the gate lives HERE, in the catch itself: on
-	-- your own base platform the catch never lands — no damage,
-	-- no knockdown, no dropped Brainrot — the guardian just
-	-- leaves. (The distance catch in the chaseLoop is already
-	-- gated by the give-up check above it; this gate covers the
-	-- Touch path, which bypasses the loop entirely.)
+	-- ZERO damage on your own base, at all. The Touch-catch handler
+	-- fires the moment the guardian's body touches the target, with
+	-- no own-base check — a guardian chasing you to the door could
+	-- touch-catch you while you stood on the platform edge, even
+	-- though the chaseLoop gives up first. So the gate lives HERE,
+	-- in the catch itself: on your own base platform the catch never
+	-- lands — no damage, no knockdown, no dropped Brainrot — the
+	-- guardian just leaves. (The distance catch in the chaseLoop is
+	-- already gated by the give-up check above it; this gate covers
+	-- the Touch path, which bypasses the loop entirely.)
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	if root and onOwnBase(player, root.Position) then
@@ -352,9 +348,9 @@ end
 -- in blocks.
 -- Ends on catch, on give-up (safe base / nothing carried / timeout),
 -- or when the target is gone. The chase is NOT bounded to the crater:
--- it follows the target anywhere on the map (Malek: "he has to chase
--- me even outside his spawning circle").
--- (fix round 9, item 1) WHY IT STILL READ SLOW — three causes, all
+-- it follows the target anywhere on the map — the only approved
+-- stops are the base interior, the dropped carry, and the 25s timeout.
+-- WHY IT STILL READ SLOW (fix round 9, item 1) — three causes, all
 -- proven from the old code: (1) the chase steered on a PATHFINDER
 -- route that detoured through the crater's entrance gap (+Z), so the
 -- guardian's route was far longer than the player's straight line
@@ -384,12 +380,11 @@ local function chaseLoop(guardian: Model)
 	end
 	local lastChasePos = root.Position
 	local noProgressTime = 0
-	-- Chase telemetry (fix round 8, item 1; extended fix round 9,
-	-- item 1): the guardian's speed is a NUMBER, not a feeling —
-	-- every 2s the loop logs the real studs/s the guardian actually
-	-- moved (not its WalkSpeed, which is what it is TOLD to move at)
-	-- plus the distance to the target. That is the proof the speed
-	-- fix works: a real speed above 26 means it gains even on a
+	-- Chase telemetry: the guardian's speed is a NUMBER, not a
+	-- feeling — every 2s the loop logs the real studs/s the guardian
+	-- actually moved (not its WalkSpeed, which is what it is TOLD to
+	-- move at) plus the distance to the target. That is the proof the
+	-- speed fix works: a real speed above 26 means it gains even on a
 	-- sprinter, and the distance should shrink tick by tick. Malek
 	-- reads it in F9. The per-chase totals feed the despawn summary.
 	local lastTelemetryAt = time()
@@ -444,10 +439,10 @@ local function chaseLoop(guardian: Model)
 			entry.leftCrater = true
 			print("[Guardian] LEFT THE CRATER — chasing at radius " .. string.format("%.0f", guardianRadius) .. ", target " .. string.format("%.0f", distToTarget) .. " studs away")
 		end
-		-- Lunge (fix round 9, item 1): inside 14 studs, the guardian
-		-- pounces — +12 speed for 0.6s plus a jump toward the target,
-		-- at most once every 4s. The pounce is what makes a close
-		-- guardian feel like a cat, not a rolling rock.
+		-- Lunge: inside 14 studs, the guardian pounces — +12 speed
+		-- for 0.6s plus a jump toward the target, at most once every
+		-- 4s. The pounce is what makes a close guardian feel like a
+		-- cat, not a rolling rock.
 		local now = time()
 		if distToTarget <= Config.GUARDIAN_LUNGE_RANGE and now - lastLungeAt >= Config.GUARDIAN_LUNGE_COOLDOWN then
 			lastLungeAt = now
@@ -494,11 +489,11 @@ local function chaseLoop(guardian: Model)
 			noProgressTime = 0
 			lastChasePos = root.Position
 		end
-		-- Telemetry (fix round 9, item 1): real speed over the last
-		-- sample, so a slow guardian cannot hide behind its WalkSpeed
-		-- setting — if this number is under 26, the chase is broken
-		-- no matter what Config says. The distance should shrink
-		-- every sample while the target runs.
+		-- Telemetry: real speed over the last sample, so a slow
+		-- guardian cannot hide behind its WalkSpeed setting — if this
+		-- number is under 26, the chase is broken no matter what
+		-- Config says. The distance should shrink every sample while
+		-- the target runs.
 		local telemetryNow = time()
 		if telemetryNow - lastTelemetryAt >= 2 then
 			local moved = (root.Position - lastTelemetryPos).Magnitude
@@ -518,20 +513,20 @@ end
 
 -- Spawn a guardian at the crater floor and start the chase.
 -- `rarity` is the grabbed Brainrot's rarity: it sets the speed.
--- Where it spawns (fix round 4, item 1): at the crater rim OPPOSITE
--- the target, never on top of them. The old code spawned it at the
--- target's exact position (same X/Z, Y = CRATER_FLOOR_Y), so the
--- guardian's root landed ~0 studs from the player's root — inside the
--- 5-stud catch radius on the FIRST chase tick. Every grab was caught
--- instantly, the Brainrot dropped straight back into the crater, and
--- pressing E read as "does nothing". A rim spawn is always >= 14 studs
--- away (Config.GUARDIAN_SPAWN_DISTANCE), so the player gets a real
--- head start to run home — and the escape is the base interior (or
--- the 25s timeout): even the SLOWEST guardian (Common 28) gains 12
--- studs/s on a walker at 16, so it closes on a straight-line runner
--- in ~2s; a sprinter (26) is still slower than the guardian, so
--- sprinting only buys time to reach the base — full Speed Boots
--- (walk 26, sprint 36) are the outrun answer.
+-- Where it spawns: at the crater rim OPPOSITE the target, never on
+-- top of them. The old code spawned it at the target's exact position
+-- (same X/Z, Y = CRATER_FLOOR_Y), so the guardian's root landed ~0
+-- studs from the player's root — inside the 5-stud catch radius on
+-- the FIRST chase tick. Every grab was caught instantly, the Brainrot
+-- dropped straight back into the crater, and pressing E read as "does
+-- nothing". A rim spawn is always >= 14 studs away
+-- (Config.GUARDIAN_SPAWN_DISTANCE), so the player gets a real head
+-- start to run home — and the escape is the base interior (or the 25s
+-- timeout): even the SLOWEST guardian (Common 28) gains 12 studs/s
+-- on a walker at 16, so it closes on a straight-line runner in ~2s;
+-- a sprinter (26) is still slower than the guardian, so sprinting
+-- only buys time to reach the base — full Speed Boots (walk 26,
+-- sprint 36) are the outrun answer.
 local function guardianSpawnPos(targetPos: Vector3): Vector3
 	local flat = Vector3.new(targetPos.X, 0, targetPos.Z)
 	local dir: Vector3
@@ -563,14 +558,13 @@ local function spawnGuardian(target: Model, targetPlayer: Player?, rarity: strin
 		maxRadius = 0,
 		leftCrater = false,
 	}
-	-- Touch-catch (fix round 7, item 1): the catch radius is checked
-	-- every 0.1s tick, but a touch is instant — if the target's
-	-- character touches the guardian's body, the catch fires right
-	-- away instead of waiting for the next tick. The body only ever
-	-- touches the target this close (its own welded parts never fire
-	-- Touched on each other, and the ground is not the target), so a
-	-- touch IS a catch. This is what makes the guardian actually
-	-- hurt: "no dmg, no drops, no deaths, nothing" ends here.
+	-- Touch-catch: the catch radius is checked every 0.1s tick, but a
+	-- touch is instant — if the target's character touches the
+	-- guardian's body, the catch fires right away instead of waiting
+	-- for the next tick. The body only ever touches the target this
+	-- close (its own welded parts never fire Touched on each other,
+	-- and the ground is not the target), so a touch IS a catch. This
+	-- is what makes the guardian actually hurt.
 	local body = model.PrimaryPart
 	if body then
 		body.Touched:Connect(function(hit: BasePart)
