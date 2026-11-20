@@ -4625,17 +4625,17 @@ do
 		if worldSrc:find('part%("CraterRim", Enum%.PartType%.Cylinder') then
 			table.insert(problems, "the rim is still built from solid cylinders (CraterRim Cylinder) that bury the floor")
 		end
-		if not worldSrc:find("buildRimRing%(28, 31, 2%.5") then
-			table.insert(problems, "inner rim ring (28-31, height 2.5) not found")
+		if not worldSrc:find("buildRimRing%(28, 31, 1%.5") then
+			table.insert(problems, "inner rim ring (28-31, height 1.5) not found")
 		end
-		if not worldSrc:find("buildRimRing%(31, 35, 4") then
-			table.insert(problems, "middle rim ring (31-35, height 4) not found")
+		if not worldSrc:find("buildRimRing%(31, 35, 2%.5") then
+			table.insert(problems, "middle rim ring (31-35, height 2.5) not found")
 		end
-		if not worldSrc:find("buildRimRing%(35, 39, 5%.5") then
-			table.insert(problems, "outer rim ring (35-39, height 5.5) not found")
+		if not worldSrc:find("buildRimRing%(35, 39, 3%.5") then
+			table.insert(problems, "outer rim ring (35-39, height 3.5) not found")
 		end
-		if not worldSrc:find("if i ~= 4 then") then
-			table.insert(problems, "no entrance gap in the rim rings (segment i=4, +Z, spawn-path side)")
+		if not worldSrc:find("if i ~= 7 then") then
+			table.insert(problems, "no entrance gap in the rim rings (segment i=7, +Z, spawn-path side)")
 		end
 		if not worldSrc:find("CFrame%.lookAt%(pos, Vector3%.new%(0, height / 2, 0%)%)") then
 			table.insert(problems, "rim blocks are not oriented tangent to the ring (CFrame.lookAt centre)")

@@ -976,8 +976,10 @@ local function buildCrater()
 	part("CraterFloor", Enum.PartType.Cylinder, Vector3.new(1, 56, 56), Color3.fromRGB(60, 50, 80), CFrame.new(0, 0.2, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate)
 	-- The rim: three concentric rings of blocks, each ring a little
 	-- higher and wider than the last, so the crater reads as a bowl.
-	-- Segment 4 (the +Z side, toward the belt) is left open: that
-	-- is the entrance, where the belt comes in.
+	-- Segment 7 (the +Z side, toward the belt, 67.5 deg) is left open: that
+	-- is the entrance, where the belt comes in. 32 segments per ring so
+	-- the outline reads round from above, not star-shaped; rims kept low
+	-- (1.5/2.5/3.5) so the bowl reads as a pit, not a mound.
 	local function buildRimRing(radius: number, width: number, height: number)
 		local segments = 32
 		for i = 1, segments do
