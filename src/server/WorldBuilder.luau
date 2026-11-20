@@ -972,8 +972,10 @@ end
 -- beam of light shooting up from its middle.
 local function buildCrater()
 	-- The crater floor: a wide cylinder, 56 studs across, sunk
-	-- slightly into the ground so it reads as a pit.
-	part("CraterFloor", Enum.PartType.Cylinder, Vector3.new(1, 56, 56), Color3.fromRGB(60, 50, 80), CFrame.new(0, 0.2, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate)
+	-- slightly into the ground so it reads as a pit. Dark, nearly
+	-- black — a hole, not a purple plate (the old purple floor made
+	-- the whole middle read as one big purple disc).
+	part("CraterFloor", Enum.PartType.Cylinder, Vector3.new(1, 56, 56), Color3.fromRGB(32, 28, 44), CFrame.new(0, 0.2, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate)
 	-- The rim: three concentric rings of blocks, each ring a little
 	-- higher and wider than the last, so the crater reads as a bowl.
 	-- buildRimRing takes INNER and OUTER radius: each ring is only
@@ -998,7 +1000,9 @@ local function buildCrater()
 				local pos = Vector3.new(math.cos(angle) * midRadius, height / 2, math.sin(angle) * midRadius)
 				local arc = (2 * math.pi * midRadius) / segments
 				local block = part("CraterRim", Enum.PartType.Block, Vector3.new(arc * 1.08, height, thickness),
-					Color3.fromRGB(90, 75, 110),
+					-- Neutral stone grey, not purple: the old purple-grey
+					-- rim + purple floor read as one giant purple disc.
+					Color3.fromRGB(128, 126, 132),
 					CFrame.lookAt(pos, Vector3.new(0, height / 2, 0)),
 					Enum.Material.Slate
 				)
