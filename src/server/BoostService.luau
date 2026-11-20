@@ -177,7 +177,31 @@ function BoostService.removePickup(model: Model)
 	model:Destroy()
 end
 
-local function randomPickupPosition(): Vector3
+-- Minimum horizontal gap between two live pickups, so their orbs
+-- and AlwaysOnTop labels never pile on top of each other: two
+-- pickups in the Star Shop used to spawn within a stud and their
+-- "Speed Coil" / "Shield" labels read as one jumbled line on the
+-- shop disc (with their light pools painting a blue oval and a
+-- green panel across it). 12 studs keeps the labels apart at any
+-- camera angle; the shop is only 12x8, so at most one pickup sits
+-- in the shop at a time and the rest spread over the field.
+local MIN_PICKUP_SPACING = 12
+
+local function isNearPickup(position: Vector3): boolean
+	for _, pickup in ipairs(pickups) do
+		local orb = pickup.PrimaryPart
+		if orb then
+			local dx = orb.Position.X - position.X
+			local dz = orb.Position.Z - position.Z
+			if dx * dx + dz * dz < MIN_PICKUP_SPACING * MIN_PICKUP_SPACING then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+local function randomPickupPositionOnce(): Vector3
 	-- Anywhere on the open field, or inside the Star Shop.
 	if math.random() < 0.25 then
 		local WorldBuilder = require(script.Parent.WorldBuilder)
@@ -187,6 +211,17 @@ local function randomPickupPosition(): Vector3
 	local angle = math.random() * math.pi * 2
 	local radius = math.random(45, 140)
 	return Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+end
+
+local function randomPickupPosition(): Vector3
+	local candidate = randomPickupPositionOnce()
+	for _ = 1, 8 do
+		if not isNearPickup(candidate) then
+			return candidate
+		end
+		candidate = randomPickupPositionOnce()
+	end
+	return candidate
 end
 
 -- Magnet: while the boost is live, auto-grab the nearest free Rotling

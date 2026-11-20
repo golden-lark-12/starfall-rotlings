@@ -1039,12 +1039,21 @@ local function buildStarShop()
 		shopCf * CFrame.Angles(0, 0, math.rad(90)),
 		Enum.Material.Slate
 	)
+	-- The rim is a thin gold RING under the floor's edge, not a
+	-- solid disc: the old solid 17-stud gold disc at Y 1.2 sat on
+	-- top of the dark floor and hid it, so the whole shop read as
+	-- one flat yellow plate (and buried the four pedestals to
+	-- their tops). Now the dark floor (16 across, top Y 0.6)
+	-- covers the ring's middle and only a 1-stud gold edge shows
+	-- around it. The ring sits at Y 0.3 (top 0.5), under the
+	-- floor's top, so it never reads as a plate and never buries
+	-- the pedestals.
 	local rim = part(
 		"StarShopRim",
 		Enum.PartType.Cylinder,
-		Vector3.new(0.4, 17, 17),
+		Vector3.new(0.4, 18, 18),
 		Color3.fromRGB(255, 200, 60),
-		shopCf * CFrame.new(0, 1.2, 0) * CFrame.Angles(0, 0, math.rad(90)),
+		shopCf * CFrame.new(0, 0.3, 0) * CFrame.Angles(0, 0, math.rad(90)),
 		Enum.Material.Neon
 	)
 	rim.CanCollide = false
