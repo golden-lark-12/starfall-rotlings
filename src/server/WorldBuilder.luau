@@ -921,7 +921,7 @@ local function buildGroundDetail()
 			"SandPatch",
 			Enum.PartType.Block,
 			Vector3.new(14, 0.2, 6),
-			Color3.fromRGB(230, 200, 140),
+			Color3.fromRGB(205, 185, 150),
 			CFrame.new(pos) * CFrame.Angles(0, -angle, 0),
 			Enum.Material.Sand
 		)
@@ -975,7 +975,7 @@ local function buildCrater()
 	-- slightly into the ground so it reads as a pit. Dark, nearly
 	-- black — a hole, not a purple plate (the old purple floor made
 	-- the whole middle read as one big purple disc).
-	part("CraterFloor", Enum.PartType.Cylinder, Vector3.new(1, 56, 56), Color3.fromRGB(32, 28, 44), CFrame.new(0, 0.2, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate)
+	part("CraterFloor", Enum.PartType.Cylinder, Vector3.new(1, 56, 56), Color3.fromRGB(36, 32, 30), CFrame.new(0, 0.2, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate)
 	-- The rim: three concentric rings of blocks, each ring a little
 	-- higher and wider than the last, so the crater reads as a bowl.
 	-- buildRimRing takes INNER and OUTER radius: each ring is only
@@ -1006,7 +1006,7 @@ local function buildCrater()
 					CFrame.lookAt(pos, Vector3.new(0, height / 2, 0)),
 					Enum.Material.Slate
 				)
-				block.CanCollide = false
+				-- Solid: you stand ON the rim steps, not inside them.
 			end
 		end
 	end
@@ -1386,7 +1386,7 @@ local function buildRocks()
 			CFrame.new(pos + Vector3.new(0, 1, 0)) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0),
 			Enum.Material.Slate
 		)
-		rock.CanCollide = false
+		-- Solid: a boulder you bump into, not a ghost you walk through.
 	end
 end
 
@@ -1482,7 +1482,7 @@ local function buildMeteorRocks()
 			CFrame.new(pos + Vector3.new(0, 1.5, 0)) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0),
 			Enum.Material.Slate
 		)
-		rock.CanCollide = false
+		-- Solid: a boulder you bump into, not a ghost you walk through.
 		local shard = part(
 			"MeteorShard",
 			Enum.PartType.Block,
