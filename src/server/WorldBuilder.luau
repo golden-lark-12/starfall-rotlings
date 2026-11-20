@@ -979,9 +979,9 @@ local function buildCrater()
 	-- Segment 4 (the +Z side, toward the belt) is left open: that
 	-- is the entrance, where the belt comes in.
 	local function buildRimRing(radius: number, width: number, height: number)
-		local segments = 16
+		local segments = 32
 		for i = 1, segments do
-			if i ~= 4 then
+			if i ~= 7 then
 				local angle = math.rad((i - 1) * (360 / segments))
 				local pos = Vector3.new(math.cos(angle) * radius, height / 2, math.sin(angle) * radius)
 				local arc = (2 * math.pi * radius) / segments
@@ -994,9 +994,9 @@ local function buildCrater()
 			end
 		end
 	end
-	buildRimRing(28, 31, 2.5)
-	buildRimRing(31, 35, 4)
-	buildRimRing(35, 39, 5.5)
+	buildRimRing(28, 31, 1.5)
+	buildRimRing(31, 35, 2.5)
+	buildRimRing(35, 39, 3.5)
 	-- The glowing centre: a neon disc in the middle of the crater,
 	-- with a beam of light shooting straight up. The beam is the
 	-- crater's beacon — you can see it from anywhere on the map.
