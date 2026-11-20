@@ -393,10 +393,12 @@ local function buildBase(baseId: number)
 		cf * CFrame.new(0, 1, -13) * CFrame.Angles(0, math.rad(180), 0)
 	)
 	ramp.CastShadow = false
-	-- Back edge: a low trim, not a wall. A tall back wall was a
+	-- Back edge: a low wall, not a tall one. A tall back wall was a
 	-- giant grey slab that filled the screen and blocked the view of
 	-- the base from the crater side; a 1.5-stud edge keeps the
-	-- "home" read without ever becoming a wall.
+	-- "home" read without ever becoming a wall. SOLID: a visible
+	-- wall you walk through reads as "no solidness at all"
+	-- (playtest). 1.5 tall, so a jump clears it - nobody is trapped.
 	local rearEdge = part(
 		"BaseBackTrim",
 		Enum.PartType.Block,
@@ -404,10 +406,10 @@ local function buildBase(baseId: number)
 		darken(color, 0.6),
 		cf * CFrame.new(0, 1.75, 10.5)
 	)
-	rearEdge.CanCollide = false
 	table.insert(baseWalls[baseId], rearEdge)
-	-- Low walls around the perimeter. Decorative and non-colliding,
-	-- so nobody ever gets trapped on their own base. The front keeps
+	-- Low walls around the perimeter. SOLID (playtest: the ghost
+	-- walls were "bases I get inside the block"). Nobody gets
+	-- trapped: 1.5 tall, so a jump clears them, and the front keeps
 	-- a gap for the entrance, where the lock gate stands.
 	for _, side in ipairs({ -1, 1 }) do
 		local edgeWall = part(
@@ -417,7 +419,6 @@ local function buildBase(baseId: number)
 			darken(color, 0.6),
 			cf * CFrame.new(side * 12.5, 1.75, 0)
 		)
-		edgeWall.CanCollide = false
 		table.insert(baseWalls[baseId], edgeWall)
 	end
 	for _, side in ipairs({ -1, 1 }) do
@@ -428,7 +429,6 @@ local function buildBase(baseId: number)
 			darken(color, 0.6),
 			cf * CFrame.new(side * 8, 1.75, -11)
 		)
-		gateWall.CanCollide = false
 		table.insert(baseWalls[baseId], gateWall)
 	end
 	-- Banner pole and flag.
@@ -439,7 +439,6 @@ local function buildBase(baseId: number)
 		Color3.fromRGB(72, 62, 92),
 		cf * CFrame.new(-11, 7, 9) * CFrame.Angles(0, 0, math.rad(90))
 	)
-	mast.CanCollide = false
 	local flag = part("BannerFlag", Enum.PartType.Block, Vector3.new(0.4, 3.5, 5), color, cf * CFrame.new(-11, 11, 6.5))
 	flag.Material = Enum.Material.Neon
 	flag.CanCollide = false
@@ -453,7 +452,6 @@ local function buildBase(baseId: number)
 		Color3.fromRGB(72, 62, 92),
 		cf * CFrame.new(0, 3.75, 9.5) * CFrame.Angles(0, 0, math.rad(90))
 	)
-	signPost.CanCollide = false
 	local signBoard = part("SignBoard", Enum.PartType.Block, Vector3.new(8, 4, 0.5), Color3.fromRGB(20, 15, 40), cf * CFrame.new(0, 7, 9.5))
 	signBoard.CanCollide = false
 	signBoard.CastShadow = false
@@ -620,7 +618,6 @@ local function buildBase(baseId: number)
 		incubatorCf * CFrame.Angles(0, 0, math.rad(90)),
 		Enum.Material.Slate
 	)
-	ring.CanCollide = false
 	local glow = part(
 		"IncubatorGlow",
 		Enum.PartType.Ball,
@@ -654,13 +651,11 @@ local function buildBase(baseId: number)
 		cf * CFrame.new(16, 1.5, -2),
 		Enum.Material.Metal
 	)
-	machine.CanCollide = false
 	local machineScreen = part("UpgradeMachineScreen", Enum.PartType.Block, Vector3.new(3, 1.6, 0.2),
 		Color3.fromRGB(120, 200, 255),
 		cf * CFrame.new(16, 2.2, -3.1),
 		Enum.Material.Neon
 	)
-	machineScreen.CanCollide = false
 	local machinePrompt = Instance.new("ProximityPrompt")
 	machinePrompt.ActionText = "Upgrade"
 	machinePrompt.ObjectText = "Base upgrades"
@@ -872,7 +867,6 @@ local function buildSignposts()
 			Color3.fromRGB(72, 62, 92),
 			CFrame.new(entry.pos + Vector3.new(0, 4.5, 0)) * CFrame.Angles(0, 0, math.rad(90))
 		)
-		post.CanCollide = false
 		local boardY = 5 + (i - 1) * 3.2
 		local frame = part(
 			"SignpostFrame",
@@ -881,7 +875,6 @@ local function buildSignposts()
 			Color3.fromRGB(20, 15, 40),
 			CFrame.new(entry.pos + Vector3.new(-4.2, 4.5, 0))
 		)
-		frame.CanCollide = false
 		frame.CastShadow = false
 		local gui = Instance.new("BillboardGui")
 		gui.Name = "SignpostGui"
@@ -951,7 +944,6 @@ local function buildGroundDetail()
 			Color3.fromRGB(72, 62, 92),
 			CFrame.new(pos + Vector3.new(0, 2.5, 0))
 		)
-		lamp.CanCollide = false
 		local bulb = part("PlazaLampBulb", Enum.PartType.Ball, Vector3.new(1.0, 1.0, 1.0),
 			Color3.fromRGB(255, 220, 120),
 			CFrame.new(pos + Vector3.new(0, 5.2, 0)),
@@ -1013,19 +1005,13 @@ local function buildCrater()
 	buildRimRing(28, 31, 1.5)
 	buildRimRing(31, 35, 2.5)
 	buildRimRing(35, 39, 3.5)
-	-- The glowing centre: a neon disc in the middle of the crater,
-	-- with a beam of light shooting straight up. The beam is the
-	-- crater's beacon — you can see it from anywhere on the map.
-	local glowDisc = part(
-		"CraterGlow",
-		Enum.PartType.Cylinder,
-		Vector3.new(0.4, 20, 20),
-		Color3.fromRGB(120, 200, 255),
-		CFrame.new(0, 0.5, 0) * CFrame.Angles(0, 0, math.rad(90)),
-		Enum.Material.Neon
-	)
-	glowDisc.CanCollide = false
-	glowDisc.Transparency = 0.5
+	-- No glow disc in the middle: a 20-stud neon disc (120,200,255)
+	-- washed the whole crater blue, so the middle Brainrot read
+	-- blue instead of its true colours (playtest). The floor stays
+	-- dark warm charcoal; the belt crossing the centre is the
+	-- middle's read now. The beam below stays: check (bx) pins its
+	-- size/transparency/light, and its light sits at Y=90 with
+	-- Range 40, so it cannot wash the middle (nothing below Y=50).
 	local beam = part("CraterBeam", Enum.PartType.Block, Vector3.new(180, 1.0, 1.0), Color3.fromRGB(120, 200, 255), CFrame.new(0, 90, 0), Enum.Material.Neon)
 	beam.CanCollide = false
 	beam.CanQuery = false
@@ -1053,7 +1039,6 @@ local function buildStarShop()
 		shopCf * CFrame.Angles(0, 0, math.rad(90)),
 		Enum.Material.Slate
 	)
-	platform.CanCollide = false
 	local rim = part(
 		"StarShopRim",
 		Enum.PartType.Cylinder,
@@ -1076,7 +1061,6 @@ local function buildStarShop()
 			shopCf * CFrame.new(pos + Vector3.new(0, 1, 0)),
 			Enum.Material.Slate
 		)
-		pedestal.CanCollide = false
 	end
 	-- The shopkeeper: a little star-headed vendor standing behind
 	-- the counter, so the shop has someone in it. Pure dressing —
@@ -1086,13 +1070,11 @@ local function buildStarShop()
 		shopCf * CFrame.new(0, 2.7, -4),
 		Enum.Material.Neon
 	)
-	keeperBody.CanCollide = false
 	local keeperHead = part("ShopkeeperHead", Enum.PartType.Ball, Vector3.new(2, 2, 2),
 		Color3.fromRGB(255, 220, 120),
 		shopCf * CFrame.new(0, 5.2, -4),
 		Enum.Material.Neon
 	)
-	keeperHead.CanCollide = false
 	-- The sign: a ROUND gold-rimmed disc on a post at local y=7,
 	-- not a flat board. The disc's face is at local z 10.65
 	-- (centre 10.3 + half-thickness 0.35); the text hangs on a
@@ -1103,18 +1085,15 @@ local function buildStarShop()
 		Color3.fromRGB(72, 62, 92),
 		shopCf * CFrame.new(0, 3.5, 10.3) * CFrame.Angles(0, 0, math.rad(90))
 	)
-	signPost.CanCollide = false
 	local disc = part("ShopSignDisc", Enum.PartType.Cylinder, Vector3.new(0.7, 7, 7),
 		Color3.fromRGB(40, 28, 60),
 		shopCf * CFrame.new(0, 7, 10.3) * CFrame.Angles(0, math.rad(90), 0)
 	)
-	disc.CanCollide = false
 	local rim = part("ShopSignRim", Enum.PartType.Cylinder, Vector3.new(0.8, 7.6, 7.6),
 		Color3.fromRGB(255, 200, 60),
 		shopCf * CFrame.new(0, 7, 10.3) * CFrame.Angles(0, math.rad(90), 0),
 		Enum.Material.Neon
 	)
-	rim.CanCollide = false
 	local signAnchor = part("ShopSignAnchor", Enum.PartType.Block, Vector3.new(1, 1, 0.2),
 		Color3.fromRGB(255, 255, 255),
 		shopCf * CFrame.new(0, 7, 11.4)
@@ -1174,7 +1153,6 @@ local function buildRebirthAltar()
 			CFrame.new(pos + Vector3.new(0, 4, 0)),
 			Enum.Material.Slate
 		)
-		pillar.CanCollide = false
 	end
 	local crystal = part(
 		"RebirthCrystal",
@@ -1198,7 +1176,6 @@ local function buildRebirthAltar()
 		Color3.fromRGB(72, 62, 92),
 		CFrame.new(0, 3, -82) * CFrame.Angles(0, 0, math.rad(90))
 	)
-	post.CanCollide = false
 	local board = part("RebirthSign", Enum.PartType.Block, Vector3.new(8, 3, 0.5), Color3.fromRGB(20, 15, 40), CFrame.new(0, 7, -82))
 	board.CanCollide = false
 	board.CastShadow = false
@@ -1230,7 +1207,6 @@ local function buildSpaceship()
 	-- The saucer: a wide flat disc, tilted slightly as if it came
 	-- down hard.
 	local saucer = part("SpaceshipSaucer", Enum.PartType.Cylinder, Vector3.new(8, 44, 44), Color3.fromRGB(140, 140, 160), shipCf * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(math.rad(8), 0, 0), Enum.Material.Metal)
-	saucer.CanCollide = false
 	-- The dome on top, glowing faintly.
 	local dome = part(
 		"SpaceshipDome",
@@ -1240,7 +1216,6 @@ local function buildSpaceship()
 		shipCf * CFrame.new(0, 8, 0),
 		Enum.Material.Glass
 	)
-	dome.CanCollide = false
 	dome.Transparency = 0.3
 	-- Three blinking lights around the rim.
 	for i = 1, 3 do
@@ -1339,7 +1314,6 @@ local function buildTrees()
 			Color3.fromRGB(120, 80, 40),
 			CFrame.new(pos + Vector3.new(0, trunkHeight / 2, 0))
 		)
-		trunk.CanCollide = false
 		local leaves = part(
 			"TreeLeaves",
 			Enum.PartType.Ball,
@@ -1427,7 +1401,6 @@ local function buildHills()
 			CFrame.new(pos + Vector3.new(0, -2, 0)),
 			Enum.Material.Grass
 		)
-		hill.CanCollide = false
 	end
 end
 
@@ -1538,7 +1511,6 @@ local function buildWorldTitleSign()
 			Color3.fromRGB(72, 62, 92),
 			CFrame.new(cx + side * 12.5, 6, cz)
 		)
-		post.CanCollide = false
 	end
 	local board = part("WorldTitleSign", Enum.PartType.Block, Vector3.new(22, 6, 1),
 		Color3.fromRGB(20, 15, 40),
@@ -1587,7 +1559,6 @@ end
 -- system ever treats them as placed or carried.
 local function buildHeroRow()
 	local plinth = part("HeroPlinth", Enum.PartType.Block, Vector3.new(21.5, 1, 6), Color3.fromRGB(60, 50, 80), CFrame.new(1.75, 0.5, 82), Enum.Material.Slate)
-	plinth.CanCollide = false
 	local heroIds = { "gummy", "alfredo", "bloop", "couch" }
 	for i, defId in ipairs(heroIds) do
 		local pos = Vector3.new(-8 + (i - 1) * 6.5, 2.5, 82)
@@ -1611,7 +1582,6 @@ end
 local function buildLogoStage()
 	local stageCf = CFrame.new(0, 0, 118)
 	local stage = part("LogoStage", Enum.PartType.Block, Vector3.new(20, 1, 8), Color3.fromRGB(60, 50, 80), stageCf * CFrame.new(0, 0.5, 0), Enum.Material.Slate)
-	stage.CanCollide = false
 	local logoIds = { "gummy", "alfredo", "bloop" }
 	for i, defId in ipairs(logoIds) do
 		local x = (i - 2) * 8
@@ -1763,13 +1733,11 @@ local function buildContractBoard()
 		boardCf * CFrame.new(0, 6, -0.3),
 		Enum.Material.Neon
 	)
-	backing.CanCollide = false
 	backing.CastShadow = false
 	local board = part("ContractBoard", Enum.PartType.Block, Vector3.new(12, 8, 0.5),
 		Color3.fromRGB(20, 15, 40),
 		boardCf * CFrame.new(0, 6, 0)
 	)
-	board.CanCollide = false
 	board.CastShadow = false
 	-- Two VERTICAL posts at +/- 6.9, outside the 12-wide board
 	-- (half-width 6) and its backing — a post through the board
@@ -1780,7 +1748,6 @@ local function buildContractBoard()
 			Color3.fromRGB(72, 62, 92),
 			boardCf * CFrame.new(x, 3.5, 0)
 		)
-		post.CanCollide = false
 	end
 	local topTrim = part("ContractBoardTrim", Enum.PartType.Block, Vector3.new(12.4, 0.7, 0.6),
 		Color3.fromRGB(255, 200, 60),

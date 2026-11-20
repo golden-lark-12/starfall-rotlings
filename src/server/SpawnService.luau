@@ -72,7 +72,7 @@ local function findSpawnPosition(): Vector3
 	local others = freePositions()
 	local bestSpot: Vector3? = nil
 	local bestGap = -1
-	for _ = 1, 12 do
+	for _ = 1, 20 do
 		-- On the belt: x along the belt's length, z within the belt's
 		-- width, so every Rotling stands on the conveyor in a line.
 		-- Y = BELT_TOP_Y - 0.1: RotlingFactory.build seats the body
@@ -192,7 +192,27 @@ local function animateFree()
 					-- bob/spin stays relative to its current spot.
 					local aheadX = baseCf.Position.X + Config.BELT_TRAVEL_SPEED * 0.1
 					if aheadX > Config.BELT_HALF_LENGTH then
-						aheadX = -Config.BELT_HALF_LENGTH
+						-- Wrap only onto a clear spot: the old code
+						-- teleported straight to -20, so a wrapper
+						-- landed on top of whatever was already
+						-- riding near the start. If the start is
+						-- crowded, wait at the end (still bobbing)
+						-- until the lane clears.
+						local clear = true
+						for other, otherCf in pairs(drift) do
+							if other ~= model and other.Parent then
+								local flat = Vector3.new(-Config.BELT_HALF_LENGTH - otherCf.Position.X, 0, baseCf.Position.Z - otherCf.Position.Z)
+								if flat.Magnitude < Config.CRATER_MIN_SPACING then
+									clear = false
+									break
+								end
+							end
+						end
+						if clear then
+							aheadX = -Config.BELT_HALF_LENGTH
+						else
+							aheadX = Config.BELT_HALF_LENGTH
+						end
 					end
 					-- Face the travel direction (+X): -90 degrees
 					-- about Y turns the model's +Z face toward +X.
@@ -300,6 +320,31 @@ function SpawnService.spawnOne(): Model?
 	return model
 end
 
+-- A belt spot near `near`, at least CRATER_MIN_SPACING from every
+-- other free Rotling. Tries the spot itself, then steps along the
+-- belt in both directions, then any clear spot on the belt.
+local function findNearPosition(near: Vector3): Vector3
+	local others = freePositions()
+	local function clear(spot: Vector3): boolean
+		for _, pos in ipairs(others) do
+			local flat = Vector3.new(spot.X - pos.X, 0, spot.Z - pos.Z)
+			if flat.Magnitude < Config.CRATER_MIN_SPACING then
+				return false
+			end
+		end
+		return true
+	end
+	local z = math.clamp(near.Z, -Config.BELT_SPAWN_Z, Config.BELT_SPAWN_Z)
+	for _, dx in ipairs({ 0, 9, -9, 18, -18 }) do
+		local x = math.clamp(near.X + dx, -Config.BELT_HALF_LENGTH, Config.BELT_HALF_LENGTH)
+		local spot = Vector3.new(x, Config.BELT_TOP_Y - 0.1, z)
+		if clear(spot) then
+			return spot
+		end
+	end
+	return findSpawnPosition()
+end
+
 -- Spawn a RARE Rotling at an exact spot (a meteor impact point) and
 -- leave it grabbable for STORM_RARE_LIFETIME seconds. If nobody grabs
 -- it in that time it fades back into the crater (destroyed). Used by
@@ -327,7 +372,12 @@ function SpawnService.spawnRareAt(position: Vector3): Model?
 	-- point sits at CRATER_FLOOR_Y (0.4), 0.25 under the belt, so a rare
 	-- built there would spawn sunk. BELT_TOP_Y - 0.1 puts its body
 	-- bottom exactly on the belt (build adds +0.1).
-	local buildPos = Vector3.new(position.X, Config.BELT_TOP_Y - 0.1, position.Z)
+	-- Seat it on the belt top NEAR the impact point, spaced from the
+	-- other free Rotlings: the old code built it exactly at the
+	-- impact point, so a storm that targeted near the player left
+	-- several rares piled on top of each other (and on the free
+	-- ones already riding the belt).
+	local buildPos = findNearPosition(position)
 	local built = RotlingFactory.build(def.id, mutation, buildPos, 1.5)
 	if not built then
 		return nil

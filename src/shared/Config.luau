@@ -158,7 +158,7 @@ Config.TAG_PLACED_MIN_DISTANCE = 12 -- a PLACED tag hides closer than 12 studs (
 Config.TAG_MAX_SHOWN = 3 -- at most the 3 nearest tags at once
 Config.TAG_PHOTO_MAX_DISTANCE = 40 -- in photo mode, show every tag within 40 studs
 Config.TAG_PHOTO_MAX_SHOWN = 99 -- in photo mode, show all of them (the shots need every label)
-Config.CRATER_MIN_SPACING = 6 -- crater Rotlings at least 6 studs apart
+Config.CRATER_MIN_SPACING = 9 -- crater Rotlings at least 9 studs apart (was 6: a 1.5x Brainrot is ~5-6 studs wide with a 200px tag, so 6-stud roots still overlapped bodies and stacked tags)
 
 -- Conveyor belt: a flat dark strip across the crater diameter (along X,
 -- the spawn-to-crater axis). Rotlings spawn ON it in a line, so the
